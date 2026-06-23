@@ -12,7 +12,7 @@ function adminApp(): App {
   const existing = getApps();
   if (existing.length) return existing[0];
   const projectId =
-    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || "o-cartel";
+    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || "ocartel-497f8";
   return initializeApp({ projectId });
 }
 
