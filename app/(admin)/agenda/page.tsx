@@ -115,7 +115,15 @@ export default function AgendaPage() {
   const [novoOpen, setNovoOpen] = useState(false);
   const [novoDefaults, setNovoDefaults] = useState<NovoAgendamentoDefaults>({});
 
-  const colunas = selectAgendaPorBarbeiro(state, dateISO);
+  // Visão barbeiro: restringe a agenda a um único barbeiro (fallback: o 1º).
+  const visaoBarbeiro = state.ui.visao === "barbeiro";
+  const barbId = visaoBarbeiro
+    ? (state.barbeiros.some((b) => b.id === state.ui.barbeiroVisaoId) ? state.ui.barbeiroVisaoId : state.barbeiros[0]?.id ?? null)
+    : null;
+  const barbeiroVisaoNome = barbId ? state.barbeiros.find((b) => b.id === barbId)?.nome ?? null : null;
+
+  const todasColunas = selectAgendaPorBarbeiro(state, dateISO);
+  const colunas = barbId ? todasColunas.filter((col) => col.barbeiro.id === barbId) : todasColunas;
   const ehHoje = dateISO === HOJE_ISO;
   const nowTop = minutosDesde9(AGORA_HHMM) * PX_PER_MIN;
 
@@ -154,6 +162,11 @@ export default function AgendaPage() {
             Hoje
           </button>
         </div>
+        {visaoBarbeiro && barbeiroVisaoNome ? (
+          <span style={{ fontSize: 12, fontWeight: 700, color: c.brassDeep, background: c.brassSoft, borderRadius: 999, padding: "6px 12px" }}>
+            Agenda de {barbeiroVisaoNome}
+          </span>
+        ) : null}
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", background: "#EFE6D7", borderRadius: 9, padding: 3 }}>
           {([
@@ -204,7 +217,7 @@ export default function AgendaPage() {
       {/* Calendário */}
       <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 14, overflow: "auto", flex: 1, boxShadow: shadow.card }}>
         {view === "dia" ? (
-          <div style={{ display: "grid", gridTemplateColumns: "64px repeat(3,1fr)", minWidth: 740 }}>
+          <div style={{ display: "grid", gridTemplateColumns: `64px repeat(${colunas.length},1fr)`, minWidth: 740 }}>
             {/* header row */}
             <div style={{ height: 58, borderBottom: `1px solid ${c.border}`, borderRight: `1px solid ${c.borderSoft}` }} />
             {colunas.map(({ barbeiro }, i) => (
@@ -258,9 +271,9 @@ export default function AgendaPage() {
             ))}
           </div>
         ) : view === "semana" ? (
-          <SemanaView dateISO={dateISO} state={state} onSelect={setAgSel} />
+          <SemanaView dateISO={dateISO} state={state} onSelect={setAgSel} barbeiroId={barbId} />
         ) : (
-          <MesView dateISO={dateISO} state={state} onPick={(iso) => { setDateISO(iso); setView("dia"); }} />
+          <MesView dateISO={dateISO} state={state} onPick={(iso) => { setDateISO(iso); setView("dia"); }} barbeiroId={barbId} />
         )}
       </div>
 
@@ -272,13 +285,13 @@ export default function AgendaPage() {
 }
 
 // ---- Semana: 7 colunas, chips por horário (todos os barbeiros) ----
-function SemanaView({ dateISO, state, onSelect }: { dateISO: string; state: ReturnType<typeof useStore>["state"]; onSelect: (id: string) => void }) {
+function SemanaView({ dateISO, state, onSelect, barbeiroId }: { dateISO: string; state: ReturnType<typeof useStore>["state"]; onSelect: (id: string) => void; barbeiroId: string | null }) {
   const dias = diasDaSemana(dateISO);
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", minWidth: 820 }}>
       {dias.map((iso, i) => {
         const ags = state.agendamentos
-          .filter((a) => a.date === iso)
+          .filter((a) => a.date === iso && (!barbeiroId || a.barbeiroId === barbeiroId))
           .sort((a, b) => a.inicio.localeCompare(b.inicio));
         return (
           <div key={iso} style={{ borderLeft: i === 0 ? "none" : `1px solid ${c.borderSoft}`, minHeight: 520 }}>
@@ -311,7 +324,7 @@ function SemanaView({ dateISO, state, onSelect }: { dateISO: string; state: Retu
 }
 
 // ---- Mês: grade 6×7 com contagem por dia ----
-function MesView({ dateISO, state, onPick }: { dateISO: string; state: ReturnType<typeof useStore>["state"]; onPick: (iso: string) => void }) {
+function MesView({ dateISO, state, onPick, barbeiroId }: { dateISO: string; state: ReturnType<typeof useStore>["state"]; onPick: (iso: string) => void; barbeiroId: string | null }) {
   const celulas = diasDoMes(dateISO);
   return (
     <div style={{ minWidth: 740 }}>
@@ -322,7 +335,7 @@ function MesView({ dateISO, state, onPick }: { dateISO: string; state: ReturnTyp
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
         {celulas.map((cel) => {
-          const total = state.agendamentos.filter((a) => a.date === cel.iso && a.status !== "bloqueio").length;
+          const total = state.agendamentos.filter((a) => a.date === cel.iso && a.status !== "bloqueio" && (!barbeiroId || a.barbeiroId === barbeiroId)).length;
           const isHoje = cel.iso === HOJE_ISO;
           return (
             <button

@@ -21,19 +21,17 @@ const STATUS_LABEL: Record<AgendamentoStatus, string> = {
 };
 
 export function AgendamentoModal({ open, onClose, agendamentoId }: { open: boolean; onClose: () => void; agendamentoId: string | null }) {
-  const { state, dispatch } = useStore();
+  const { state, actions } = useStore();
   const toast = useToast();
 
   const ag = state.agendamentos.find((a) => a.id === agendamentoId) ?? null;
   if (!open || !ag) return null;
 
-  function setStatus(status: AgendamentoStatus, msg: string) {
+  async function setStatus(status: AgendamentoStatus, msg: string) {
     if (!ag) return;
-    dispatch({ type: "SET_AGENDAMENTO_STATUS", id: ag.id, status });
-    if (status === "concluido") {
-      dispatch({
-        type: "ADD_TRANSACAO",
-        transacao: {
+    try {
+      if (status === "concluido") {
+        await actions.agendamentos.concluir(ag.id, {
           id: makeId("tx"),
           data: isoParaDiaMes(ag.date),
           clienteNome: ag.clienteNome,
@@ -42,18 +40,26 @@ export function AgendamentoModal({ open, onClose, agendamentoId }: { open: boole
           valor: precoServico(state, ag.servico),
           status: "pago",
           forma: "pix",
-        },
-      });
+        });
+      } else {
+        await actions.agendamentos.setStatus(ag.id, status);
+      }
+      toast(msg);
+      onClose();
+    } catch {
+      toast("Não foi possível atualizar o agendamento.", "error");
     }
-    toast(msg);
-    onClose();
   }
 
-  function excluir() {
+  async function excluir() {
     if (!ag) return;
-    dispatch({ type: "REMOVE_AGENDAMENTO", id: ag.id });
-    toast("Bloqueio removido.");
-    onClose();
+    try {
+      await actions.agendamentos.remove(ag.id);
+      toast("Bloqueio removido.");
+      onClose();
+    } catch {
+      toast("Não foi possível remover o bloqueio.", "error");
+    }
   }
 
   const isBloqueio = ag.status === "bloqueio";

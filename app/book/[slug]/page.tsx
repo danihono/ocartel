@@ -1,55 +1,106 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { c, font, shadow } from "@/lib/theme";
 import { Seal } from "@/components/ui/Seal";
 import { fieldInput, fieldLabel } from "@/components/ui/Field";
-import { useStore, makeId } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
-import { barbeiroIdPorNome, duracaoServico } from "@/lib/selectors";
-import { diaSemanaCurtoLabel } from "@/lib/date";
-import { BARBEARIA, bookingBarbeiros, bookingDias, bookingHorarios, bookingServicos } from "@/lib/mock-data";
+import { formatBRL, fmtDur } from "@/lib/selectors";
+import { addDias, diaSemanaCurtoLabel, hojeLocalISO, isoParaDiaMes } from "@/lib/date";
+import { carregarCatalogoPorSlug, type BookingCatalog } from "@/lib/firebase/booking";
+import { criarAgendamentoPublico } from "./actions";
 
 const sectionTitle: React.CSSProperties = { fontFamily: font.serif, fontSize: 16, fontWeight: 600, color: "#241B12", margin: "20px 0 10px" };
 
 type Step = "selecao" | "dados" | "sucesso";
 
+function gerarHorarios(abre: string, fecha: string): string[] {
+  const min = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
+  const ini = min(abre);
+  const fim = min(fecha);
+  const out: string[] = [];
+  for (let t = ini; t < fim; t += 30) {
+    out.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
+  }
+  return out;
+}
+
 export default function BookingPage() {
-  const { state, dispatch } = useStore();
+  const params = useParams<{ slug: string }>();
+  const slug = String(params?.slug ?? "");
   const toast = useToast();
 
+  const [catalog, setCatalog] = useState<BookingCatalog | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState(false);
+
   const [step, setStep] = useState<Step>("selecao");
-  const [servico, setServico] = useState("Corte + Barba");
-  const [barbeiro, setBarbeiro] = useState("Everton");
-  const [dia, setDia] = useState("24");
-  const [hora, setHora] = useState("11:00");
+  const [servicoId, setServicoId] = useState("");
+  const [barbeiroId, setBarbeiroId] = useState("");
+  const [dias, setDias] = useState<string[]>([]);
+  const [dia, setDia] = useState("");
+  const [horarios, setHorarios] = useState<string[]>([]);
+  const [hora, setHora] = useState("");
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
+  const [enviando, setEnviando] = useState(false);
 
-  const svc = bookingServicos.find((s) => s.nome === servico);
-  const diaLabel = diaSemanaCurtoLabel(`2026-06-${dia}`);
+  // Carrega o catálogo do tenant (pós-mount, no cliente) — datas/horários reais.
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const cat = await carregarCatalogoPorSlug(slug);
+        if (!vivo) return;
+        if (!cat) {
+          setErro(true);
+          setCarregando(false);
+          return;
+        }
+        const proximosDias = Array.from({ length: 6 }, (_, i) => addDias(hojeLocalISO(), i));
+        const slots = gerarHorarios(cat.abre, cat.fecha);
+        setCatalog(cat);
+        setServicoId(cat.servicos[0]?.id ?? "");
+        setBarbeiroId(cat.barbeiros[0]?.id ?? "");
+        setDias(proximosDias);
+        setDia(proximosDias[0]);
+        setHorarios(slots);
+        setHora(slots[0] ?? "");
+        setCarregando(false);
+      } catch {
+        if (vivo) {
+          setErro(true);
+          setCarregando(false);
+        }
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [slug]);
 
-  function confirmar() {
+  const svc = catalog?.servicos.find((s) => s.id === servicoId) ?? null;
+  const barb = catalog?.barbeiros.find((b) => b.id === barbeiroId) ?? null;
+  const quando = dia ? `${isoParaDiaMes(dia)} · ${hora}` : "";
+
+  async function confirmar() {
     if (!nome.trim()) {
       toast("Informe seu nome.", "error");
       return;
     }
-    dispatch({
-      type: "ADD_AGENDAMENTO",
-      agendamento: {
-        id: makeId("ag"),
-        date: `2026-06-${dia}`,
-        barbeiroId: barbeiroIdPorNome(state, barbeiro),
-        clienteNome: nome.trim(),
-        servico,
-        servicoId: state.servicos.find((s) => s.nome === servico)?.id,
-        inicio: hora,
-        duracaoMin: duracaoServico(state, servico),
-        status: "agendado",
-        origem: "booking",
-      },
+    setEnviando(true);
+    const res = await criarAgendamentoPublico(slug, {
+      barbeiroId,
+      servicoId,
+      date: dia,
+      inicio: hora,
+      clienteNome: nome.trim(),
+      clienteTelefone: telefone.trim(),
     });
-    setStep("sucesso");
+    setEnviando(false);
+    if (res.ok) setStep("sucesso");
+    else toast(res.error ?? "Não foi possível agendar.", "error");
   }
 
   function reset() {
@@ -77,25 +128,32 @@ export default function BookingPage() {
             <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
               <Seal size={42} />
               <div>
-                <div style={{ fontFamily: font.cinzel, fontWeight: 600, fontSize: 15, letterSpacing: 1.5, color: "#F2E6D2" }}>{state.config.nome.toUpperCase()}</div>
-                <div style={{ fontSize: 11, color: c.darkMuted, marginTop: 2 }}>{BARBEARIA.endereco}</div>
+                <div style={{ fontFamily: font.cinzel, fontWeight: 600, fontSize: 15, letterSpacing: 1.5, color: "#F2E6D2" }}>{(catalog?.nome ?? "Barbearia").toUpperCase()}</div>
+                <div style={{ fontSize: 11, color: c.darkMuted, marginTop: 2 }}>{catalog?.endereco ?? ""}</div>
               </div>
             </div>
           </div>
 
-          {step === "sucesso" ? (
+          {carregando ? (
+            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: c.ink3, fontSize: 13 }}>Carregando…</div>
+          ) : erro || !catalog ? (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 26px", textAlign: "center" }}>
+              <div style={{ fontFamily: font.serif, fontSize: 20, fontWeight: 600, color: "#241B12" }}>Barbearia não encontrada</div>
+              <p style={{ fontSize: 13.5, color: c.ink2, marginTop: 8, lineHeight: 1.5 }}>Confira o link de agendamento com a barbearia.</p>
+            </div>
+          ) : step === "sucesso" ? (
             /* Sucesso */
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px 26px", textAlign: "center" }}>
               <div style={{ width: 66, height: 66, borderRadius: "50%", background: c.brass, color: c.espressoDeep, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, fontWeight: 800 }}>✓</div>
               <div style={{ fontFamily: font.serif, fontSize: 23, fontWeight: 600, color: "#241B12", marginTop: 18 }}>Agendamento confirmado</div>
               <p style={{ fontSize: 13.5, color: c.ink2, marginTop: 6, lineHeight: 1.5 }}>Enviamos os detalhes por mensagem. Até logo, {nome.split(" ")[0]}!</p>
               <div style={{ width: "100%", background: c.surface, border: `1px solid ${c.border}`, borderRadius: 14, padding: 16, marginTop: 22, textAlign: "left" }}>
-                <Resumo l="Serviço" v={servico} />
-                <Resumo l="Profissional" v={barbeiro} />
-                <Resumo l="Quando" v={`${diaLabel} ${dia} jun · ${hora}`} />
+                <Resumo l="Serviço" v={svc?.nome ?? ""} />
+                <Resumo l="Profissional" v={barb?.nome ?? ""} />
+                <Resumo l="Quando" v={quando} />
                 <div style={{ display: "flex", alignItems: "center", marginTop: 10, paddingTop: 12, borderTop: `1px solid ${c.borderSoft}` }}>
                   <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "#3E2C20" }}>Total</span>
-                  <span style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: "#221A13" }}>{svc?.preco}</span>
+                  <span style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: "#221A13" }}>{svc ? formatBRL(svc.preco) : ""}</span>
                 </div>
               </div>
               <button onClick={reset} style={{ marginTop: 20, width: "100%", border: "none", cursor: "pointer", background: "#241711", color: "#F4EAD8", padding: 14, borderRadius: 12, fontSize: 14.5, fontWeight: 700 }}>Fazer novo agendamento</button>
@@ -113,19 +171,19 @@ export default function BookingPage() {
                     {/* Serviço */}
                     <div style={{ ...sectionTitle, marginTop: 0 }}>Serviço</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {bookingServicos.map((s) => {
-                        const on = s.nome === servico;
+                      {catalog.servicos.map((s) => {
+                        const on = s.id === servicoId;
                         return (
                           <button
-                            key={s.nome}
-                            onClick={() => setServico(s.nome)}
+                            key={s.id}
+                            onClick={() => setServicoId(s.id)}
                             style={{ display: "flex", alignItems: "center", gap: 10, background: on ? c.brassTint : c.surface, border: `1.5px solid ${on ? c.brass : "#E6DCCB"}`, borderRadius: 12, padding: "13px 14px", cursor: "pointer", textAlign: "left" }}
                           >
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: 14, fontWeight: 600, color: "#241B12" }}>{s.nome}</div>
-                              <div style={{ fontSize: 11.5, color: c.ink2, marginTop: 1 }}>{s.dur}</div>
+                              <div style={{ fontSize: 11.5, color: c.ink2, marginTop: 1 }}>{fmtDur(s.duracaoMin)}</div>
                             </div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: "#3E2C20" }}>{s.preco}</div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: "#3E2C20" }}>{formatBRL(s.preco)}</div>
                             <div style={{ width: 20, height: 20, borderRadius: "50%", background: c.brass, color: c.espressoDeep, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, opacity: on ? 1 : 0 }}>✓</div>
                           </button>
                         );
@@ -134,18 +192,20 @@ export default function BookingPage() {
 
                     {/* Profissional */}
                     <div style={sectionTitle}>Profissional</div>
-                    <div style={{ display: "flex", gap: 9 }}>
-                      {bookingBarbeiros.map((b) => {
-                        const on = b.nome === barbeiro;
+                    <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
+                      {catalog.barbeiros.map((b) => {
+                        const on = b.id === barbeiroId;
                         return (
                           <button
-                            key={b.nome}
-                            onClick={() => setBarbeiro(b.nome)}
-                            style={{ flex: 1, background: on ? c.brassTint : c.surface, border: `1.5px solid ${on ? c.brass : "#E6DCCB"}`, borderRadius: 12, padding: "13px 8px", textAlign: "center", cursor: "pointer" }}
+                            key={b.id}
+                            onClick={() => setBarbeiroId(b.id)}
+                            style={{ flex: "1 1 30%", minWidth: 88, background: on ? c.brassTint : c.surface, border: `1.5px solid ${on ? c.brass : "#E6DCCB"}`, borderRadius: 12, padding: "13px 8px", textAlign: "center", cursor: "pointer" }}
                           >
                             <div style={{ width: 38, height: 38, borderRadius: "50%", background: c.leather, color: "#E8DAC0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, margin: "0 auto 7px" }}>{b.iniciais}</div>
                             <div style={{ fontSize: 12.5, fontWeight: 600, color: "#241B12" }}>{b.nome}</div>
-                            <div style={{ fontSize: 10.5, color: c.ink2, marginTop: 1 }}>★ {b.rating} · {b.especialidade}</div>
+                            {b.rating || b.especialidade ? (
+                              <div style={{ fontSize: 10.5, color: c.ink2, marginTop: 1 }}>{b.rating ? `★ ${b.rating}` : ""}{b.rating && b.especialidade ? " · " : ""}{b.especialidade ?? ""}</div>
+                            ) : null}
                           </button>
                         );
                       })}
@@ -154,16 +214,16 @@ export default function BookingPage() {
                     {/* Data */}
                     <div style={sectionTitle}>Data</div>
                     <div style={{ display: "flex", gap: 7 }}>
-                      {bookingDias.map((d) => {
-                        const on = d.num === dia;
+                      {dias.map((d) => {
+                        const on = d === dia;
                         return (
                           <button
-                            key={d.num}
-                            onClick={() => setDia(d.num)}
+                            key={d}
+                            onClick={() => setDia(d)}
                             style={{ flex: 1, background: on ? c.brass : c.surface, border: `1.5px solid ${on ? c.brass : "#E6DCCB"}`, borderRadius: 11, padding: "9px 4px", textAlign: "center", cursor: "pointer" }}
                           >
-                            <div style={{ fontSize: 10.5, fontWeight: 600, color: on ? "#5a4a2a" : c.ink3 }}>{diaSemanaCurtoLabel(`2026-06-${d.num}`)}</div>
-                            <div style={{ fontSize: 15, fontWeight: 700, color: on ? c.espressoDeep : "#3E2C20", marginTop: 2, fontFamily: font.serif }}>{d.num}</div>
+                            <div style={{ fontSize: 10.5, fontWeight: 600, color: on ? "#5a4a2a" : c.ink3 }}>{diaSemanaCurtoLabel(d)}</div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: on ? c.espressoDeep : "#3E2C20", marginTop: 2, fontFamily: font.serif }}>{Number(d.slice(8, 10))}</div>
                           </button>
                         );
                       })}
@@ -172,27 +232,25 @@ export default function BookingPage() {
                     {/* Horário */}
                     <div style={sectionTitle}>Horário</div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
-                      {bookingHorarios.map((t) => {
-                        const ocupado = t.estado === "ocupado";
-                        const on = t.hora === hora && !ocupado;
+                      {horarios.map((h) => {
+                        const on = h === hora;
                         return (
                           <button
-                            key={t.hora}
-                            disabled={ocupado}
-                            onClick={() => setHora(t.hora)}
+                            key={h}
+                            onClick={() => setHora(h)}
                             style={{
-                              background: on ? c.brass : ocupado ? "#EFE7D9" : c.surface,
+                              background: on ? c.brass : c.surface,
                               border: `1.5px solid ${on ? c.brass : "#E6DCCB"}`,
                               borderRadius: 10,
                               padding: "11px 4px",
                               textAlign: "center",
                               fontSize: 13,
                               fontWeight: on ? 700 : 500,
-                              color: on ? c.espressoDeep : ocupado ? "#C2B6A2" : "#3E2C20",
-                              cursor: ocupado ? "not-allowed" : "pointer",
+                              color: on ? c.espressoDeep : "#3E2C20",
+                              cursor: "pointer",
                             }}
                           >
-                            {t.hora}
+                            {h}
                           </button>
                         );
                       })}
@@ -211,9 +269,9 @@ export default function BookingPage() {
                       <input style={fieldInput} value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(11) 90000-0000" />
                     </div>
                     <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 12, padding: 14 }}>
-                      <Resumo l="Serviço" v={servico} />
-                      <Resumo l="Profissional" v={barbeiro} />
-                      <Resumo l="Quando" v={`${diaLabel} ${dia} jun · ${hora}`} />
+                      <Resumo l="Serviço" v={svc?.nome ?? ""} />
+                      <Resumo l="Profissional" v={barb?.nome ?? ""} />
+                      <Resumo l="Quando" v={quando} />
                     </div>
                   </>
                 )}
@@ -222,13 +280,13 @@ export default function BookingPage() {
               {/* footer */}
               <div style={{ flex: "none", background: c.surface, borderTop: `1px solid ${c.border}`, padding: "14px 20px 22px", display: "flex", alignItems: "center", gap: 14 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 11, color: c.ink3, fontWeight: 600 }}>{servico} · {diaLabel} {dia}, {hora}</div>
-                  <div style={{ fontFamily: font.serif, fontSize: 20, fontWeight: 600, color: "#221A13" }}>{svc?.preco}</div>
+                  <div style={{ fontSize: 11, color: c.ink3, fontWeight: 600 }}>{svc?.nome ?? ""} · {quando}</div>
+                  <div style={{ fontFamily: font.serif, fontSize: 20, fontWeight: 600, color: "#221A13" }}>{svc ? formatBRL(svc.preco) : ""}</div>
                 </div>
                 {step === "selecao" ? (
                   <button onClick={() => setStep("dados")} style={{ border: "none", cursor: "pointer", background: "#241711", color: "#F4EAD8", padding: "14px 22px", borderRadius: 12, fontSize: 14.5, fontWeight: 700 }}>Continuar</button>
                 ) : (
-                  <button onClick={confirmar} style={{ border: "none", cursor: "pointer", background: "#241711", color: "#F4EAD8", padding: "14px 22px", borderRadius: 12, fontSize: 14.5, fontWeight: 700 }}>Confirmar</button>
+                  <button onClick={confirmar} disabled={enviando} style={{ border: "none", cursor: enviando ? "default" : "pointer", opacity: enviando ? 0.7 : 1, background: "#241711", color: "#F4EAD8", padding: "14px 22px", borderRadius: 12, fontSize: 14.5, fontWeight: 700 }}>{enviando ? "Enviando…" : "Confirmar"}</button>
                 )}
               </div>
             </>

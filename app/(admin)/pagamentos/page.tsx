@@ -22,7 +22,7 @@ const statusMeta: Record<TransacaoStatus, { label: string; fg: string; bg: strin
 const COLS = "0.7fr 1.5fr 1.2fr 1fr 0.8fr 0.9fr 1.1fr";
 
 export default function PagamentosPage() {
-  const { state, dispatch } = useStore();
+  const { state, actions } = useStore();
   const toast = useToast();
   const [filtro, setFiltro] = useState<FiltroTransacao>("Todas");
   const [busca, setBusca] = useState("");
@@ -103,7 +103,7 @@ export default function PagamentosPage() {
               <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 12.5, color: c.ink2 }}>{formaLabel[t.forma]}</span>
                 {t.status !== "pago" ? (
-                  <button onClick={() => { dispatch({ type: "MARK_TRANSACAO_PAGA", id: t.id }); toast("Pagamento confirmado."); }} style={{ marginLeft: "auto", border: `1px solid ${c.borderInput}`, background: c.surface, cursor: "pointer", color: c.green, fontSize: 11.5, fontWeight: 700, borderRadius: 8, padding: "5px 10px", whiteSpace: "nowrap" }}>
+                  <button onClick={() => { void actions.transacoes.marcarPaga(t.id).then(() => toast("Pagamento confirmado.")).catch(() => toast("Não foi possível confirmar.", "error")); }} style={{ marginLeft: "auto", border: `1px solid ${c.borderInput}`, background: c.surface, cursor: "pointer", color: c.green, fontSize: 11.5, fontWeight: 700, borderRadius: 8, padding: "5px 10px", whiteSpace: "nowrap" }}>
                     Marcar pago
                   </button>
                 ) : null}
@@ -120,7 +120,7 @@ export default function PagamentosPage() {
 }
 
 function LancarModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { state, dispatch } = useStore();
+  const { state, actions } = useStore();
   const toast = useToast();
   const [cliente, setCliente] = useState("");
   const [servico, setServico] = useState("");
@@ -140,17 +140,18 @@ function LancarModal({ open, onClose }: { open: boolean; onClose: () => void }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  function salvar() {
+  async function salvar() {
     if (!cliente.trim()) {
       toast("Informe o cliente.", "error");
       return;
     }
-    dispatch({
-      type: "ADD_TRANSACAO",
-      transacao: { id: makeId("tx"), data: isoParaDiaMes(HOJE_ISO), clienteNome: cliente.trim(), servico, barbeiroNome: barbeiro, valor, status, forma },
-    });
-    toast("Pagamento lançado.");
-    onClose();
+    try {
+      await actions.transacoes.add({ id: makeId("tx"), data: isoParaDiaMes(HOJE_ISO), clienteNome: cliente.trim(), servico, barbeiroNome: barbeiro, valor, status, forma });
+      toast("Pagamento lançado.");
+      onClose();
+    } catch {
+      toast("Não foi possível lançar o pagamento.", "error");
+    }
   }
 
   return (

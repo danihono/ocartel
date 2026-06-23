@@ -1,0 +1,69 @@
+rules_version = '2';
+
+// Modelo multi-tenant: cada usuário tem um doc users/{uid} com { role, tenantId }.
+// O acesso a tenants/{t}/** é liberado quando o tenantId do usuário casa com {t}
+// (ou quando o papel é superAdmin). As escritas de booking público NÃO passam por
+// aqui — elas entram pela server action (Admin SDK), que ignora estas regras.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function uDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function isSuper() {
+      return signedIn() && uDoc().role == 'superAdmin';
+    }
+    function owns(tenantId) {
+      return signedIn() && uDoc().tenantId == tenantId;
+    }
+    function canManage(tenantId) {
+      return owns(tenantId) || isSuper();
+    }
+
+    // Perfil do usuário. Auto-cadastro só pode criar a si mesmo como 'admin'.
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isSuper());
+      allow create: if request.auth.uid == uid
+        && request.resource.data.role == 'admin'
+        && request.resource.data.keys().hasAll(['role', 'tenantId', 'nome', 'email']);
+      allow update: if isSuper()
+        || (request.auth.uid == uid
+            && request.resource.data.role == resource.data.role
+            && request.resource.data.tenantId == resource.data.tenantId);
+      allow delete: if isSuper();
+    }
+
+    // Reserva de slug público (slug -> tenantId) para a página /book/[slug].
+    match /slugs/{slug} {
+      allow read: if true;
+      allow create: if signedIn();
+      allow update, delete: if isSuper();
+    }
+
+    match /tenants/{tenantId} {
+      // Doc público (nome, slug, endereco, plano) — NÃO guardar segredos aqui.
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if canManage(tenantId);
+
+      // Dados sensíveis (billing) ficam isolados e nunca são públicos.
+      match /private/{doc} {
+        allow read, write: if canManage(tenantId);
+      }
+
+      // Catálogo de leitura pública (a vitrine de /book/[slug]).
+      match /servicos/{id}    { allow read: if true; allow write: if canManage(tenantId); }
+      match /barbeiros/{id}   { allow read: if true; allow write: if canManage(tenantId); }
+      match /config/{id}      { allow read: if true; allow write: if canManage(tenantId); }
+      match /planosTiers/{id} { allow read: if true; allow write: if canManage(tenantId); }
+
+      // Dados privados do tenant.
+      match /clientes/{id}    { allow read, write: if canManage(tenantId); }
+      match /transacoes/{id}  { allow read, write: if canManage(tenantId); }
+      match /agendamentos/{id} { allow read, write: if canManage(tenantId); }
+    }
+  }
+}

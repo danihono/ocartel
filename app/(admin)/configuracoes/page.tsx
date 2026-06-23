@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { c, font } from "@/lib/theme";
+import { c } from "@/lib/theme";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Field, Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { useStore, makeId } from "@/lib/store";
+import { signOutApp } from "@/lib/firebase/auth";
 import { useToast } from "@/components/ui/Toast";
-import { slug } from "@/lib/selectors";
 import type { Barbeiro } from "@/lib/types";
 
 const DIAS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
@@ -21,7 +21,7 @@ function iniciaisDe(nome: string): string {
 }
 
 export default function ConfiguracoesPage() {
-  const { state, dispatch } = useStore();
+  const { state, actions } = useStore();
   const toast = useToast();
   const router = useRouter();
 
@@ -45,9 +45,13 @@ export default function ConfiguracoesPage() {
     setDiasAtivos(state.config.horario.diasAtivos);
   }, [state.config]);
 
-  function salvarConfig() {
-    dispatch({ type: "UPDATE_CONFIG", patch: { nome, endereco, telefone, horario: { abre, fecha, diasAtivos } } });
-    toast("Configurações salvas.");
+  async function salvarConfig() {
+    try {
+      await actions.config.update({ nome, endereco, telefone, horario: { abre, fecha, diasAtivos } });
+      toast("Configurações salvas.");
+    } catch {
+      toast("Não foi possível salvar.", "error");
+    }
   }
 
   function toggleDia(i: number) {
@@ -55,34 +59,30 @@ export default function ConfiguracoesPage() {
   }
 
   function setBarb(b: Barbeiro, patch: Partial<Barbeiro>) {
-    dispatch({ type: "UPDATE_BARBEIRO", barbeiro: { ...b, ...patch } });
+    void actions.barbeiros.update({ ...b, ...patch }).catch(() => toast("Não foi possível salvar.", "error"));
   }
 
-  function adicionarBarbeiro() {
+  async function adicionarBarbeiro() {
     if (!novoBarbeiro.trim()) {
       toast("Informe o nome do barbeiro.", "error");
       return;
     }
-    dispatch({
-      type: "ADD_BARBEIRO",
-      barbeiro: {
-        id: slug(novoBarbeiro) || makeId("b"),
+    try {
+      await actions.barbeiros.add({
+        id: makeId("b"),
         nome: novoBarbeiro.trim(),
         iniciais: iniciaisDe(novoBarbeiro),
         cor: PALETA[state.barbeiros.length % PALETA.length],
-      },
-    });
-    toast("Barbeiro adicionado.");
-    setNovoBarbeiro("");
+      });
+      toast("Barbeiro adicionado.");
+      setNovoBarbeiro("");
+    } catch {
+      toast("Não foi possível adicionar o barbeiro.", "error");
+    }
   }
 
-  function restaurar() {
-    dispatch({ type: "RESET" });
-    toast("Dados de demonstração restaurados.");
-  }
-
-  function sair() {
-    dispatch({ type: "LOGOUT" });
+  async function sair() {
+    await signOutApp();
     toast("Sessão encerrada.");
     router.push("/login");
   }
@@ -153,7 +153,7 @@ export default function ConfiguracoesPage() {
               <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 11 }}>
                 <div style={{ width: 36, height: 36, borderRadius: "50%", background: b.cor, color: "#E8DAC0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flex: "none" }}>{b.iniciais}</div>
                 <TextInput value={b.nome} onChange={(e) => setBarb(b, { nome: e.target.value, iniciais: iniciaisDe(e.target.value) })} />
-                <button onClick={() => { dispatch({ type: "REMOVE_BARBEIRO", id: b.id }); toast("Barbeiro removido."); }} aria-label="Remover" style={{ flex: "none", border: `1px solid ${c.borderInput}`, background: c.surface, borderRadius: 9, width: 38, height: 38, cursor: "pointer", color: c.red, fontSize: 15 }}>
+                <button onClick={() => { void actions.barbeiros.remove(b.id).then(() => toast("Barbeiro removido.")).catch(() => toast("Não foi possível remover.", "error")); }} aria-label="Remover" style={{ flex: "none", border: `1px solid ${c.borderInput}`, background: c.surface, borderRadius: 9, width: 38, height: 38, cursor: "pointer", color: c.red, fontSize: 15 }}>
                   ✕
                 </button>
               </div>
@@ -179,16 +179,6 @@ export default function ConfiguracoesPage() {
           </div>
           <button onClick={sair} style={{ width: "100%", marginTop: 18, border: `1px solid ${c.borderInput}`, background: c.surface, color: c.red, cursor: "pointer", padding: 12, borderRadius: 11, fontSize: 14, fontWeight: 600 }}>
             Sair da conta
-          </button>
-        </Card>
-
-        <Card>
-          <CardTitle sub="Apaga tudo o que você criou e volta aos dados de exemplo">Demonstração</CardTitle>
-          <div style={{ fontFamily: font.sans, fontSize: 13, color: c.ink2, lineHeight: 1.5, marginTop: 10 }}>
-            Como ainda não há banco de dados, suas alterações ficam salvas só neste navegador.
-          </div>
-          <button onClick={restaurar} style={{ width: "100%", marginTop: 16, border: "none", background: "#241711", color: "#F4EAD8", cursor: "pointer", padding: 12, borderRadius: 11, fontSize: 14, fontWeight: 700 }}>
-            Restaurar dados de demonstração
           </button>
         </Card>
       </div>

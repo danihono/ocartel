@@ -1,0 +1,49 @@
+# Firebase App Hosting — backend de produção do Next.js (SSR).
+# Docs: https://firebase.google.com/docs/app-hosting/configure
+#
+# IMPORTANTE: as variáveis NEXT_PUBLIC_* são embutidas no bundle do cliente em
+# tempo de BUILD. Por isso precisam de `availability: [BUILD, RUNTIME]`. Sem o
+# BUILD, o JS do cliente sai com `undefined` e o init do Firebase quebra em prod.
+#
+# As chaves do app Web do Firebase NÃO são segredas (vão pro cliente de qualquer
+# forma), então ficam como `value`. Troque os placeholders pelos valores reais do
+# seu projeto (Firebase Console → Configurações do projeto → Seus apps → Web).
+#
+# O Admin SDK (server action de booking) usa as credenciais padrão do ambiente
+# (ADC) do backend do App Hosting — não precisa de service account em produção.
+
+runConfig:
+  minInstances: 0
+  maxInstances: 2
+
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: COLOQUE_SUA_API_KEY
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: o-cartel.firebaseapp.com
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: o-cartel
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: o-cartel.appspot.com
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: COLOQUE_SEU_SENDER_ID
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: COLOQUE_SEU_APP_ID
+    availability:
+      - BUILD
+      - RUNTIME

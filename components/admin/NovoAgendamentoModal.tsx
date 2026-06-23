@@ -26,7 +26,7 @@ export function NovoAgendamentoModal({
   onClose: () => void;
   defaults?: NovoAgendamentoDefaults;
 }) {
-  const { state, dispatch } = useStore();
+  const { state, actions } = useStore();
   const toast = useToast();
 
   const [cliente, setCliente] = useState("");
@@ -45,15 +45,14 @@ export function NovoAgendamentoModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  function salvar() {
+  async function salvar() {
     if (!cliente.trim()) {
       toast("Informe o nome do cliente.", "error");
       return;
     }
     const svc = state.servicos.find((s) => s.nome === servico);
-    dispatch({
-      type: "ADD_AGENDAMENTO",
-      agendamento: {
+    try {
+      await actions.agendamentos.add({
         id: makeId("ag"),
         date,
         barbeiroId,
@@ -64,10 +63,12 @@ export function NovoAgendamentoModal({
         duracaoMin: duracaoServico(state, servico),
         status: "agendado",
         origem: "admin",
-      },
-    });
-    toast("Agendamento criado.");
-    onClose();
+      });
+      toast("Agendamento criado.");
+      onClose();
+    } catch {
+      toast("Não foi possível criar o agendamento.", "error");
+    }
   }
 
   return (

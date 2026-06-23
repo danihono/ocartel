@@ -73,6 +73,10 @@ export interface BlocoAgenda {
 }
 
 export interface Tenant {
+  /** Id do doc no Firestore (ausente nos mocks de exemplo). */
+  id?: string;
+  /** Slug público usado em /book/[slug]. */
+  slug?: string;
   nome: string;
   cidade: string;
   monograma: string;

@@ -1,0 +1,11 @@
+rules_version = '2';
+
+// Storage adiado por enquanto: nega tudo. Quando formos implementar uploads
+// (foto de barbeiro, logo da barbearia), trocamos por regras escopadas por tenant.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

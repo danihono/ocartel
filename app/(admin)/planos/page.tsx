@@ -7,36 +7,45 @@ import { MoneyInput, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { useStore, makeId } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
-import { slug } from "@/lib/selectors";
 import type { Servico } from "@/lib/types";
 
 const eyebrow = { fontSize: 11, letterSpacing: 0.7, textTransform: "uppercase" as const, color: c.ink3, fontWeight: 600 };
 
 export default function PlanosPage() {
-  const { state, dispatch } = useStore();
+  const { state, actions } = useStore();
   const toast = useToast();
 
   const [novoNome, setNovoNome] = useState("");
   const [novoDur, setNovoDur] = useState(40);
   const [novoPreco, setNovoPreco] = useState(75);
 
-  const setServ = (s: Servico, patch: Partial<Servico>) => dispatch({ type: "UPDATE_SERVICO", servico: { ...s, ...patch } });
+  const setServ = (s: Servico, patch: Partial<Servico>) => {
+    void actions.servicos.update({ ...s, ...patch }).catch(() => toast("Não foi possível salvar.", "error"));
+  };
 
-  function adicionar() {
+  async function adicionar() {
     if (!novoNome.trim()) {
       toast("Informe o nome do serviço.", "error");
       return;
     }
-    dispatch({ type: "ADD_SERVICO", servico: { id: slug(novoNome) || makeId("s"), nome: novoNome.trim(), duracaoMin: novoDur, preco: novoPreco } });
-    toast("Serviço adicionado.");
-    setNovoNome("");
-    setNovoDur(40);
-    setNovoPreco(75);
+    try {
+      await actions.servicos.add({ id: makeId("s"), nome: novoNome.trim(), duracaoMin: novoDur, preco: novoPreco });
+      toast("Serviço adicionado.");
+      setNovoNome("");
+      setNovoDur(40);
+      setNovoPreco(75);
+    } catch {
+      toast("Não foi possível adicionar o serviço.", "error");
+    }
   }
 
-  function remover(id: string) {
-    dispatch({ type: "REMOVE_SERVICO", id });
-    toast("Serviço removido.");
+  async function remover(id: string) {
+    try {
+      await actions.servicos.remove(id);
+      toast("Serviço removido.");
+    } catch {
+      toast("Não foi possível remover o serviço.", "error");
+    }
   }
 
   return (
@@ -84,10 +93,10 @@ export default function PlanosPage() {
                 <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
                   <span style={{ fontFamily: font.serif, fontSize: 17, fontWeight: 600, color: "#241B12", flex: 1 }}>{tier.nome}</span>
                   <div style={{ width: 120 }}>
-                    <MoneyInput value={tier.preco} onChange={(n) => dispatch({ type: "UPDATE_PLANO_TIER", tier: { ...tier, preco: n } })} />
+                    <MoneyInput value={tier.preco} onChange={(n) => void actions.planosTiers.update({ ...tier, preco: n })} />
                   </div>
                 </div>
-                <TextInput value={tier.descricao} onChange={(e) => dispatch({ type: "UPDATE_PLANO_TIER", tier: { ...tier, descricao: e.target.value } })} />
+                <TextInput value={tier.descricao} onChange={(e) => void actions.planosTiers.update({ ...tier, descricao: e.target.value })} />
               </div>
             ))}
           </div>

@@ -1,10 +1,15 @@
 "use client";
 
-// Store central no cliente (Context + reducer), alimentado pelos mocks e
-// persistido em localStorage. Desenhado para ser trocado por um banco depois:
-// cada ação equivale a um endpoint e HYDRATE vira o fetch inicial.
+// Store central no cliente (Context + reducer). Agora alimentado pelo Firestore:
+// os dados chegam por listeners em tempo real (onSnapshot) e são despachados via
+// SET_DATA; as escritas vão direto pros repositórios (lib/firebase/repos.ts) e o
+// snapshot reflete de volta. O reducer virou um cache de leitura.
+//
+// `buildSeedState()` continua sendo o estado inicial determinístico (idêntico no
+// servidor e no 1º render do cliente) — as telas com dados ficam atrás do
+// <AuthGuard>, então a semente nunca aparece para o usuário.
 
-import { createContext, useContext, useEffect, useReducer, type Dispatch, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useReducer, type Dispatch, type ReactNode } from "react";
 import {
   BARBEARIA,
   agendaBarbeiros,
@@ -17,6 +22,8 @@ import {
 } from "./mock-data";
 import { HOJE_ISO, isoParaDiaMes } from "./date";
 import { slug } from "./selectors";
+import { useAuth } from "./firebase/auth";
+import * as repo from "./firebase/repos";
 import type {
   Agendamento,
   AgendamentoStatus,
@@ -25,12 +32,11 @@ import type {
   ConfigBarbearia,
   FormaPagamento,
   PlanoTier,
+  Role,
   Servico,
   Tenant,
   Transacao,
 } from "./types";
-
-const STORAGE_KEY = "ocartel:v1";
 
 export interface AppState {
   auth: { logado: boolean; nome: string; barbeariaNome: string };
@@ -42,7 +48,7 @@ export interface AppState {
   config: ConfigBarbearia;
   tenants: Tenant[];
   planosTiers: PlanoTier[];
-  ui: { hidratado: boolean };
+  ui: { hidratado: boolean; visao: Role; barbeiroVisaoId: string | null };
 }
 
 // ---- Semente determinística (idêntica no servidor e no 1º render do cliente) ----
@@ -76,7 +82,6 @@ export function buildSeedState(): AppState {
 
   const hojeLabel = isoParaDiaMes(HOJE_ISO);
   const transacoes: Transacao[] = [
-    // Histórico pago (atribuído ao cliente padrão João Pedro Almeida)
     ...historicoCliente.map((h, i) => ({
       id: `tx-hist-${i}`,
       data: h.data,
@@ -87,7 +92,6 @@ export function buildSeedState(): AppState {
       status: "pago" as const,
       forma: (i % 2 === 0 ? "pix" : "cartao") as FormaPagamento,
     })),
-    // Pendentes derivados dos confirmados de hoje
     ...agendamentos
       .filter((a) => a.status === "confirmado")
       .map((a, i) => ({
@@ -100,7 +104,6 @@ export function buildSeedState(): AppState {
         status: "pendente" as const,
         forma: (["pix", "cartao", "dinheiro"][i % 3]) as FormaPagamento,
       })),
-    // Um atrasado (inadimplente)
     { id: "tx-atr-0", data: "12 abr", clienteNome: "Rafael Lima", servico: "Luzes", barbeiroNome: "Everton", valor: 120, status: "atrasado", forma: "pix" },
   ];
 
@@ -117,7 +120,7 @@ export function buildSeedState(): AppState {
   ];
 
   return {
-    auth: { logado: false, nome: "Marina Rocha", barbeariaNome: BARBEARIA.nome },
+    auth: { logado: false, nome: "", barbeariaNome: BARBEARIA.nome },
     barbeiros,
     servicos: seedServicos.map((s) => ({ ...s })),
     clientes: seedClientes.map((c) => ({ ...c })),
@@ -126,122 +129,145 @@ export function buildSeedState(): AppState {
     config,
     tenants: seedTenants.map((t) => ({ ...t })),
     planosTiers,
-    ui: { hidratado: false },
+    ui: { hidratado: false, visao: "admin", barbeiroVisaoId: barbeiros[0]?.id ?? null },
   };
 }
 
-// ---- Ações ----
+// ---- Ações (apenas estado de UI + injeção de dados pelos listeners) ----
+type StatePatch = Partial<Omit<AppState, "ui">> & { ui?: Partial<AppState["ui"]> };
 export type Action =
-  | { type: "LOGIN"; nome?: string }
-  | { type: "LOGOUT" }
-  | { type: "ADD_CLIENTE"; cliente: Cliente }
-  | { type: "UPDATE_CLIENTE"; cliente: Cliente }
-  | { type: "ADD_AGENDAMENTO"; agendamento: Agendamento }
-  | { type: "REMOVE_AGENDAMENTO"; id: string }
-  | { type: "SET_AGENDAMENTO_STATUS"; id: string; status: AgendamentoStatus }
-  | { type: "ADD_BARBEIRO"; barbeiro: Barbeiro }
-  | { type: "UPDATE_BARBEIRO"; barbeiro: Barbeiro }
-  | { type: "REMOVE_BARBEIRO"; id: string }
-  | { type: "ADD_SERVICO"; servico: Servico }
-  | { type: "UPDATE_SERVICO"; servico: Servico }
-  | { type: "REMOVE_SERVICO"; id: string }
-  | { type: "UPDATE_PLANO_TIER"; tier: PlanoTier }
-  | { type: "ADD_TRANSACAO"; transacao: Transacao }
-  | { type: "MARK_TRANSACAO_PAGA"; id: string }
-  | { type: "UPDATE_CONFIG"; patch: Partial<ConfigBarbearia> }
-  | { type: "UPDATE_TENANT"; nome: string; patch: Partial<Tenant> }
-  | { type: "HYDRATE"; state: AppState | null }
-  | { type: "RESET" };
+  | { type: "SET_DATA"; patch: StatePatch }
+  | { type: "SET_VISAO"; visao: Role }
+  | { type: "SET_BARBEIRO_VISAO"; id: string };
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
-    case "LOGIN":
-      return { ...state, auth: { ...state.auth, logado: true, nome: action.nome || state.auth.nome } };
-    case "LOGOUT":
-      return { ...state, auth: { ...state.auth, logado: false } };
-
-    case "ADD_CLIENTE":
-      return { ...state, clientes: [action.cliente, ...state.clientes] };
-    case "UPDATE_CLIENTE":
-      return { ...state, clientes: state.clientes.map((c) => (c.id === action.cliente.id ? action.cliente : c)) };
-
-    case "ADD_AGENDAMENTO":
-      return { ...state, agendamentos: [...state.agendamentos, action.agendamento] };
-    case "REMOVE_AGENDAMENTO":
-      return { ...state, agendamentos: state.agendamentos.filter((a) => a.id !== action.id) };
-    case "SET_AGENDAMENTO_STATUS":
-      return {
-        ...state,
-        agendamentos: state.agendamentos.map((a) => (a.id === action.id ? { ...a, status: action.status } : a)),
-      };
-
-    case "ADD_BARBEIRO":
-      return { ...state, barbeiros: [...state.barbeiros, action.barbeiro] };
-    case "UPDATE_BARBEIRO":
-      return { ...state, barbeiros: state.barbeiros.map((b) => (b.id === action.barbeiro.id ? action.barbeiro : b)) };
-    case "REMOVE_BARBEIRO":
-      return { ...state, barbeiros: state.barbeiros.filter((b) => b.id !== action.id) };
-
-    case "ADD_SERVICO":
-      return { ...state, servicos: [...state.servicos, action.servico] };
-    case "UPDATE_SERVICO":
-      return { ...state, servicos: state.servicos.map((s) => (s.id === action.servico.id ? action.servico : s)) };
-    case "REMOVE_SERVICO":
-      return { ...state, servicos: state.servicos.filter((s) => s.id !== action.id) };
-
-    case "UPDATE_PLANO_TIER":
-      return { ...state, planosTiers: state.planosTiers.map((t) => (t.id === action.tier.id ? action.tier : t)) };
-
-    case "ADD_TRANSACAO":
-      return { ...state, transacoes: [action.transacao, ...state.transacoes] };
-    case "MARK_TRANSACAO_PAGA":
-      return { ...state, transacoes: state.transacoes.map((t) => (t.id === action.id ? { ...t, status: "pago" } : t)) };
-
-    case "UPDATE_CONFIG":
-      return { ...state, config: { ...state.config, ...action.patch }, auth: { ...state.auth, barbeariaNome: action.patch.nome ?? state.auth.barbeariaNome } };
-
-    case "UPDATE_TENANT":
-      return { ...state, tenants: state.tenants.map((t) => (t.nome === action.nome ? { ...t, ...action.patch } : t)) };
-
-    case "HYDRATE":
-      return { ...state, ...(action.state ?? {}), ui: { hidratado: true } };
-    case "RESET":
-      return { ...buildSeedState(), ui: { hidratado: true } };
-
+    case "SET_DATA":
+      return { ...state, ...action.patch, ui: { ...state.ui, ...(action.patch.ui ?? {}) } };
+    case "SET_VISAO":
+      return { ...state, ui: { ...state.ui, visao: action.visao } };
+    case "SET_BARBEIRO_VISAO":
+      return { ...state, ui: { ...state.ui, barbeiroVisaoId: action.id } };
     default:
       return state;
   }
 }
 
+// ---- Ações de escrita (assíncronas, escopadas no tenant atual) ----
+type Ref = { id: string };
+export interface StoreActions {
+  clientes: { add: (c: Cliente) => Promise<Ref>; update: (c: Cliente) => Promise<void>; remove: (id: string) => Promise<void> };
+  barbeiros: { add: (b: Barbeiro) => Promise<Ref>; update: (b: Barbeiro) => Promise<void>; remove: (id: string) => Promise<void> };
+  servicos: { add: (s: Servico) => Promise<Ref>; update: (s: Servico) => Promise<void>; remove: (id: string) => Promise<void> };
+  agendamentos: {
+    add: (a: Agendamento) => Promise<Ref>;
+    setStatus: (id: string, status: AgendamentoStatus) => Promise<void>;
+    remove: (id: string) => Promise<void>;
+    concluir: (id: string, transacao: Transacao) => Promise<void>;
+  };
+  transacoes: { add: (t: Transacao) => Promise<Ref>; marcarPaga: (id: string) => Promise<void> };
+  config: { update: (patch: Partial<ConfigBarbearia>) => Promise<void> };
+  planosTiers: { update: (tier: PlanoTier) => Promise<void> };
+  tenants: { update: (tenantId: string, patch: Partial<Tenant>) => Promise<void> };
+}
+
+function buildActions(tenantId: string): StoreActions {
+  return {
+    clientes: {
+      add: (c) => repo.clientes.add(tenantId, c),
+      update: (c) => repo.clientes.update(tenantId, c),
+      remove: (id) => repo.clientes.remove(tenantId, id),
+    },
+    barbeiros: {
+      add: (b) => repo.barbeiros.add(tenantId, b),
+      update: (b) => repo.barbeiros.update(tenantId, b),
+      remove: (id) => repo.barbeiros.remove(tenantId, id),
+    },
+    servicos: {
+      add: (s) => repo.servicos.add(tenantId, s),
+      update: (s) => repo.servicos.update(tenantId, s),
+      remove: (id) => repo.servicos.remove(tenantId, id),
+    },
+    agendamentos: {
+      add: (a) => repo.agendamentos.add(tenantId, a),
+      setStatus: (id, status) => repo.agendamentos.setStatus(tenantId, id, status),
+      remove: (id) => repo.agendamentos.remove(tenantId, id),
+      concluir: (id, transacao) => repo.agendamentos.concluir(tenantId, id, transacao),
+    },
+    transacoes: {
+      add: (t) => repo.transacoes.add(tenantId, t),
+      marcarPaga: (id) => repo.transacoes.marcarPaga(tenantId, id),
+    },
+    config: { update: (patch) => repo.config.update(tenantId, patch) },
+    planosTiers: { update: (tier) => repo.planosTiers.update(tenantId, tier) },
+    tenants: { update: (tid, patch) => repo.tenants.update(tid, patch) },
+  };
+}
+
 // ---- Context / Provider / Hook ----
-const StoreContext = createContext<{ state: AppState; dispatch: Dispatch<Action> } | null>(null);
+interface StoreValue {
+  state: AppState;
+  dispatch: Dispatch<Action>;
+  actions: StoreActions;
+}
+const StoreContext = createContext<StoreValue | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, buildSeedState);
+  const { profile, role, tenantId } = useAuth();
+  const nome = profile?.nome ?? "";
 
-  // Carrega o localStorage só no cliente (evita mismatch de hidratação).
+  // Assina os listeners do tenant. Limpa a semente ao entrar e refaz ao trocar
+  // de tenant / deslogar.
   useEffect(() => {
-    let carregado: AppState | null = null;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) carregado = JSON.parse(raw) as AppState;
-    } catch {
-      carregado = null;
-    }
-    dispatch({ type: "HYDRATE", state: carregado });
-  }, []);
+    const isSuper = role === "superAdmin";
+    if (!tenantId && !isSuper) return;
 
-  // Write-through após hidratar.
-  useEffect(() => {
-    if (!state.ui.hidratado) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      /* localStorage indisponível (modo privado/quota) — segue em memória */
-    }
-  }, [state]);
+    dispatch({
+      type: "SET_DATA",
+      patch: {
+        auth: { logado: true, nome, barbeariaNome: "" },
+        clientes: [],
+        agendamentos: [],
+        servicos: [],
+        barbeiros: [],
+        transacoes: [],
+        tenants: [],
+        ui: { hidratado: false },
+      },
+    });
 
-  return <StoreContext.Provider value={{ state, dispatch }}>{children}</StoreContext.Provider>;
+    const unsubs: Array<() => void> = [];
+
+    if (tenantId) {
+      unsubs.push(
+        repo.clientes.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { clientes: rows } })),
+        repo.barbeiros.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { barbeiros: rows } })),
+        repo.servicos.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { servicos: rows } })),
+        repo.transacoes.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { transacoes: rows } })),
+        repo.agendamentos.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { agendamentos: rows } })),
+        repo.planosTiers.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { planosTiers: rows } })),
+        repo.config.subscribe(tenantId, (cfg) => {
+          if (cfg) dispatch({ type: "SET_DATA", patch: { config: cfg, auth: { logado: true, nome, barbeariaNome: cfg.nome }, ui: { hidratado: true } } });
+        }),
+      );
+    } else {
+      // superAdmin sem tenant próprio: nada de coleções por tenant.
+      dispatch({ type: "SET_DATA", patch: { ui: { hidratado: true } } });
+    }
+
+    if (isSuper) {
+      unsubs.push(repo.tenants.subscribeAll((rows) => dispatch({ type: "SET_DATA", patch: { tenants: rows } })));
+    } else if (tenantId) {
+      unsubs.push(repo.tenants.subscribeOne(tenantId, (t) => dispatch({ type: "SET_DATA", patch: { tenants: t ? [t] : [] } })));
+    }
+
+    return () => unsubs.forEach((u) => u());
+  }, [tenantId, role, nome]);
+
+  const actions = useMemo<StoreActions>(() => buildActions(tenantId ?? ""), [tenantId]);
+
+  return <StoreContext.Provider value={{ state, dispatch, actions }}>{children}</StoreContext.Provider>;
 }
 
 export function useStore() {
@@ -250,7 +276,7 @@ export function useStore() {
   return ctx;
 }
 
-// ---- Utilitário de id (só chamar em handlers, nunca no render/semente) ----
+// ---- Utilitário de id (id é ignorado na escrita — Firestore gera o seu) ----
 let _contador = 0;
 export function makeId(prefix = "id"): string {
   try {

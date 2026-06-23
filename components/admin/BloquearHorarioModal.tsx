@@ -17,7 +17,7 @@ export function BloquearHorarioModal({
   onClose: () => void;
   defaults?: { dateISO?: string; barbeiroId?: string; inicio?: string };
 }) {
-  const { state, dispatch } = useStore();
+  const { state, actions } = useStore();
   const toast = useToast();
 
   const [barbeiroId, setBarbeiroId] = useState("");
@@ -36,10 +36,9 @@ export function BloquearHorarioModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  function salvar() {
-    dispatch({
-      type: "ADD_AGENDAMENTO",
-      agendamento: {
+  async function salvar() {
+    try {
+      await actions.agendamentos.add({
         id: makeId("bl"),
         date,
         barbeiroId,
@@ -49,10 +48,12 @@ export function BloquearHorarioModal({
         duracaoMin,
         status: "bloqueio",
         origem: "admin",
-      },
-    });
-    toast("Horário bloqueado.");
-    onClose();
+      });
+      toast("Horário bloqueado.");
+      onClose();
+    } catch {
+      toast("Não foi possível bloquear o horário.", "error");
+    }
   }
 
   return (

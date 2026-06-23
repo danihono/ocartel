@@ -2,51 +2,89 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { c, font } from "@/lib/theme";
 import { Seal } from "@/components/ui/Seal";
 import { fieldInput, fieldLabel } from "@/components/ui/Field";
-import { useStore } from "@/lib/store";
+import { auth } from "@/lib/firebase/config";
+import { bootstrapTenant } from "@/lib/firebase/bootstrap";
 import { useToast } from "@/components/ui/Toast";
+
+function mensagemErroAuth(e: unknown): string {
+  const code = typeof e === "object" && e && "code" in e ? String((e as { code: unknown }).code) : "";
+  switch (code) {
+    case "auth/invalid-email":
+      return "E-mail inválido.";
+    case "auth/invalid-credential":
+    case "auth/wrong-password":
+    case "auth/user-not-found":
+      return "E-mail ou senha incorretos.";
+    case "auth/email-already-in-use":
+      return "Esse e-mail já tem uma conta. Tente entrar.";
+    case "auth/weak-password":
+      return "A senha precisa ter ao menos 6 caracteres.";
+    default:
+      return "Não foi possível concluir. Tente novamente.";
+  }
+}
 
 export default function LoginPage() {
   const router = useRouter();
-  const { dispatch } = useStore();
   const toast = useToast();
 
   const [tab, setTab] = useState<"entrar" | "criar">("entrar");
   const [plano, setPlano] = useState<"Básico" | "Pro">("Pro");
+  const [carregando, setCarregando] = useState(false);
 
   // entrar
-  const [email, setEmail] = useState("marina@barbeariacartel.com.br");
-  const [senha, setSenha] = useState("senhasegura");
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
 
   // criar (wizard)
   const [step, setStep] = useState(1);
   const [novaBarbearia, setNovaBarbearia] = useState("Barbearia Cartel");
-  const [seuNome, setSeuNome] = useState("Marina Rocha");
-  const [telefone, setTelefone] = useState("(11) 99000-1234");
+  const [seuNome, setSeuNome] = useState("");
+  const [telefone, setTelefone] = useState("");
 
-  function entrar() {
+  async function entrar() {
     if (!email.trim() || !senha.trim()) {
       toast("Preencha e-mail e senha.", "error");
       return;
     }
-    dispatch({ type: "LOGIN" });
-    toast("Bem-vindo de volta.");
-    router.push("/dashboard");
+    setCarregando(true);
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), senha);
+      toast("Bem-vindo de volta.");
+      router.push("/dashboard");
+    } catch (e) {
+      toast(mensagemErroAuth(e), "error");
+      setCarregando(false);
+    }
   }
 
-  function entrarComGoogle() {
-    dispatch({ type: "LOGIN" });
-    toast("Conectado com Google.");
-    router.push("/dashboard");
-  }
-
-  function concluirOnboarding() {
-    dispatch({ type: "LOGIN", nome: seuNome.trim() || "Marina Rocha" });
-    dispatch({ type: "UPDATE_CONFIG", patch: { nome: novaBarbearia.trim() || "Barbearia Cartel", telefone } });
-    toast("Sua barbearia foi criada. Teste grátis iniciado!");
-    router.push("/dashboard");
+  async function concluirOnboarding() {
+    if (!email.trim() || !senha.trim()) {
+      toast("Preencha e-mail e senha no passo 1.", "error");
+      setStep(1);
+      return;
+    }
+    setCarregando(true);
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email.trim(), senha);
+      await bootstrapTenant({
+        uid: cred.user.uid,
+        email: email.trim(),
+        nome: seuNome.trim() || "Administrador",
+        barbeariaNome: novaBarbearia.trim() || "Minha Barbearia",
+        telefone,
+        plano,
+      });
+      toast("Sua barbearia foi criada. Teste grátis iniciado!");
+      router.push("/dashboard");
+    } catch (e) {
+      toast(mensagemErroAuth(e), "error");
+      setCarregando(false);
+    }
   }
 
   return (
@@ -114,11 +152,7 @@ export default function LoginPage() {
                   Esqueci minha senha
                 </button>
               </div>
-              <button onClick={entrar} style={{ width: "100%", border: "none", cursor: "pointer", background: "#241711", color: "#F4EAD8", padding: 14, borderRadius: 11, fontSize: 14.5, fontWeight: 700 }}>Entrar no painel</button>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "22px 0", color: "#B6A78F", fontSize: 11.5 }}>
-                <div style={{ flex: 1, height: 1, background: c.borderInput }} />ou<div style={{ flex: 1, height: 1, background: c.borderInput }} />
-              </div>
-              <button onClick={entrarComGoogle} style={{ width: "100%", border: `1px solid ${c.borderInput}`, cursor: "pointer", background: c.surface, color: "#3E2C20", padding: 12, borderRadius: 11, fontSize: 14, fontWeight: 600 }}>Continuar com Google</button>
+              <button onClick={entrar} disabled={carregando} style={{ width: "100%", border: "none", cursor: carregando ? "default" : "pointer", opacity: carregando ? 0.7 : 1, background: "#241711", color: "#F4EAD8", padding: 14, borderRadius: 11, fontSize: 14.5, fontWeight: 700 }}>{carregando ? "Entrando…" : "Entrar no painel"}</button>
             </div>
           ) : (
             <div>
@@ -194,7 +228,7 @@ export default function LoginPage() {
                   </div>
                   <div style={{ display: "flex", gap: 10 }}>
                     <button onClick={() => setStep(2)} style={{ flex: "0 0 auto", border: `1px solid ${c.borderInput}`, cursor: "pointer", background: c.surface, color: "#3E2C20", padding: "14px 20px", borderRadius: 11, fontSize: 14, fontWeight: 600 }}>Voltar</button>
-                    <button onClick={concluirOnboarding} style={{ flex: 1, border: "none", cursor: "pointer", background: "#241711", color: "#F4EAD8", padding: 14, borderRadius: 11, fontSize: 14.5, fontWeight: 700 }}>Começar teste grátis</button>
+                    <button onClick={concluirOnboarding} disabled={carregando} style={{ flex: 1, border: "none", cursor: carregando ? "default" : "pointer", opacity: carregando ? 0.7 : 1, background: "#241711", color: "#F4EAD8", padding: 14, borderRadius: 11, fontSize: 14.5, fontWeight: 700 }}>{carregando ? "Criando…" : "Começar teste grátis"}</button>
                   </div>
                 </>
               )}

@@ -33,7 +33,7 @@ export function ClienteModal({
   cliente?: Cliente;
   onSaved?: (id: string) => void;
 }) {
-  const { dispatch } = useStore();
+  const { actions } = useStore();
   const toast = useToast();
   const editando = !!cliente;
 
@@ -53,36 +53,39 @@ export function ClienteModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  function salvar() {
+  async function salvar() {
     if (!nome.trim()) {
       toast("Informe o nome do cliente.", "error");
       return;
     }
-    if (editando && cliente) {
-      const atualizado: Cliente = { ...cliente, nome: nome.trim(), telefone, email, plano, tag, iniciais: iniciaisDe(nome) };
-      dispatch({ type: "UPDATE_CLIENTE", cliente: atualizado });
-      toast("Cliente atualizado.");
-      onSaved?.(cliente.id);
-    } else {
-      const id = makeId("c");
-      const novo: Cliente = {
-        id,
-        nome: nome.trim(),
-        telefone,
-        email,
-        plano,
-        tag,
-        ultimoAtendimento: "—",
-        totalGasto: "R$ 0",
-        atendimentos: 0,
-        desde: mesAnoCurto(HOJE_ISO),
-        iniciais: iniciaisDe(nome),
-      };
-      dispatch({ type: "ADD_CLIENTE", cliente: novo });
-      toast("Cliente adicionado.");
-      onSaved?.(id);
+    try {
+      if (editando && cliente) {
+        const atualizado: Cliente = { ...cliente, nome: nome.trim(), telefone, email, plano, tag, iniciais: iniciaisDe(nome) };
+        await actions.clientes.update(atualizado);
+        toast("Cliente atualizado.");
+        onSaved?.(cliente.id);
+      } else {
+        const novo: Cliente = {
+          id: makeId("c"),
+          nome: nome.trim(),
+          telefone,
+          email,
+          plano,
+          tag,
+          ultimoAtendimento: "—",
+          totalGasto: "R$ 0",
+          atendimentos: 0,
+          desde: mesAnoCurto(HOJE_ISO),
+          iniciais: iniciaisDe(nome),
+        };
+        const ref = await actions.clientes.add(novo);
+        toast("Cliente adicionado.");
+        onSaved?.(ref.id);
+      }
+      onClose();
+    } catch {
+      toast("Não foi possível salvar o cliente.", "error");
     }
-    onClose();
   }
 
   return (
