@@ -1,37 +1,51 @@
 // Design tokens for O Cartel — palette, fonts, shadows.
 // Fonts are wired as CSS variables in app/layout.tsx (next/font).
+//
+// Paleta "Esmeralda & Latão": o marrom (espresso/couro/creme) é o PALCO; o
+// verde-esmeralda (accent*) é a cor que "chama atenção" — botões, nav ativo,
+// série principal de gráficos, KPI destaque. Latão fica como brilho metálico.
 
 export const c = {
   // surfaces
-  bg: "#F2ECE2",
+  bg: "#F1ECE1",
   surface: "#FFFFFF",
-  surfaceAlt: "#F7F2EA",
-  surfaceWarm: "#F4EEE2",
+  surfaceAlt: "#F6F1E8",
+  surfaceWarm: "#F2EDE2",
   // ink
-  ink: "#211A14",
-  ink2: "#8A7A68",
-  ink3: "#9A8B79",
-  ink4: "#A8987F",
+  ink: "#1E1812",
+  ink2: "#7C6E5E",
+  ink3: "#8F8170",
+  ink4: "#A2937C",
+  inkTitle: "#241B12", // títulos (antes hardcoded em vários lugares)
+  inkLabel: "#6B5C4B", // labels de campo (antes hardcoded)
   // borders
-  border: "#EADFCD",
-  borderSoft: "#F2E9DA",
-  borderInput: "#E2D6C2",
-  // browns
-  espresso: "#211711",
-  espressoDeep: "#1B130F",
+  border: "#E6DCCB",
+  borderSoft: "#F1EADC",
+  borderInput: "#DCD0BC",
+  // browns (palco — mantidos como charme)
+  espresso: "#1F1611",
+  espressoDeep: "#190F0B",
   espressoLine: "#34271E",
   leather: "#4A342A",
   brown: "#5D4037",
   brown2: "#6B4A36",
-  // brass accent
-  brass: "#C9A86A",
-  brassSoft: "#F1E4CB",
+  // brass accent (metálico — um pouco mais brilhante)
+  brass: "#CDAA63",
+  brassSoft: "#F1E4C6",
   brassTint: "#FBF3E2",
-  brassDeep: "#9A6F2E",
+  brassDeep: "#9C6F28",
+  // accent — esmeralda (hero da marca)
+  accent: "#0E3B33",
+  accentBright: "#1C6B5C",
+  accentSoft: "#E4EFEA",
+  accentDark: "#6FC9B4", // verdigris — hero do tema escuro (super-admin)
+  // botão primário (antes hardcoded #241711 / #F4EAD8)
+  primaryBtnBg: "#0E3B33",
+  primaryBtnText: "#F4EAD8",
   // status
-  green: "#5E7A52",
-  greenText: "#4f6644",
-  greenBg: "#ECF1E7",
+  green: "#3E7A4E",
+  greenText: "#3c6a45",
+  greenBg: "#E7EFE6",
   red: "#A35C4F",
   redText: "#8a463b",
   redBg: "#F5E8E4",
@@ -39,11 +53,11 @@ export const c = {
   amberText: "#8a5f1c",
   amberBg: "#F7EEDC",
   // dark theme (super admin)
-  darkBg: "#181210",
-  darkSurface: "#221913",
-  darkLine: "#342720",
-  darkText: "#E7DCC9",
-  darkMuted: "#9A8771",
+  darkBg: "#101512",
+  darkSurface: "#18211C",
+  darkLine: "#24302A",
+  darkText: "#E5E9DF",
+  darkMuted: "#8E9A8C",
   darkGreen: "#A6D697",
   darkAmber: "#E7C078",
   darkRed: "#E6A293",

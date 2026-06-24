@@ -9,8 +9,8 @@ body {
 }
 
 body {
-  background: #f2ece2;
-  color: #211a14;
+  background: #f1ece1;
+  color: #1e1812;
   font-family: var(--font-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -18,6 +18,48 @@ body {
 
 button {
   font-family: inherit;
+}
+
+/* --- Micro-interações (hover/foco/transições) --- */
+.oc-btn {
+  transition: filter 0.14s ease, background 0.14s ease, box-shadow 0.14s ease, transform 0.1s ease;
+}
+.oc-btn:hover {
+  filter: brightness(1.06);
+}
+.oc-btn:active {
+  transform: translateY(1px);
+}
+.oc-btn-primary:hover {
+  background: #1c6b5c !important;
+  filter: none;
+}
+.oc-btn-ghost:hover {
+  background: #f6f1e8 !important;
+  filter: none;
+}
+.oc-nav {
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.oc-nav:hover {
+  background: rgba(28, 107, 92, 0.1);
+}
+.oc-row {
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.oc-row:hover {
+  background: #f6f1e8;
+}
+.oc-card {
+  transition: box-shadow 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+.oc-input {
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.oc-input:focus,
+.oc-input:focus-within {
+  border-color: #1c6b5c !important;
+  box-shadow: 0 0 0 3px rgba(28, 107, 92, 0.12);
 }
 
 a {
@@ -33,7 +75,7 @@ a {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d4c7b2;
+  background: #d8cbb4;
   border-radius: 10px;
 }
 

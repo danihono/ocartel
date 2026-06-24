@@ -4,11 +4,15 @@
 // doc users/{uid} (para pegar role/tenantId reativamente — inclusive logo após o
 // onboarding criar o doc). É a fonte da verdade de "está logado" e "qual tenant".
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "./config";
 import type { Role } from "@/lib/types";
+
+// Chave do localStorage para a "impersonação" do superAdmin: a barbearia cujo
+// painel ele está visualizando (ferramenta de dev para ver todas as telas).
+const IMPERSONATE_KEY = "oc_impersonate";
 
 export interface UserProfile {
   role: Role;
@@ -21,7 +25,16 @@ interface AuthValue {
   user: User | null;
   profile: UserProfile | null;
   role: Role | null;
+  /** Tenant EFETIVO: o do próprio perfil ou, p/ superAdmin, a barbearia que ele entrou. */
   tenantId: string | null;
+  /** Tenant real do perfil (null para superAdmin, que não tem barbearia própria). */
+  ownTenantId: string | null;
+  /** superAdmin visualizando o painel de uma barbearia (impersonação). */
+  impersonating: boolean;
+  /** Entra no painel de uma barbearia — só tem efeito para superAdmin. */
+  enterTenant: (tenantId: string) => void;
+  /** Sai da impersonação e volta a ser superAdmin puro. */
+  exitTenant: () => void;
   /** true enquanto o estado de auth (e o 1º carregamento do perfil) não resolveu. */
   loading: boolean;
 }
@@ -32,6 +45,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [impersonatedTenantId, setImpersonatedTenantId] = useState<string | null>(null);
+
+  // Hidrata a impersonação salva — só no cliente, para o 1º render continuar
+  // determinístico (igual ao servidor) e não quebrar a hidratação.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(IMPERSONATE_KEY);
+      if (saved) setImpersonatedTenantId(saved);
+    } catch {
+      /* sem localStorage — ignora */
+    }
+  }, []);
 
   useEffect(() => {
     let unsubProfile: (() => void) | undefined;
@@ -66,11 +91,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const enterTenant = useCallback((tenantId: string) => {
+    setImpersonatedTenantId(tenantId);
+    try {
+      localStorage.setItem(IMPERSONATE_KEY, tenantId);
+    } catch {
+      /* ignora */
+    }
+  }, []);
+
+  const exitTenant = useCallback(() => {
+    setImpersonatedTenantId(null);
+    try {
+      localStorage.removeItem(IMPERSONATE_KEY);
+    } catch {
+      /* ignora */
+    }
+  }, []);
+
+  const role = profile?.role ?? null;
+  const ownTenantId = profile?.tenantId ?? null;
+  const isSuper = role === "superAdmin";
+  // Só o superAdmin (que não tem barbearia própria) pode impersonar.
+  const impersonating = isSuper && !ownTenantId && !!impersonatedTenantId;
+  const effectiveTenantId = ownTenantId ?? (isSuper ? impersonatedTenantId : null);
+
   const value: AuthValue = {
     user,
     profile,
-    role: profile?.role ?? null,
-    tenantId: profile?.tenantId ?? null,
+    role,
+    tenantId: effectiveTenantId,
+    ownTenantId,
+    impersonating,
+    enterTenant,
+    exitTenant,
     loading,
   };
 
@@ -84,5 +138,10 @@ export function useAuth() {
 }
 
 export async function signOutApp() {
+  try {
+    localStorage.removeItem(IMPERSONATE_KEY);
+  } catch {
+    /* ignora */
+  }
   await signOut(auth);
 }

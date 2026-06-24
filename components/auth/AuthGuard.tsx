@@ -27,9 +27,12 @@ export default function AuthGuard({ need, children }: { need: "tenant" | "superA
 
   const semLogin = !loading && !user;
   const semPermissao = !loading && !!user && need === "superAdmin" && role !== "superAdmin";
-  // Logado mas tenant ainda não resolveu (ex.: logo após o onboarding criar o
-  // perfil). Não redireciona na hora — espera um período de carência.
-  const tenantPendente = !loading && !!user && need === "tenant" && !tenantId;
+  // superAdmin numa tela de tenant sem ter "entrado" numa barbearia → manda pro
+  // console (não é onboarding pendente, é só falta de barbearia selecionada).
+  const superSemTenant = !loading && !!user && need === "tenant" && role === "superAdmin" && !tenantId;
+  // Logado (admin comum) mas tenant ainda não resolveu (ex.: logo após o
+  // onboarding criar o perfil). Não redireciona na hora — espera uma carência.
+  const tenantPendente = !loading && !!user && need === "tenant" && role !== "superAdmin" && !tenantId;
 
   const [carenciaVencida, setCarenciaVencida] = useState(false);
   useEffect(() => {
@@ -44,9 +47,10 @@ export default function AuthGuard({ need, children }: { need: "tenant" | "superA
   useEffect(() => {
     if (semLogin) router.replace("/login");
     else if (semPermissao) router.replace("/dashboard");
+    else if (superSemTenant) router.replace("/super-admin");
     else if (tenantPendente && carenciaVencida) router.replace("/login");
-  }, [semLogin, semPermissao, tenantPendente, carenciaVencida, router]);
+  }, [semLogin, semPermissao, superSemTenant, tenantPendente, carenciaVencida, router]);
 
-  if (loading || semLogin || semPermissao || tenantPendente) return <Splash />;
+  if (loading || semLogin || semPermissao || superSemTenant || tenantPendente) return <Splash />;
   return <>{children}</>;
 }

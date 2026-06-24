@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 import { c, font } from "@/lib/theme";
 import { Seal } from "@/components/ui/Seal";
 import { fieldInput, fieldLabel } from "@/components/ui/Field";
-import { auth } from "@/lib/firebase/config";
+import { auth, db } from "@/lib/firebase/config";
 import { bootstrapTenant } from "@/lib/firebase/bootstrap";
 import { useToast } from "@/components/ui/Toast";
 
@@ -53,9 +54,13 @@ export default function LoginPage() {
     }
     setCarregando(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), senha);
+      const cred = await signInWithEmailAndPassword(auth, email.trim(), senha);
+      // superAdmin não tem tenant — mandá-lo pro /dashboard o expulsaria (guarda
+      // "tenant"). Lê o role do perfil pra escolher o destino certo.
+      const snap = await getDoc(doc(db, "users", cred.user.uid));
+      const role = snap.exists() ? (snap.data() as { role?: string }).role : undefined;
       toast("Bem-vindo de volta.");
-      router.push("/dashboard");
+      router.push(role === "superAdmin" ? "/super-admin" : "/dashboard");
     } catch (e) {
       toast(mensagemErroAuth(e), "error");
       setCarregando(false);

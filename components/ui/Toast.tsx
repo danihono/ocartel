@@ -23,7 +23,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setItems((list) => list.filter((x) => x.id !== id)), 2800);
   }, []);
 
-  const toneColor: Record<Tone, string> = { success: c.green, info: c.brass, error: c.red };
+  const toneColor: Record<Tone, string> = { success: c.accentDark, info: c.brass, error: c.red };
 
   return (
     <ToastContext.Provider value={{ toast }}>

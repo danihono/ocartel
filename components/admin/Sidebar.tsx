@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { c, font } from "@/lib/theme";
 import { Seal } from "@/components/ui/Seal";
 import { useStore } from "@/lib/store";
-import { signOutApp } from "@/lib/firebase/auth";
+import { signOutApp, useAuth } from "@/lib/firebase/auth";
 import { slug } from "@/lib/selectors";
 import { useToast } from "@/components/ui/Toast";
 import type { Role } from "@/lib/types";
@@ -34,6 +34,7 @@ const itemsPorVisao: Partial<Record<Role, string[]>> = {
 
 export default function Sidebar({ active }: { active: string }) {
   const { state, dispatch } = useStore();
+  const { tenantId, impersonating, exitTenant } = useAuth();
   const toast = useToast();
   const router = useRouter();
   const [menu, setMenu] = useState(false);
@@ -43,6 +44,14 @@ export default function Sidebar({ active }: { active: string }) {
     toast("Sessão encerrada.");
     router.push("/login");
   }
+
+  function voltarConsole() {
+    exitTenant();
+    router.push("/super-admin");
+  }
+
+  // Slug da barbearia atual (na impersonação, state.tenants traz todas — acha a certa).
+  const slugAtual = state.tenants.find((t) => t.id === tenantId)?.slug ?? state.tenants[0]?.slug ?? slug(state.config.nome);
 
   return (
     <aside
@@ -62,6 +71,16 @@ export default function Sidebar({ active }: { active: string }) {
           <div style={{ fontSize: 11, color: "#8A7866", marginTop: 2 }}>{state.config.nome}</div>
         </div>
       </div>
+
+      {impersonating ? (
+        <button
+          onClick={voltarConsole}
+          style={{ margin: "14px 14px 0", padding: "10px 12px", borderRadius: 9, border: `1px solid ${c.brass}`, background: "rgba(201,168,106,0.14)", color: "#F3E8D5", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap: 2 }}
+        >
+          <span style={{ fontSize: 9.5, letterSpacing: 1.5, textTransform: "uppercase", color: c.brass, fontWeight: 700 }}>Modo super admin</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600 }}>↩ Voltar ao console</span>
+        </button>
+      ) : null}
 
       <nav style={{ padding: "14px 12px", display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
         <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "#6d5d4d", padding: "8px 12px 7px" }}>Visão</div>
@@ -152,7 +171,7 @@ export default function Sidebar({ active }: { active: string }) {
 
       <div style={{ position: "relative", margin: "0 14px", padding: "14px 12px", borderTop: `1px solid ${c.espressoLine}` }}>
         <a
-          href={`/book/${state.tenants[0]?.slug ?? slug(state.config.nome)}`}
+          href={`/book/${slugAtual}`}
           target="_blank"
           rel="noopener noreferrer"
           style={{ display: "flex", alignItems: "center", gap: 8, padding: "2px 0 12px", fontSize: 12.5, fontWeight: 600, color: "#b4a288", textDecoration: "none" }}
@@ -178,7 +197,7 @@ export default function Sidebar({ active }: { active: string }) {
           </div>
           <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "#EaDcC6" }}>{state.auth.nome}</div>
-            <div style={{ fontSize: 11, color: "#8A7866" }}>Dona · Admin</div>
+            <div style={{ fontSize: 11, color: "#8A7866" }}>{impersonating ? "Super admin" : "Dona · Admin"}</div>
           </div>
           <span style={{ color: "#8A7866", fontSize: 12 }}>{menu ? "▾" : "▸"}</span>
         </button>

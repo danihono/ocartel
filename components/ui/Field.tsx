@@ -7,7 +7,7 @@ import { c, font } from "@/lib/theme";
 export const fieldLabel: CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: "#6B5C4B",
+  color: c.inkLabel,
   display: "block",
   marginBottom: 6,
 };
@@ -19,7 +19,7 @@ export const fieldInput: CSSProperties = {
   borderRadius: 10,
   padding: "12px 14px",
   fontSize: 14,
-  color: "#241B12",
+  color: c.inkTitle,
   fontFamily: font.sans,
   outline: "none",
 };
@@ -34,34 +34,34 @@ export function Field({ label, children, style }: { label: string; children: Rea
 }
 
 type InputProps = React.InputHTMLAttributes<HTMLInputElement>;
-export function TextInput({ style, ...rest }: InputProps) {
-  return <input {...rest} style={{ ...fieldInput, ...style }} />;
+export function TextInput({ style, className, ...rest }: InputProps) {
+  return <input {...rest} className={`oc-input${className ? ` ${className}` : ""}`} style={{ ...fieldInput, ...style }} />;
 }
 
 type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & { children: ReactNode };
-export function Select({ style, children, ...rest }: SelectProps) {
+export function Select({ style, className, children, ...rest }: SelectProps) {
   return (
-    <select {...rest} style={{ ...fieldInput, cursor: "pointer", appearance: "auto", ...style }}>
+    <select {...rest} className={`oc-input${className ? ` ${className}` : ""}`} style={{ ...fieldInput, cursor: "pointer", appearance: "auto", ...style }}>
       {children}
     </select>
   );
 }
 
 type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement>;
-export function Textarea({ style, ...rest }: TextareaProps) {
-  return <textarea {...rest} style={{ ...fieldInput, resize: "vertical", minHeight: 70, ...style }} />;
+export function Textarea({ style, className, ...rest }: TextareaProps) {
+  return <textarea {...rest} className={`oc-input${className ? ` ${className}` : ""}`} style={{ ...fieldInput, resize: "vertical", minHeight: 70, ...style }} />;
 }
 
 /** Entrada de valor em R$ — mantém o número e mostra o prefixo. */
 export function MoneyInput({ value, onChange, style }: { value: number; onChange: (n: number) => void; style?: CSSProperties }) {
   return (
-    <div style={{ ...fieldInput, display: "flex", alignItems: "center", gap: 6, padding: "0 14px", ...style }}>
+    <div className="oc-input" style={{ ...fieldInput, display: "flex", alignItems: "center", gap: 6, padding: "0 14px", ...style }}>
       <span style={{ color: c.ink3, fontSize: 14, fontWeight: 600 }}>R$</span>
       <input
         inputMode="numeric"
         value={value ? String(value) : ""}
         onChange={(e) => onChange(Number(e.target.value.replace(/[^\d]/g, "")) || 0)}
-        style={{ flex: 1, border: "none", outline: "none", background: "transparent", padding: "12px 0", fontSize: 14, color: "#241B12", fontFamily: font.sans, width: "100%" }}
+        style={{ flex: 1, border: "none", outline: "none", background: "transparent", padding: "12px 0", fontSize: 14, color: c.inkTitle, fontFamily: font.sans, width: "100%" }}
       />
     </div>
   );

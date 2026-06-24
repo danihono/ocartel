@@ -16,7 +16,7 @@ export const blocoMeta: Record<
   AgendamentoStatus,
   { bg: string; bar: string; title: string; sub: string }
 > = {
-  confirmado: { bg: "#ECF1E7", bar: "#5E7A52", title: "#3a4a32", sub: "#5f6b54" },
+  confirmado: { bg: "#E4EFEA", bar: "#2E6E54", title: "#234A3A", sub: "#4a6b59" },
   agendado: { bg: "#F4EEE2", bar: c.brass, title: "#5a4427", sub: "#8a7656" },
   atendimento: { bg: "#F7EEDC", bar: "#B07D2B", title: "#6b4a16", sub: "#8a6c33" },
   noshow: { bg: "#F5E8E4", bar: "#A35C4F", title: "#6e362d", sub: "#9a6b62" },

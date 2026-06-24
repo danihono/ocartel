@@ -1,8 +1,10 @@
+import { c } from "@/lib/theme";
+
 /** Minimal area/line chart rendered as inline SVG. No dependencies. */
 export function LineChart({
   data,
-  stroke = "#6B4A36",
-  fill = "rgba(201,168,106,.16)",
+  stroke = c.accent,
+  fill = "rgba(14,59,51,.12)",
   gridColor = "#F0E7D8",
   gridLines = [60, 120, 180],
   height = 188,

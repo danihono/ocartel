@@ -1,12 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { c, font } from "@/lib/theme";
 import { Seal } from "@/components/ui/Seal";
 import { LineChart } from "@/components/ui/LineChart";
 import { atividadeSaas, mrr12m, planosSaas, saasKpis } from "@/lib/mock-data";
 import { tenantStatusMeta } from "@/lib/status";
 import { useStore } from "@/lib/store";
+import { useAuth } from "@/lib/firebase/auth";
+import { seedDemoTenant } from "@/lib/firebase/bootstrap";
+import { useToast } from "@/components/ui/Toast";
 import { TenantDrawer } from "@/components/admin/TenantDrawer";
 import type { Tenant, TenantStatus } from "@/lib/types";
 
@@ -29,9 +33,27 @@ const filtrosStatus: { label: string; status: TenantStatus | "todas" }[] = [
 
 export default function SuperAdminPage() {
   const { state } = useStore();
+  const { user, enterTenant } = useAuth();
+  const toast = useToast();
+  const router = useRouter();
   const [aba, setAba] = useState<Aba>("Visão geral");
   const [filtro, setFiltro] = useState<TenantStatus | "todas">("todas");
   const [drawer, setDrawer] = useState<Tenant | null>(null);
+  const [criando, setCriando] = useState(false);
+
+  async function criarDemo() {
+    if (!user || criando) return;
+    setCriando(true);
+    try {
+      const { tenantId } = await seedDemoTenant({ ownerUid: user.uid, nome: "Barbearia Demo" });
+      enterTenant(tenantId);
+      toast("Barbearia demo criada. Abrindo painel…");
+      router.push("/dashboard");
+    } catch {
+      toast("Não foi possível criar a barbearia demo.", "error");
+      setCriando(false);
+    }
+  }
 
   const ativas = state.tenants.filter((t) => t.status === "ativo").length;
   const trials = state.tenants.filter((t) => t.status === "trial").length;
@@ -117,6 +139,13 @@ export default function SuperAdminPage() {
           <div style={{ background: c.darkSurface, border: `1px solid ${c.darkLine}`, borderRadius: 14, marginTop: 16, overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", padding: "18px 22px 12px", gap: 12 }}>
               <span style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: "#F2E6D2", flex: 1 }}>Barbearias</span>
+              <button
+                onClick={criarDemo}
+                disabled={criando}
+                style={{ border: "none", cursor: criando ? "default" : "pointer", opacity: criando ? 0.6 : 1, fontSize: 11.5, fontWeight: 700, color: c.espressoDeep, background: c.brass, borderRadius: 999, padding: "6px 13px" }}
+              >
+                {criando ? "Criando…" : "+ Barbearia demo"}
+              </button>
               <div style={{ display: "flex", gap: 6 }}>
                 {filtrosStatus.map((f) => {
                   const on = f.status === filtro;
@@ -136,7 +165,18 @@ export default function SuperAdminPage() {
             {tenantsFiltrados.map((t) => (
               <TenantRow key={t.nome} t={t} onClick={() => setDrawer(t)} />
             ))}
-            {tenantsFiltrados.length === 0 ? <div style={{ padding: "28px", textAlign: "center", color: c.darkMuted, fontSize: 13 }}>Nenhuma barbearia neste filtro.</div> : null}
+            {tenantsFiltrados.length === 0 ? (
+              <div style={{ padding: "28px", textAlign: "center", color: c.darkMuted, fontSize: 13 }}>
+                Nenhuma barbearia neste filtro.
+                {state.tenants.length === 0 ? (
+                  <div style={{ marginTop: 10 }}>
+                    <button onClick={criarDemo} disabled={criando} style={{ border: "none", cursor: criando ? "default" : "pointer", opacity: criando ? 0.6 : 1, fontSize: 12.5, fontWeight: 700, color: c.espressoDeep, background: c.brass, borderRadius: 999, padding: "8px 16px" }}>
+                      {criando ? "Criando…" : "Criar barbearia demo"}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ) : aba === "Billing" ? (
           <>

@@ -8,8 +8,8 @@ type Variant = "primary" | "ghost" | "pill" | "dark";
 export const btnPrimary: CSSProperties = {
   border: "none",
   cursor: "pointer",
-  background: "#241711",
-  color: "#F4EAD8",
+  background: c.primaryBtnBg,
+  color: c.primaryBtnText,
   padding: "11px 16px",
   borderRadius: 10,
   fontSize: 13.5,
@@ -50,6 +50,7 @@ const variants: Record<Variant, CSSProperties> = {
 
 type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant };
 
-export function Button({ variant = "primary", style, ...rest }: Props) {
-  return <button {...rest} style={{ ...variants[variant], ...(rest.disabled ? { opacity: 0.5, cursor: "not-allowed" } : null), ...style }} />;
+export function Button({ variant = "primary", style, className, ...rest }: Props) {
+  const cls = `oc-btn oc-btn-${variant}${className ? ` ${className}` : ""}`;
+  return <button {...rest} className={cls} style={{ ...variants[variant], ...(rest.disabled ? { opacity: 0.5, cursor: "not-allowed" } : null), ...style }} />;
 }

@@ -12,6 +12,7 @@ export function Card({
 }) {
   return (
     <div
+      className="oc-card"
       style={{
         background: c.surface,
         border: `1px solid ${c.border}`,
@@ -29,7 +30,7 @@ export function Card({
 export function CardTitle({ children, sub }: { children: ReactNode; sub?: string }) {
   return (
     <div>
-      <span style={{ fontFamily: "var(--font-spectral), serif", fontSize: 18, fontWeight: 600, color: "#241B12" }}>
+      <span style={{ fontFamily: "var(--font-spectral), serif", fontSize: 18, fontWeight: 600, color: c.inkTitle }}>
         {children}
       </span>
       {sub ? <div style={{ fontSize: 12, color: c.ink3, marginTop: 2 }}>{sub}</div> : null}

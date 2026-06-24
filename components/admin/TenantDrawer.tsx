@@ -1,8 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { useStore } from "@/lib/store";
+import { useAuth } from "@/lib/firebase/auth";
 import { useToast } from "@/components/ui/Toast";
 import { c, font } from "@/lib/theme";
 import { tenantStatusMeta } from "@/lib/status";
@@ -10,7 +12,16 @@ import type { Tenant } from "@/lib/types";
 
 export function TenantDrawer({ open, onClose, tenant }: { open: boolean; onClose: () => void; tenant: Tenant | null }) {
   const { actions } = useStore();
+  const { enterTenant } = useAuth();
   const toast = useToast();
+  const router = useRouter();
+
+  function abrirPainel() {
+    if (!tenant?.id) return;
+    enterTenant(tenant.id);
+    toast(`Entrando no painel de ${tenant.nome}…`);
+    router.push("/dashboard");
+  }
 
   if (!open || !tenant) return null;
   const sm = tenantStatusMeta[tenant.status];
@@ -62,6 +73,16 @@ export function TenantDrawer({ open, onClose, tenant }: { open: boolean; onClose
       {linha("Plano", tenant.plano)}
       {linha("MRR", tenant.mrr)}
       {linha("Agendamentos/mês", tenant.agendamentosMes)}
+
+      <button
+        onClick={abrirPainel}
+        style={{ width: "100%", marginTop: 20, border: "none", cursor: "pointer", background: c.brass, color: c.espressoDeep, padding: 13, borderRadius: 11, fontSize: 14, fontWeight: 700 }}
+      >
+        Abrir painel da barbearia →
+      </button>
+      <div style={{ fontSize: 11.5, color: c.darkMuted, marginTop: 8, textAlign: "center" }}>
+        Você entra como super admin e vê todas as telas dela.
+      </div>
 
       <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
         <Button variant="dark" onClick={alternarPlano}>{pro ? "Mudar para Básico" : "Mudar para Pro"}</Button>

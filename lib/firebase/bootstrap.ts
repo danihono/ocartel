@@ -5,7 +5,15 @@
 import { collection, doc, getDoc, serverTimestamp, writeBatch } from "firebase/firestore";
 import { db } from "./config";
 import { slug as slugify } from "@/lib/selectors";
-import { agendaBarbeiros, bookingBarbeiros, BARBEARIA, servicos as seedServicos } from "@/lib/mock-data";
+import { HOJE_ISO } from "@/lib/date";
+import {
+  agendaBarbeiros,
+  agendaBlocos,
+  bookingBarbeiros,
+  BARBEARIA,
+  clientes as seedClientes,
+  servicos as seedServicos,
+} from "@/lib/mock-data";
 import type { PlanoSaaS } from "@/lib/types";
 
 function monograma(nome: string): string {
@@ -119,5 +127,104 @@ export async function bootstrapTenant(params: BootstrapParams): Promise<{ tenant
   });
 
   await catalogo.commit();
+  return { tenantId, slug };
+}
+
+/**
+ * Cria uma barbearia de DEMONSTRAÇÃO para o superAdmin inspecionar (todas as
+ * telas de tenant: dashboard, agenda, clientes, pagamentos, etc.). Diferente do
+ * onboarding, NÃO grava users/{uid} — o superAdmin não vira admin dela; ele
+ * apenas "entra" via impersonação (enterTenant). Já vem populada (catálogo +
+ * clientes + agenda de hoje) para as telas não ficarem vazias.
+ *
+ * Roda num único writeBatch: para o superAdmin as regras já liberam tudo
+ * (canManage = isSuper) antes do batch, então não precisa do split em 2 commits.
+ */
+export async function seedDemoTenant(params: { ownerUid: string; nome?: string }): Promise<{ tenantId: string; slug: string }> {
+  const nome = (params.nome ?? "Barbearia Demo").trim() || "Barbearia Demo";
+  const tenantRef = doc(collection(db, "tenants"));
+  const tenantId = tenantRef.id;
+  const slug = await reservarSlug(slugify(nome), tenantId);
+
+  const batch = writeBatch(db);
+
+  // Doc do tenant (ownerUid = super: exigido pela regra de create de /tenants).
+  batch.set(tenantRef, {
+    nome,
+    slug,
+    cidade: "São Paulo · SP",
+    monograma: monograma(nome),
+    plano: "Pro",
+    status: "ativo",
+    mrr: "R$ 249",
+    agendamentosMes: "0",
+    ownerUid: params.ownerUid,
+    createdAt: serverTimestamp(),
+  });
+  batch.set(doc(db, "slugs", slug), { tenantId, createdAt: serverTimestamp() });
+
+  // Config.
+  batch.set(doc(db, "tenants", tenantId, "config", "main"), {
+    nome,
+    endereco: BARBEARIA.endereco,
+    telefone: "(11) 3060-1200",
+    horario: { abre: "09:00", fecha: "19:00", diasAtivos: [true, true, true, true, true, true, false] },
+  });
+
+  // Serviços (id estável = id do mock).
+  seedServicos.forEach((s) => {
+    batch.set(doc(db, "tenants", tenantId, "servicos", s.id), {
+      nome: s.nome,
+      duracaoMin: s.duracaoMin,
+      preco: s.preco,
+      createdAt: serverTimestamp(),
+    });
+  });
+
+  // Barbeiros (id = slug do nome, para casar com os agendamentos abaixo).
+  const barbeiroIds = agendaBarbeiros.map((b) => slugify(b.nome));
+  agendaBarbeiros.forEach((b, i) => {
+    const bk = bookingBarbeiros.find((x) => x.nome === b.nome);
+    batch.set(doc(db, "tenants", tenantId, "barbeiros", barbeiroIds[i]), {
+      nome: b.nome,
+      iniciais: b.iniciais,
+      cor: b.cor,
+      ...(bk?.rating ? { rating: bk.rating } : {}),
+      ...(bk?.especialidade ? { especialidade: bk.especialidade } : {}),
+      createdAt: serverTimestamp(),
+    });
+  });
+
+  // Clientes.
+  seedClientes.forEach((cli) => {
+    const { id, ...rest } = cli;
+    batch.set(doc(db, "tenants", tenantId, "clientes", id), { ...rest, createdAt: serverTimestamp() });
+  });
+
+  // Agenda de hoje (deriva dos blocos do mock; barbeiroId casa com os ids acima).
+  agendaBlocos.forEach((blocos, idx) => {
+    const barbeiroId = barbeiroIds[idx];
+    blocos.forEach((bl) => {
+      const nomeServico = bl.servico.split(" · ")[0].trim();
+      batch.set(doc(collection(db, "tenants", tenantId, "agendamentos")), {
+        date: HOJE_ISO,
+        barbeiroId,
+        clienteNome: bl.cliente,
+        servico: nomeServico,
+        servicoId: seedServicos.find((s) => s.nome === nomeServico)?.id ?? null,
+        inicio: bl.inicio,
+        duracaoMin: bl.duracaoMin,
+        status: bl.status,
+        origem: "admin",
+        createdAt: serverTimestamp(),
+      });
+    });
+  });
+
+  // Planos de assinatura.
+  batch.set(doc(db, "tenants", tenantId, "planosTiers", "basico"), { id: "basico", nome: "Básico", preco: 129, descricao: "1 unidade · até 3 barbeiros" });
+  batch.set(doc(db, "tenants", tenantId, "planosTiers", "pro"), { id: "pro", nome: "Pro", preco: 249, descricao: "Multi-unidade · ilimitado" });
+
+  await batch.commit();
   return { tenantId, slug };
 }
