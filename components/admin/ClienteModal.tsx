@@ -10,11 +10,12 @@ import { mesAnoCurto, HOJE_ISO } from "@/lib/date";
 import type { Cliente, ClienteTag } from "@/lib/types";
 
 const PLANOS = ["Avulso", "Mensal Corte", "Mensal C+B"];
+// "Inadimplente" NÃO é um marcador manual: é derivado das cobranças em atraso
+// (ver selectors.tagDerivadaCliente). Aqui só os marcadores escolhidos à mão.
 const TAGS: { value: ClienteTag; label: string }[] = [
   { value: "", label: "Nenhuma" },
   { value: "VIP", label: "VIP" },
   { value: "Novo", label: "Novo" },
-  { value: "Inadimplente", label: "Inadimplente" },
 ];
 
 function iniciaisDe(nome: string): string {
@@ -73,7 +74,7 @@ export function ClienteModal({
           plano,
           tag,
           ultimoAtendimento: "—",
-          totalGasto: "R$ 0",
+          totalGasto: 0,
           atendimentos: 0,
           desde: mesAnoCurto(HOJE_ISO),
           iniciais: iniciaisDe(nome),

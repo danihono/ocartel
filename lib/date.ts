@@ -140,3 +140,25 @@ export function mesAnoCurto(iso: string): string {
   const { y, m } = parse(iso);
   return `${MESES_CURTO[m - 1]}/${String(y).slice(2)}`;
 }
+
+/** Diferença em dias inteiros entre duas datas ISO (ate - de). */
+export function diasEntre(de: string, ate: string): number {
+  return Math.round((utc(ate).getTime() - utc(de).getTime()) / 86_400_000);
+}
+
+/**
+ * "hoje" / "ontem" / "há 3 dias" / "há 1 semana"… a partir de uma data ISO,
+ * relativa a `hoje` (default HOJE_ISO — determinístico, seguro no SSR).
+ */
+export function tempoRelativo(iso: string, hoje: string = HOJE_ISO): string {
+  const d = diasEntre(iso, hoje);
+  if (d <= 0) return "hoje";
+  if (d === 1) return "ontem";
+  if (d < 7) return `há ${d} dias`;
+  if (d < 14) return "há 1 semana";
+  if (d < 30) return `há ${Math.floor(d / 7)} semanas`;
+  if (d < 60) return "há 1 mês";
+  if (d < 365) return `há ${Math.floor(d / 30)} meses`;
+  const anos = Math.floor(d / 365);
+  return anos === 1 ? "há 1 ano" : `há ${anos} anos`;
+}

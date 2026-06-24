@@ -135,6 +135,19 @@ a {
 .oc-toast {
   animation: oc-toast 0.18s ease-out;
 }
+@keyframes oc-slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.oc-slide-right {
+  animation: oc-slide-right 0.18s ease-out;
+}
 
 /* Respeita usuários que pedem menos movimento */
 @media (prefers-reduced-motion: reduce) {

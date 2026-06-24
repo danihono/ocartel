@@ -8,6 +8,8 @@ import {
   collection,
   deleteDoc,
   doc,
+  increment,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -25,6 +27,7 @@ import type {
   Barbeiro,
   Cliente,
   ConfigBarbearia,
+  FormaPagamento,
   PlanoTier,
   Servico,
   Tenant,
@@ -93,16 +96,34 @@ export const servicos = {
   },
 };
 
-// ---- Transações ----
+// ---- Transações / Cobranças ----
 export const transacoes = {
+  // Limite pragmático: não carrega o histórico completo de todos os tempos. As
+  // mais recentes (e portanto pendentes/atrasadas correntes) cabem nesse teto.
   subscribe(tenantId: string, cb: (rows: Transacao[]) => void) {
-    return onSnapshot(query(col(tenantId, "transacoes"), orderBy("createdAt", "desc")), (s) => cb(rows<Transacao>(s)));
+    return onSnapshot(
+      query(col(tenantId, "transacoes"), orderBy("createdAt", "desc"), limit(300)),
+      (s) => cb(rows<Transacao>(s)),
+    );
   },
   add(tenantId: string, t: Transacao) {
     return addDoc(col(tenantId, "transacoes"), { ...semId(t), createdAt: serverTimestamp() });
   },
-  marcarPaga(tenantId: string, id: string) {
-    return updateDoc(sub(tenantId, "transacoes/" + id), { status: "pago" });
+  /** Confirma o pagamento de uma cobrança (manual, pela dona/admin). Auditável via `confirmedBy`. */
+  registrarPagamento(
+    tenantId: string,
+    id: string,
+    patch: { paidAt: string; forma: FormaPagamento; amountReceived: number; confirmedBy?: string },
+  ) {
+    return updateDoc(sub(tenantId, "transacoes/" + id), { status: "pago", source: "manual", ...patch });
+  },
+  /** Cria N cobranças pendentes de uma vez (a deduplicação por ciclo é feita na UI). */
+  gerarMensalidades(tenantId: string, novas: Transacao[]) {
+    const batch = writeBatch(db);
+    for (const t of novas) {
+      batch.set(doc(col(tenantId, "transacoes")), { ...semId(t), createdAt: serverTimestamp() });
+    }
+    return batch.commit();
   },
 };
 
@@ -117,14 +138,34 @@ export const agendamentos = {
   setStatus(tenantId: string, id: string, status: AgendamentoStatus) {
     return updateDoc(sub(tenantId, "agendamentos/" + id), { status });
   },
+  /** Atualização parcial (ex.: drag-and-drop e resize mudam `inicio`/`duracaoMin`). */
+  update(tenantId: string, id: string, patch: Partial<Agendamento>) {
+    return updateDoc(sub(tenantId, "agendamentos/" + id), patch as DocumentData);
+  },
   remove(tenantId: string, id: string) {
     return deleteDoc(sub(tenantId, "agendamentos/" + id));
   },
-  /** Conclui o atendimento e gera a transação correspondente — atomicamente. */
-  concluir(tenantId: string, id: string, transacao: Transacao) {
+  /**
+   * Conclui o atendimento, gera a transação e incrementa os agregados do cliente
+   * — tudo atomicamente, num único ponto. Este é o ÚNICO lugar que escreve os
+   * contadores `totalGasto`/`atendimentos`; nunca duplicar em componentes de UI.
+   */
+  concluir(
+    tenantId: string,
+    id: string,
+    transacao: Transacao,
+    cliente?: { id: string; valor: number; dataISO: string },
+  ) {
     const batch = writeBatch(db);
     batch.update(sub(tenantId, "agendamentos/" + id), { status: "concluido" });
     batch.set(doc(col(tenantId, "transacoes")), { ...semId(transacao), createdAt: serverTimestamp() });
+    if (cliente?.id) {
+      batch.update(sub(tenantId, "clientes/" + cliente.id), {
+        atendimentos: increment(1),
+        totalGasto: increment(cliente.valor),
+        ultimoAtendimentoISO: cliente.dataISO,
+      });
+    }
     return batch.commit();
   },
 };

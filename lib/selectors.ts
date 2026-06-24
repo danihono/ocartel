@@ -6,10 +6,14 @@ import type {
   AgendamentoStatus,
   BlocoAgenda,
   Cliente,
+  ClienteTag,
+  FormaPagamento,
   ProximoAgendamento,
+  TipoCobranca,
   Transacao,
+  TransacaoStatus,
 } from "./types";
-import { comparaHora } from "./date";
+import { comparaHora, HOJE_ISO, isoParaDiaMes } from "./date";
 
 /** Slug estável para ids (minúsculo, sem acento). */
 export function slug(nome: string): string {
@@ -109,10 +113,16 @@ function normaliza(s: string): string {
 
 export type FiltroCliente = "Todos" | "VIP" | "Avulsos" | "Inadimplentes";
 
-export function selectClientesFiltrados(state: AppState, filtro: FiltroCliente, busca: string): Cliente[] {
+export function selectClientesFiltrados(
+  state: AppState,
+  filtro: FiltroCliente,
+  busca: string,
+  hojeISO: string = HOJE_ISO,
+): Cliente[] {
   let lista = state.clientes;
   if (filtro === "VIP") lista = lista.filter((c) => c.tag === "VIP");
-  else if (filtro === "Inadimplentes") lista = lista.filter((c) => c.tag === "Inadimplente");
+  // "Inadimplente" é DERIVADO das cobranças (fonte única), não do tag manual.
+  else if (filtro === "Inadimplentes") lista = lista.filter((c) => clienteEstaInadimplente(state, c, hojeISO));
   else if (filtro === "Avulsos") lista = lista.filter((c) => /avulso/i.test(c.plano));
   const q = normaliza(busca.trim());
   if (q) {
@@ -123,22 +133,75 @@ export function selectClientesFiltrados(state: AppState, filtro: FiltroCliente, 
   return lista;
 }
 
-export function selectContagensCliente(state: AppState): Record<FiltroCliente, number> {
+export function selectContagensCliente(state: AppState, hojeISO: string = HOJE_ISO): Record<FiltroCliente, number> {
   return {
     Todos: state.clientes.length,
     VIP: state.clientes.filter((c) => c.tag === "VIP").length,
     Avulsos: state.clientes.filter((c) => /avulso/i.test(c.plano)).length,
-    Inadimplentes: state.clientes.filter((c) => c.tag === "Inadimplente").length,
+    Inadimplentes: state.clientes.filter((c) => clienteEstaInadimplente(state, c, hojeISO)).length,
   };
 }
 
-export type FiltroTransacao = "Todas" | "Pagas" | "Pendentes" | "Atrasadas";
+// ---- Cobranças (modelo de pagamento) ----
 
-export function selectTransacoes(state: AppState, filtro: FiltroTransacao, busca: string): Transacao[] {
+/**
+ * Status DERIVADO de uma cobrança. "atrasado" = pendente com `dueDate` vencida —
+ * calculado na leitura, nunca gravado. Tolera docs legados com "atrasado" salvo.
+ */
+export function statusCobranca(t: Transacao, hojeISO: string = HOJE_ISO): TransacaoStatus {
+  if (t.status === "pago") return "pago";
+  if (t.dueDate) return t.dueDate < hojeISO ? "atrasado" : "pendente";
+  return t.status === "atrasado" ? "atrasado" : "pendente"; // legado sem dueDate
+}
+
+/** Valor originalmente cobrado (cai em `valor` p/ docs legados). */
+export function valorCobrado(t: Transacao): number {
+  return t.amount ?? t.valor;
+}
+
+/** Valor efetivamente recebido (cai em `valor` p/ docs legados). */
+export function valorRecebido(t: Transacao): number {
+  return t.amountReceived ?? t.valor;
+}
+
+/** Tipo de cobrança (ausente ⇒ "avulso"). */
+export function tipoCobranca(t: Transacao): TipoCobranca {
+  return t.type ?? "avulso";
+}
+
+/** Cliente tem ≥1 cobrança atrasada — fonte única do "Inadimplente". */
+export function clienteEstaInadimplente(state: AppState, cliente: Cliente, hojeISO: string = HOJE_ISO): boolean {
+  return state.transacoes.some((t) => ehDoCliente(t, cliente) && statusCobranca(t, hojeISO) === "atrasado");
+}
+
+/**
+ * Marcador exibido. "Inadimplente" é DERIVADO das cobranças (fonte única); o tag
+ * manual cobre só VIP/Novo. Um "Inadimplente" gravado à mão (legado) é ignorado.
+ */
+export function tagDerivadaCliente(state: AppState, cliente: Cliente, hojeISO: string = HOJE_ISO): ClienteTag {
+  if (clienteEstaInadimplente(state, cliente, hojeISO)) return "Inadimplente";
+  return cliente.tag === "Inadimplente" ? "" : cliente.tag;
+}
+
+export type FiltroTransacao = "Todas" | "Pagas" | "Pendentes" | "Atrasadas";
+export type FiltroTipoCobranca = "todos" | "mensalidade" | "avulso";
+
+const STATUS_DO_FILTRO: Record<Exclude<FiltroTransacao, "Todas">, TransacaoStatus> = {
+  Pagas: "pago",
+  Pendentes: "pendente",
+  Atrasadas: "atrasado",
+};
+
+export function selectTransacoes(
+  state: AppState,
+  filtro: FiltroTransacao,
+  busca: string,
+  tipo: FiltroTipoCobranca = "todos",
+  hojeISO: string = HOJE_ISO,
+): Transacao[] {
   let lista = state.transacoes;
-  if (filtro === "Pagas") lista = lista.filter((t) => t.status === "pago");
-  else if (filtro === "Pendentes") lista = lista.filter((t) => t.status === "pendente");
-  else if (filtro === "Atrasadas") lista = lista.filter((t) => t.status === "atrasado");
+  if (tipo !== "todos") lista = lista.filter((t) => tipoCobranca(t) === tipo);
+  if (filtro !== "Todas") lista = lista.filter((t) => statusCobranca(t, hojeISO) === STATUS_DO_FILTRO[filtro]);
   const q = normaliza(busca.trim());
   if (q) {
     lista = lista.filter(
@@ -151,15 +214,39 @@ export function selectTransacoes(state: AppState, filtro: FiltroTransacao, busca
   return lista;
 }
 
-/** Somatórios para os KPIs de /pagamentos. */
-export function selectResumoFinanceiro(state: AppState): {
-  recebido: number;
-  pendente: number;
-  atrasado: number;
-} {
-  const soma = (st: Transacao["status"]) =>
-    state.transacoes.filter((t) => t.status === st).reduce((acc, t) => acc + t.valor, 0);
-  return { recebido: soma("pago"), pendente: soma("pendente"), atrasado: soma("atrasado") };
+/** Contagem por status (derivado) para as pills, respeitando o filtro de tipo. */
+export function selectContagensTransacao(
+  state: AppState,
+  tipo: FiltroTipoCobranca = "todos",
+  hojeISO: string = HOJE_ISO,
+): Record<FiltroTransacao, number> {
+  const base = tipo === "todos" ? state.transacoes : state.transacoes.filter((t) => tipoCobranca(t) === tipo);
+  const cont = (st: TransacaoStatus) => base.filter((t) => statusCobranca(t, hojeISO) === st).length;
+  return { Todas: base.length, Pagas: cont("pago"), Pendentes: cont("pendente"), Atrasadas: cont("atrasado") };
+}
+
+/** Somatórios para os KPIs de /pagamentos (mês de `hojeISO`). */
+export function selectResumoFinanceiro(
+  state: AppState,
+  hojeISO: string = HOJE_ISO,
+): { recebidoMes: number; aReceber: number; emAtraso: number; qtdAtraso: number } {
+  const mes = hojeISO.slice(0, 7); // "YYYY-MM"
+  let recebidoMes = 0;
+  let aReceber = 0;
+  let emAtraso = 0;
+  let qtdAtraso = 0;
+  for (const t of state.transacoes) {
+    const st = statusCobranca(t, hojeISO);
+    if (st === "pago") {
+      if ((t.paidAt ?? "").slice(0, 7) === mes) recebidoMes += valorRecebido(t);
+    } else if (st === "atrasado") {
+      emAtraso += valorCobrado(t);
+      qtdAtraso += 1;
+    } else {
+      aReceber += valorCobrado(t);
+    }
+  }
+  return { recebidoMes, aReceber, emAtraso, qtdAtraso };
 }
 
 export function precoServico(state: AppState, nome: string): number {
@@ -174,3 +261,72 @@ export function formatBRL(n: number): string {
 export function duracaoServico(state: AppState, nome: string): number {
   return state.servicos.find((s) => s.nome === nome)?.duracaoMin ?? 40;
 }
+
+// ---- Derivações por cliente (painel de detalhe) ----
+
+/** Casa um agendamento/transação ao cliente por id (preferido) ou nome (fallback p/ dados legados). */
+export function ehDoCliente(item: { clienteId?: string; clienteNome?: string }, cliente: Cliente): boolean {
+  if (item.clienteId) return item.clienteId === cliente.id;
+  return (item.clienteNome ?? "") === cliente.nome;
+}
+
+export interface HistoricoItem {
+  id: string;
+  dateISO: string;
+  data: string; // "23 jun"
+  servico: string;
+  barbeiro: string;
+  valor: number;
+}
+
+/** Histórico real de atendimentos concluídos do cliente, mais recente primeiro. */
+export function selectHistoricoCliente(state: AppState, cliente: Cliente): HistoricoItem[] {
+  return state.agendamentos
+    .filter((a) => a.status === "concluido" && ehDoCliente(a, cliente))
+    .sort((a, b) => (a.date === b.date ? comparaHora(b.inicio, a.inicio) : b.date.localeCompare(a.date)))
+    .map((a) => ({
+      id: a.id,
+      dateISO: a.date,
+      data: isoParaDiaMes(a.date),
+      servico: a.servico,
+      barbeiro: barbeiroNomePorId(state, a.barbeiroId),
+      valor: precoServico(state, a.servico),
+    }));
+}
+
+/** Próximo agendamento futuro (ativo) do cliente, ou null. */
+export function selectProximoAgendamentoCliente(
+  state: AppState,
+  cliente: Cliente,
+  hojeISO: string,
+): (Agendamento & { barbeiroNome: string }) | null {
+  const ativos: AgendamentoStatus[] = ["agendado", "confirmado", "atendimento"];
+  const p = state.agendamentos
+    .filter((a) => ehDoCliente(a, cliente) && a.date >= hojeISO && ativos.includes(a.status))
+    .sort((a, b) => (a.date === b.date ? comparaHora(a.inicio, b.inicio) : a.date.localeCompare(b.date)))[0];
+  return p ? { ...p, barbeiroNome: barbeiroNomePorId(state, p.barbeiroId) } : null;
+}
+
+/** Forma de pagamento mais usada pelo cliente (moda das transações), ou null. */
+export function selectFormaPreferidaCliente(state: AppState, cliente: Cliente): FormaPagamento | null {
+  const contagem = new Map<FormaPagamento, number>();
+  for (const t of state.transacoes) {
+    if (ehDoCliente(t, cliente)) contagem.set(t.forma, (contagem.get(t.forma) ?? 0) + 1);
+  }
+  let melhor: FormaPagamento | null = null;
+  let max = 0;
+  for (const [forma, n] of contagem) {
+    if (n > max) {
+      max = n;
+      melhor = forma;
+    }
+  }
+  return melhor;
+}
+
+export const formaPagamentoLabel: Record<FormaPagamento, string> = {
+  pix: "Pix",
+  cartao: "Cartão de crédito",
+  cartao_debito: "Cartão de débito",
+  dinheiro: "Dinheiro",
+};

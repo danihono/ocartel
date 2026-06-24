@@ -161,11 +161,23 @@ export interface StoreActions {
   servicos: { add: (s: Servico) => Promise<Ref>; update: (s: Servico) => Promise<void>; remove: (id: string) => Promise<void> };
   agendamentos: {
     add: (a: Agendamento) => Promise<Ref>;
+    update: (id: string, patch: Partial<Agendamento>) => Promise<void>;
     setStatus: (id: string, status: AgendamentoStatus) => Promise<void>;
     remove: (id: string) => Promise<void>;
-    concluir: (id: string, transacao: Transacao) => Promise<void>;
+    concluir: (
+      id: string,
+      transacao: Transacao,
+      cliente?: { id: string; valor: number; dataISO: string },
+    ) => Promise<void>;
   };
-  transacoes: { add: (t: Transacao) => Promise<Ref>; marcarPaga: (id: string) => Promise<void> };
+  transacoes: {
+    add: (t: Transacao) => Promise<Ref>;
+    registrarPagamento: (
+      id: string,
+      patch: { paidAt: string; forma: FormaPagamento; amountReceived: number; confirmedBy?: string },
+    ) => Promise<void>;
+    gerarMensalidades: (novas: Transacao[]) => Promise<void>;
+  };
   config: { update: (patch: Partial<ConfigBarbearia>) => Promise<void> };
   planosTiers: { update: (tier: PlanoTier) => Promise<void> };
   tenants: { update: (tenantId: string, patch: Partial<Tenant>) => Promise<void> };
@@ -190,13 +202,15 @@ function buildActions(tenantId: string): StoreActions {
     },
     agendamentos: {
       add: (a) => repo.agendamentos.add(tenantId, a),
+      update: (id, patch) => repo.agendamentos.update(tenantId, id, patch),
       setStatus: (id, status) => repo.agendamentos.setStatus(tenantId, id, status),
       remove: (id) => repo.agendamentos.remove(tenantId, id),
-      concluir: (id, transacao) => repo.agendamentos.concluir(tenantId, id, transacao),
+      concluir: (id, transacao, cliente) => repo.agendamentos.concluir(tenantId, id, transacao, cliente),
     },
     transacoes: {
       add: (t) => repo.transacoes.add(tenantId, t),
-      marcarPaga: (id) => repo.transacoes.marcarPaga(tenantId, id),
+      registrarPagamento: (id, patch) => repo.transacoes.registrarPagamento(tenantId, id, patch),
+      gerarMensalidades: (novas) => repo.transacoes.gerarMensalidades(tenantId, novas),
     },
     config: { update: (patch) => repo.config.update(tenantId, patch) },
     planosTiers: { update: (tier) => repo.planosTiers.update(tenantId, tier) },

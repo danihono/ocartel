@@ -14,6 +14,7 @@ export interface NovoAgendamentoDefaults {
   barbeiroId?: string;
   inicio?: string;
   clienteNome?: string;
+  clienteId?: string;
   servico?: string;
 }
 
@@ -51,12 +52,16 @@ export function NovoAgendamentoModal({
       return;
     }
     const svc = state.servicos.find((s) => s.nome === servico);
+    const nomeLimpo = cliente.trim();
+    // Vincula ao cadastro: default explícito, senão casa pelo nome digitado.
+    const clienteId = defaults?.clienteId ?? state.clientes.find((cl) => cl.nome === nomeLimpo)?.id;
     try {
       await actions.agendamentos.add({
         id: makeId("ag"),
         date,
         barbeiroId,
-        clienteNome: cliente.trim(),
+        clienteNome: nomeLimpo,
+        clienteId,
         servico,
         servicoId: svc?.id,
         inicio,

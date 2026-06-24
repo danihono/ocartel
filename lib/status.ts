@@ -47,3 +47,11 @@ export function minutosDesde9(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
   return (h - 9) * 60 + m;
 }
+
+// minutos desde 09:00 -> "HH:MM" (inverso de minutosDesde9; usado no drag/resize)
+export function horaDesde9(min: number): string {
+  const total = 9 * 60 + min;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}

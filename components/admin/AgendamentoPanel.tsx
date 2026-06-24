@@ -1,0 +1,225 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/Button";
+import { Textarea } from "@/components/ui/Field";
+import { useStore, makeId } from "@/lib/store";
+import { useToast } from "@/components/ui/Toast";
+import { barbeiroNomePorId, fmtDur, formatBRL, precoServico, tagDerivadaCliente } from "@/lib/selectors";
+import { HOJE_ISO, isoParaDiaMes, isoParaLabelLongo } from "@/lib/date";
+import { c, font } from "@/lib/theme";
+import { blocoMeta, tagMeta } from "@/lib/status";
+import type { AgendamentoStatus } from "@/lib/types";
+
+const STATUS_LABEL: Record<AgendamentoStatus, string> = {
+  agendado: "Agendado",
+  confirmado: "Confirmado",
+  atendimento: "Em atendimento",
+  concluido: "Concluído",
+  noshow: "No-show",
+  cancelado: "Cancelado",
+  bloqueio: "Bloqueio",
+};
+
+/** Painel lateral de detalhe do agendamento (substitui o modal central na Agenda). */
+export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boolean; onClose: () => void; agendamentoId: string | null }) {
+  const { state, actions } = useStore();
+  const toast = useToast();
+
+  const ag = state.agendamentos.find((a) => a.id === agendamentoId) ?? null;
+
+  // Observações: rascunho local, semeado a cada abertura.
+  const [obs, setObs] = useState("");
+  const [salvandoObs, setSalvandoObs] = useState(false);
+  useEffect(() => {
+    if (open && ag) setObs(ag.observacoes ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, agendamentoId]);
+
+  if (!open || !ag) return null;
+
+  const isBloqueio = ag.status === "bloqueio";
+  const meta = blocoMeta[ag.status];
+  // Cliente do cadastro (telefone + selo), por id quando houver, senão pelo nome.
+  const cliente = state.clientes.find((cl) => (ag.clienteId && cl.id === ag.clienteId) || cl.nome === ag.clienteNome) ?? null;
+  const seloTag = cliente ? tagDerivadaCliente(state, cliente, HOJE_ISO) : "";
+  const selo = tagMeta(seloTag);
+  const preco = precoServico(state, ag.servico);
+  const obsAlterada = obs.trim() !== (ag.observacoes ?? "").trim();
+
+  async function setStatus(status: AgendamentoStatus, msg: string) {
+    if (!ag) return;
+    try {
+      if (status === "concluido") {
+        // Vincula ao cliente (id preferido; nome como fallback) p/ histórico e agregados.
+        const clienteId = ag.clienteId ?? state.clientes.find((cl) => cl.nome === ag.clienteNome)?.id;
+        const valor = precoServico(state, ag.servico);
+        await actions.agendamentos.concluir(
+          ag.id,
+          {
+            id: makeId("tx"),
+            data: isoParaDiaMes(ag.date),
+            clienteNome: ag.clienteNome,
+            clienteId,
+            servico: ag.servico,
+            barbeiroNome: barbeiroNomePorId(state, ag.barbeiroId),
+            valor,
+            status: "pago",
+            forma: "pix",
+            type: "avulso",
+            source: "manual",
+            paidAt: ag.date,
+            amount: valor,
+            amountReceived: valor,
+          },
+          clienteId ? { id: clienteId, valor, dataISO: ag.date } : undefined,
+        );
+      } else {
+        await actions.agendamentos.setStatus(ag.id, status);
+      }
+      toast(msg);
+      onClose();
+    } catch {
+      toast("Não foi possível atualizar o agendamento.", "error");
+    }
+  }
+
+  async function salvarObs() {
+    if (!ag || !obsAlterada) return;
+    setSalvandoObs(true);
+    try {
+      await actions.agendamentos.update(ag.id, { observacoes: obs.trim() });
+      toast("Observações salvas.");
+    } catch {
+      toast("Não foi possível salvar as observações.", "error");
+    } finally {
+      setSalvandoObs(false);
+    }
+  }
+
+  async function excluir(msg: string) {
+    if (!ag) return;
+    try {
+      await actions.agendamentos.remove(ag.id);
+      toast(msg);
+      onClose();
+    } catch {
+      toast("Não foi possível remover.", "error");
+    }
+  }
+
+  const linha = (rotulo: string, valor: string) => (
+    <div style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: `1px solid ${c.borderSoft}` }}>
+      <span style={{ fontSize: 12.5, color: c.ink3, fontWeight: 600, width: 104, flex: "none" }}>{rotulo}</span>
+      <span style={{ fontSize: 13.5, color: c.inkTitle, fontWeight: 600 }}>{valor}</span>
+    </div>
+  );
+
+  return (
+    <div
+      onClick={onClose}
+      className="oc-fade"
+      style={{ position: "fixed", inset: 0, background: "rgba(8,19,15,.5)", zIndex: 50, display: "flex", justifyContent: "flex-end" }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="oc-slide-right"
+        style={{
+          width: "100%",
+          maxWidth: 420,
+          height: "100%",
+          background: c.surface,
+          borderLeft: `1px solid ${c.border}`,
+          boxShadow: "-12px 0 36px rgba(8,19,15,.16)",
+          padding: "22px 24px",
+          overflow: "auto",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
+          <span style={{ fontFamily: font.serif, fontSize: 20, fontWeight: 600, color: c.inkTitle, flex: 1 }}>
+            {isBloqueio ? "Bloqueio" : "Agendamento"}
+          </span>
+          <button onClick={onClose} aria-label="Fechar" style={{ border: "none", background: "transparent", cursor: "pointer", color: c.ink3, fontSize: 18, lineHeight: 1, padding: 4 }}>
+            ✕
+          </button>
+        </div>
+
+        {/* Status */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+          <span style={{ width: 9, height: 9, borderRadius: 3, background: meta.bar }} />
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: c.inkTitle }}>{STATUS_LABEL[ag.status]}</span>
+        </div>
+
+        {/* Cliente */}
+        {!isBloqueio ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: c.inkTitle }}>{ag.clienteNome}</span>
+            {selo ? (
+              <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 9px", borderRadius: 999, background: selo.bg, color: selo.fg }}>{seloTag}</span>
+            ) : null}
+          </div>
+        ) : null}
+        {!isBloqueio && cliente?.telefone ? (
+          <a href={`tel:${cliente.telefone}`} style={{ fontSize: 13, color: c.brassDeep, fontWeight: 600, textDecoration: "none" }}>
+            {cliente.telefone}
+          </a>
+        ) : null}
+
+        {/* Detalhes */}
+        <div style={{ marginTop: 14 }}>
+          {isBloqueio ? linha("Motivo", ag.clienteNome || "Bloqueado") : linha("Serviço", `${ag.servico}${preco ? ` · ${formatBRL(preco)}` : ""}`)}
+          {linha("Profissional", barbeiroNomePorId(state, ag.barbeiroId))}
+          {linha("Data", isoParaLabelLongo(ag.date))}
+          {linha("Horário", `${ag.inicio} · ${fmtDur(ag.duracaoMin)}`)}
+        </div>
+
+        {/* Observações */}
+        {!isBloqueio ? (
+          <div style={{ marginTop: 18 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: c.inkLabel, display: "block", marginBottom: 6 }}>Observações</span>
+            <Textarea value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Preferência de corte, alergia, lembrete…" />
+            {obsAlterada ? (
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+                <Button variant="ghost" onClick={salvarObs} disabled={salvandoObs}>
+                  {salvandoObs ? "Salvando…" : "Salvar observações"}
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div style={{ flex: 1 }} />
+
+        {/* Ações */}
+        {isBloqueio ? (
+          <div style={{ display: "flex", gap: 8, marginTop: 22 }}>
+            <Button variant="ghost" onClick={onClose}>Fechar</Button>
+            <div style={{ flex: 1 }} />
+            <Button onClick={() => excluir("Bloqueio removido.")} style={{ background: c.red }}>Excluir bloqueio</Button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 22 }}>
+            {ag.status === "agendado" ? (
+              <Button variant="ghost" onClick={() => setStatus("confirmado", "Agendamento confirmado.")}>Confirmar</Button>
+            ) : null}
+            {ag.status !== "atendimento" && ag.status !== "concluido" ? (
+              <Button variant="ghost" onClick={() => setStatus("atendimento", "Atendimento iniciado.")}>Iniciar</Button>
+            ) : null}
+            {ag.status !== "concluido" ? (
+              <Button onClick={() => setStatus("concluido", "Atendimento concluído.")}>Concluir</Button>
+            ) : null}
+            {ag.status !== "noshow" ? (
+              <Button variant="ghost" onClick={() => setStatus("noshow", "Marcado como no-show.")}>No-show</Button>
+            ) : null}
+            {ag.status !== "cancelado" ? (
+              <Button variant="ghost" onClick={() => setStatus("cancelado", "Agendamento cancelado.")} style={{ color: c.red }}>Cancelar</Button>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

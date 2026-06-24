@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { c, font, shadow } from "@/lib/theme";
 import { useStore } from "@/lib/store";
+import { useToast } from "@/components/ui/Toast";
 import { selectAgendaPorBarbeiro, selectAtendimentosHoje } from "@/lib/selectors";
-import { blocoMeta, minutosDesde9, PX_PER_MIN } from "@/lib/status";
+import { blocoMeta, horaDesde9, minutosDesde9, PX_PER_MIN } from "@/lib/status";
+import { intervalosSobrepoem } from "@/lib/agenda";
+import type { Agendamento } from "@/lib/types";
 import {
   HOJE_ISO,
   AGORA_HHMM,
@@ -16,13 +19,16 @@ import {
   labelSemana,
   mesLabel,
 } from "@/lib/date";
-import { AgendamentoModal } from "@/components/admin/AgendamentoModal";
+import { AgendamentoPanel } from "@/components/admin/AgendamentoPanel";
 import { BloquearHorarioModal } from "@/components/admin/BloquearHorarioModal";
 import { NovoAgendamentoModal, type NovoAgendamentoDefaults } from "@/components/admin/NovoAgendamentoModal";
 
 const COL_H = 880;
 const HOURS = Array.from({ length: 11 }, (_, i) => 9 + i); // 09..19
 const DIAS_CURTO = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+const SNAP_MIN = 10; // granularidade do arraste / resize / clique-no-vazio
+const MIN_DUR_MIN = 10; // duração mínima ao redimensionar
+const STEP_PX = SNAP_MIN * PX_PER_MIN; // 1 passo de snap em pixels
 
 const legenda = [
   { label: "Agendado", cor: c.brass },
@@ -49,7 +55,10 @@ function Bloco({
   cliente,
   servico,
   status,
+  atenuado = false,
   onClick,
+  onMove,
+  onResize,
 }: {
   id: string;
   inicio: string;
@@ -57,17 +66,85 @@ function Bloco({
   cliente: string;
   servico: string;
   status: keyof typeof blocoMeta;
+  atenuado?: boolean;
   onClick: (id: string) => void;
+  onMove: (id: string, novoInicio: string) => void;
+  onResize: (id: string, novaDur: number) => void;
 }) {
   const m = blocoMeta[status];
-  const top = minutosDesde9(inicio) * PX_PER_MIN;
-  const height = dur * PX_PER_MIN - 4;
+  const fixo = status === "bloqueio"; // bloqueios não arrastam nem redimensionam
+  const baseTop = minutosDesde9(inicio) * PX_PER_MIN;
+  const baseH = dur * PX_PER_MIN;
+
+  // Gesto em curso (ref, p/ não re-renderizar a cada pointermove) + preview visual.
+  const gesture = useRef<{
+    kind: "move" | "resize";
+    startY: number;
+    startTop: number;
+    startH: number;
+    lastTop: number;
+    lastH: number;
+    moved: boolean;
+  } | null>(null);
+  const [preview, setPreview] = useState<{ top: number; h: number } | null>(null);
+
+  const top = preview ? preview.top : baseTop;
+  const height = (preview ? preview.h : baseH) - 4;
+  const arrastando = preview !== null;
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (fixo) return;
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const kind = rect.bottom - e.clientY <= 12 ? "resize" : "move"; // borda inferior = resize
+    e.currentTarget.setPointerCapture(e.pointerId);
+    gesture.current = { kind, startY: e.clientY, startTop: baseTop, startH: baseH, lastTop: baseTop, lastH: baseH, moved: false };
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const g = gesture.current;
+    if (!g) return;
+    const dy = e.clientY - g.startY;
+    if (Math.abs(dy) > 3) g.moved = true;
+    if (g.kind === "move") {
+      let t = Math.round((g.startTop + dy) / STEP_PX) * STEP_PX;
+      t = Math.max(0, Math.min(COL_H - g.startH, t)); // dentro do expediente
+      g.lastTop = t;
+      setPreview({ top: t, h: g.startH });
+    } else {
+      let h = Math.round((g.startH + dy) / STEP_PX) * STEP_PX;
+      h = Math.max(MIN_DUR_MIN * PX_PER_MIN, Math.min(COL_H - g.startTop, h));
+      g.lastH = h;
+      setPreview({ top: g.startTop, h });
+    }
+  }
+
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    const g = gesture.current;
+    if (!g) return;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    gesture.current = null;
+    setPreview(null);
+    if (!g.moved) {
+      onClick(id); // não arrastou de fato → trata como clique (abre detalhe)
+      return;
+    }
+    if (g.kind === "move") {
+      onMove(id, horaDesde9(Math.round(g.lastTop / PX_PER_MIN / SNAP_MIN) * SNAP_MIN));
+    } else {
+      onResize(id, Math.max(MIN_DUR_MIN, Math.round(g.lastH / PX_PER_MIN / SNAP_MIN) * SNAP_MIN));
+    }
+  }
+
+  const horaPreview = preview ? horaDesde9(Math.round(preview.top / PX_PER_MIN / SNAP_MIN) * SNAP_MIN) : inicio;
+
   return (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick(id);
-      }}
+    <div
+      role="button"
+      onClick={(e) => e.stopPropagation()} // impede o clique de criar agendamento no vazio
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
       style={{
         position: "absolute",
         left: 6,
@@ -81,15 +158,26 @@ function Bloco({
         padding: "8px 10px",
         overflow: "hidden",
         textAlign: "left",
-        cursor: "pointer",
+        cursor: fixo ? "pointer" : arrastando ? "grabbing" : "grab",
         font: "inherit",
+        touchAction: "none", // drag por toque não rola a página
+        userSelect: "none",
+        zIndex: arrastando ? 5 : 1,
+        boxShadow: arrastando ? shadow.pop : "none",
+        opacity: arrastando ? 0.93 : atenuado ? 0.32 : 1,
+        transition: "opacity .12s ease-out",
       }}
     >
       <div style={{ fontSize: 12, fontWeight: 700, color: m.title }}>
-        {inicio} · {cliente}
+        {horaPreview} · {cliente}
       </div>
       <div style={{ fontSize: 11, color: m.sub, marginTop: 2 }}>{servico}</div>
-    </button>
+      {!fixo ? (
+        <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 10, cursor: "ns-resize", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: 22, height: 3, borderRadius: 2, background: m.bar, opacity: 0.45 }} />
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -107,13 +195,15 @@ const btnNav: React.CSSProperties = {
 type View = "dia" | "semana" | "mes";
 
 export default function AgendaPage() {
-  const { state } = useStore();
+  const { state, dispatch, actions } = useStore();
+  const toast = useToast();
   const [dateISO, setDateISO] = useState(HOJE_ISO);
   const [view, setView] = useState<View>("dia");
   const [agSel, setAgSel] = useState<string | null>(null);
   const [bloquear, setBloquear] = useState(false);
   const [novoOpen, setNovoOpen] = useState(false);
   const [novoDefaults, setNovoDefaults] = useState<NovoAgendamentoDefaults>({});
+  const [busca, setBusca] = useState("");
 
   // Visão barbeiro: restringe a agenda a um único barbeiro (fallback: o 1º).
   const visaoBarbeiro = state.ui.visao === "barbeiro";
@@ -127,6 +217,13 @@ export default function AgendaPage() {
   const ehHoje = dateISO === HOJE_ISO;
   const nowTop = minutosDesde9(AGORA_HHMM) * PX_PER_MIN;
 
+  // Busca (visão Dia): isola as colunas com cliente correspondente e atenua os demais cards.
+  const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const buscaAtiva = view === "dia" && busca.trim().length > 0;
+  const buscaNorm = norm(busca.trim());
+  const matchCliente = (nome: string) => norm(nome).includes(buscaNorm);
+  const colunasDia = buscaAtiva ? colunas.filter((col) => col.blocos.some((b) => matchCliente(b.cliente))) : colunas;
+
   function passo(delta: number) {
     if (view === "dia") setDateISO(addDias(dateISO, delta));
     else if (view === "semana") setDateISO(addDias(dateISO, delta * 7));
@@ -138,12 +235,39 @@ export default function AgendaPage() {
   function criarNoHorario(e: React.MouseEvent<HTMLDivElement>, barbeiroId: string) {
     const rect = e.currentTarget.getBoundingClientRect();
     const y = e.clientY - rect.top;
-    const totalMin = Math.max(0, Math.min(600, Math.round(y / PX_PER_MIN / 15) * 15));
-    const h = 9 + Math.floor(totalMin / 60);
-    const m = totalMin % 60;
-    setNovoDefaults({ dateISO, barbeiroId, inicio: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}` });
+    const totalMin = Math.max(0, Math.min(600, Math.round(y / PX_PER_MIN / SNAP_MIN) * SNAP_MIN));
+    setNovoDefaults({ dateISO, barbeiroId, inicio: horaDesde9(totalMin) });
     setNovoOpen(true);
   }
+
+  // Drag/resize: aplica a mudança com optimistic UI + rollback e avisa (sem bloquear) se houver conflito.
+  async function aplicarMudanca(id: string, patch: Partial<Agendamento>, okMsg: string) {
+    const anterior = state.agendamentos;
+    const alvo = anterior.find((a) => a.id === id);
+    if (!alvo) return;
+    const novo = { ...alvo, ...patch };
+    // Optimistic update.
+    dispatch({ type: "SET_DATA", patch: { agendamentos: anterior.map((a) => (a.id === id ? novo : a)) } });
+    const conflito = anterior.find(
+      (o) =>
+        o.id !== id &&
+        o.barbeiroId === novo.barbeiroId &&
+        o.date === novo.date &&
+        o.status !== "cancelado" &&
+        intervalosSobrepoem(novo.inicio, novo.duracaoMin, o.inicio, o.duracaoMin),
+    );
+    try {
+      await actions.agendamentos.update(id, patch);
+      if (conflito) toast(`Atenção: sobreposição com ${conflito.clienteNome}.`, "error");
+      else toast(okMsg);
+    } catch {
+      dispatch({ type: "SET_DATA", patch: { agendamentos: anterior } }); // rollback
+      toast("Não foi possível salvar a alteração.", "error");
+    }
+  }
+
+  const moverAgendamento = (id: string, novoInicio: string) => aplicarMudanca(id, { inicio: novoInicio }, "Horário atualizado.");
+  const redimensionar = (id: string, novaDur: number) => aplicarMudanca(id, { duracaoMin: novaDur }, "Duração atualizada.");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, height: "100%", maxWidth: 1600 }}>
@@ -168,6 +292,26 @@ export default function AgendaPage() {
           </span>
         ) : null}
         <div style={{ flex: 1 }} />
+        {view === "dia" ? (
+          <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar cliente…"
+              className="oc-input"
+              style={{ width: 190, background: c.surface, border: `1px solid ${c.borderInput}`, borderRadius: 9, padding: "8px 30px 8px 12px", fontSize: 13, color: c.inkTitle, outline: "none" }}
+            />
+            {busca ? (
+              <button
+                onClick={() => setBusca("")}
+                aria-label="Limpar busca"
+                style={{ position: "absolute", right: 8, border: "none", background: "transparent", cursor: "pointer", color: c.ink3, fontSize: 14, lineHeight: 1, padding: 2 }}
+              >
+                ✕
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div style={{ display: "flex", background: c.surfaceAlt, borderRadius: 9, padding: 3 }}>
           {([
             ["Dia", "dia"],
@@ -217,10 +361,15 @@ export default function AgendaPage() {
       {/* Calendário */}
       <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 14, overflow: "auto", flex: 1, boxShadow: shadow.card }}>
         {view === "dia" ? (
-          <div style={{ display: "grid", gridTemplateColumns: `64px repeat(${colunas.length},1fr)`, minWidth: 740 }}>
+          buscaAtiva && colunasDia.length === 0 ? (
+            <div style={{ padding: 48, textAlign: "center", color: c.ink3, fontSize: 13 }}>
+              Nenhum agendamento para “{busca.trim()}”.
+            </div>
+          ) : (
+          <div style={{ display: "grid", gridTemplateColumns: `64px repeat(${colunasDia.length},1fr)`, minWidth: 740 }}>
             {/* header row */}
             <div style={{ height: 58, borderBottom: `1px solid ${c.border}`, borderRight: `1px solid ${c.borderSoft}` }} />
-            {colunas.map(({ barbeiro }, i) => (
+            {colunasDia.map(({ barbeiro }, i) => (
               <div
                 key={barbeiro.id}
                 style={{
@@ -261,15 +410,16 @@ export default function AgendaPage() {
             </div>
 
             {/* barber columns */}
-            {colunas.map(({ barbeiro, blocos }) => (
+            {colunasDia.map(({ barbeiro, blocos }) => (
               <div key={barbeiro.id} style={gridBg()} onClick={(e) => criarNoHorario(e, barbeiro.id)}>
                 {ehHoje ? <div style={{ position: "absolute", left: 0, right: 0, top: nowTop, height: 2, background: c.red, zIndex: 3 }} /> : null}
                 {blocos.map((b) => (
-                  <Bloco key={b.id} id={b.id} inicio={b.inicio} dur={b.duracaoMin} cliente={b.cliente} servico={b.servico} status={b.status} onClick={setAgSel} />
+                  <Bloco key={b.id} id={b.id} inicio={b.inicio} dur={b.duracaoMin} cliente={b.cliente} servico={b.servico} status={b.status} atenuado={buscaAtiva && !matchCliente(b.cliente)} onClick={setAgSel} onMove={moverAgendamento} onResize={redimensionar} />
                 ))}
               </div>
             ))}
           </div>
+          )
         ) : view === "semana" ? (
           <SemanaView dateISO={dateISO} state={state} onSelect={setAgSel} barbeiroId={barbId} />
         ) : (
@@ -277,7 +427,7 @@ export default function AgendaPage() {
         )}
       </div>
 
-      <AgendamentoModal open={agSel !== null} onClose={() => setAgSel(null)} agendamentoId={agSel} />
+      <AgendamentoPanel open={agSel !== null} onClose={() => setAgSel(null)} agendamentoId={agSel} />
       <BloquearHorarioModal open={bloquear} onClose={() => setBloquear(false)} defaults={{ dateISO }} />
       <NovoAgendamentoModal open={novoOpen} onClose={() => setNovoOpen(false)} defaults={novoDefaults} />
     </div>

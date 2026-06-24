@@ -31,16 +31,30 @@ export function AgendamentoModal({ open, onClose, agendamentoId }: { open: boole
     if (!ag) return;
     try {
       if (status === "concluido") {
-        await actions.agendamentos.concluir(ag.id, {
-          id: makeId("tx"),
-          data: isoParaDiaMes(ag.date),
-          clienteNome: ag.clienteNome,
-          servico: ag.servico,
-          barbeiroNome: barbeiroNomePorId(state, ag.barbeiroId),
-          valor: precoServico(state, ag.servico),
-          status: "pago",
-          forma: "pix",
-        });
+        // Vincula ao cliente (id preferido; nome como fallback p/ dados legados),
+        // para alimentar histórico, agregados e segmentos.
+        const clienteId = ag.clienteId ?? state.clientes.find((cl) => cl.nome === ag.clienteNome)?.id;
+        const valor = precoServico(state, ag.servico);
+        await actions.agendamentos.concluir(
+          ag.id,
+          {
+            id: makeId("tx"),
+            data: isoParaDiaMes(ag.date),
+            clienteNome: ag.clienteNome,
+            clienteId,
+            servico: ag.servico,
+            barbeiroNome: barbeiroNomePorId(state, ag.barbeiroId),
+            valor,
+            status: "pago",
+            forma: "pix",
+            type: "avulso",
+            source: "manual",
+            paidAt: ag.date,
+            amount: valor,
+            amountReceived: valor,
+          },
+          clienteId ? { id: clienteId, valor, dataISO: ag.date } : undefined,
+        );
       } else {
         await actions.agendamentos.setStatus(ag.id, status);
       }

@@ -7,23 +7,35 @@ import { Tag } from "@/components/ui/StatusPill";
 import { Avatar } from "@/components/ui/Seal";
 import { tagMeta } from "@/lib/status";
 import { useStore } from "@/lib/store";
-import { selectClientesFiltrados, selectContagensCliente, type FiltroCliente } from "@/lib/selectors";
+import {
+  selectClientesFiltrados,
+  selectContagensCliente,
+  selectHistoricoCliente,
+  selectProximoAgendamentoCliente,
+  selectFormaPreferidaCliente,
+  tagDerivadaCliente,
+  formaPagamentoLabel,
+  formatBRL,
+  type FiltroCliente,
+} from "@/lib/selectors";
+import { HOJE_ISO, isoParaLabel, tempoRelativo } from "@/lib/date";
 import { ClienteModal } from "@/components/admin/ClienteModal";
 import { NovoAgendamentoModal } from "@/components/admin/NovoAgendamentoModal";
-import { historicoCliente } from "@/lib/mock-data";
 
 const eyebrow = { fontSize: 11, letterSpacing: 0.7, textTransform: "uppercase" as const, color: c.ink3, fontWeight: 600 };
 const FILTROS: FiltroCliente[] = ["Todos", "VIP", "Avulsos", "Inadimplentes"];
+const HIST_INICIAL = 8;
 
 export default function ClientesPage() {
   const { state } = useStore();
 
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<FiltroCliente>("Todos");
-  const [selId, setSelId] = useState("c1");
+  const [selId, setSelId] = useState("");
   const [novoOpen, setNovoOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [agendarOpen, setAgendarOpen] = useState(false);
+  const [verTudo, setVerTudo] = useState(false);
 
   // Lê ?q (vindo da busca da Topbar) só no cliente, após montar — preserva o SSR.
   useEffect(() => {
@@ -37,8 +49,16 @@ export default function ClientesPage() {
 
   const lista = selectClientesFiltrados(state, filtro, busca);
   const contagens = selectContagensCliente(state);
-  const sel = state.clientes.find((x) => x.id === selId) ?? lista[0] ?? state.clientes[0];
-  const selTag = sel ? tagMeta(sel.tag) : null;
+  // Seleção restrita à lista filtrada; cai no 1º item, ou null (estado vazio).
+  const sel = lista.find((x) => x.id === selId) ?? lista[0] ?? null;
+  // Marcador exibido = derivado das cobranças (Inadimplente) com fallback ao tag manual (VIP/Novo).
+  const selTagValue = sel ? tagDerivadaCliente(state, sel, HOJE_ISO) : "";
+  const selTag = tagMeta(selTagValue);
+
+  const historico = sel ? selectHistoricoCliente(state, sel) : [];
+  const proximo = sel ? selectProximoAgendamentoCliente(state, sel, HOJE_ISO) : null;
+  const formaPreferida = sel ? selectFormaPreferidaCliente(state, sel) : null;
+  const histVisivel = verTudo ? historico : historico.slice(0, HIST_INICIAL);
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1.45fr 1fr", gap: 18, height: "100%", maxWidth: 1600 }}>
@@ -92,12 +112,14 @@ export default function ClientesPage() {
             <div style={{ padding: "40px 20px", textAlign: "center", color: c.ink3, fontSize: 13 }}>Nenhum cliente encontrado.</div>
           ) : null}
           {lista.map((cl) => {
-            const active = cl.id === selId;
-            const t = tagMeta(cl.tag);
+            const active = sel?.id === cl.id;
+            const clTag = tagDerivadaCliente(state, cl, HOJE_ISO);
+            const t = tagMeta(clTag);
+            const ultimo = cl.ultimoAtendimentoISO ? tempoRelativo(cl.ultimoAtendimentoISO) : cl.ultimoAtendimento;
             return (
               <button
                 key={cl.id}
-                onClick={() => setSelId(cl.id)}
+                onClick={() => { setSelId(cl.id); setVerTudo(false); }}
                 style={{
                   width: "100%",
                   textAlign: "left",
@@ -119,9 +141,9 @@ export default function ClientesPage() {
                 </div>
                 <div style={{ textAlign: "right", flex: "none", whiteSpace: "nowrap" }}>
                   <div style={{ fontSize: 12.5, fontWeight: 600, color: c.inkTitle }}>{cl.plano}</div>
-                  <div style={{ fontSize: 11, color: c.ink3, marginTop: 2 }}>{cl.ultimoAtendimento}</div>
+                  <div style={{ fontSize: 11, color: c.ink3, marginTop: 2 }}>{ultimo}</div>
                 </div>
-                {t ? <Tag label={cl.tag} fg={t.fg} bg={t.bg} /> : null}
+                {t ? <Tag label={clTag} fg={t.fg} bg={t.bg} /> : null}
               </button>
             );
           })}
@@ -136,10 +158,10 @@ export default function ClientesPage() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                 <span style={{ fontFamily: font.serif, fontSize: 21, fontWeight: 600, color: c.inkTitle }}>{sel.nome}</span>
-                {selTag ? <Tag label={sel.tag} fg={selTag.fg} bg={selTag.bg} /> : null}
+                {selTag ? <Tag label={selTagValue} fg={selTag.fg} bg={selTag.bg} /> : null}
               </div>
               <div style={{ fontSize: 13, color: c.ink2, marginTop: 3 }}>
-                {sel.telefone} · {sel.email}
+                {[sel.telefone, sel.email].filter(Boolean).join(" · ") || "Sem contato cadastrado"}
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 7, flex: "none" }}>
@@ -154,7 +176,7 @@ export default function ClientesPage() {
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginTop: 22 }}>
             {[
-              { l: "Total gasto", v: sel.totalGasto },
+              { l: "Total gasto", v: formatBRL(sel.totalGasto) },
               { l: "Atendimentos", v: String(sel.atendimentos) },
               { l: "Cliente desde", v: sel.desde },
             ].map((s) => (
@@ -166,72 +188,94 @@ export default function ClientesPage() {
           </div>
 
           {/* Plano */}
-          <div style={{ border: `1px solid ${c.surfaceAlt}`, background: c.surface, borderRadius: 12, padding: 16, marginTop: 18 }}>
-            <div style={{ display: "flex", alignItems: "center" }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: c.inkTitle, flex: 1 }}>Plano · {sel.plano}</span>
-              <span style={{ fontSize: 11.5, fontWeight: 600, color: c.green }}>Renova 12 jul</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 11, marginTop: 11 }}>
-              <div style={{ flex: 1, height: 7, background: c.surfaceAlt, borderRadius: 4, overflow: "hidden" }}>
-                <div style={{ width: "50%", height: "100%", background: c.brass }} />
-              </div>
-              <span style={{ fontSize: 12, fontWeight: 700, color: c.inkTitle }}>2 / 4 cortes</span>
-            </div>
+          <div style={{ border: `1px solid ${c.surfaceAlt}`, background: c.surface, borderRadius: 12, padding: 16, marginTop: 18, display: "flex", alignItems: "center" }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: c.inkTitle, flex: 1 }}>Plano · {sel.plano}</span>
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: /avulso/i.test(sel.plano) ? c.ink3 : c.green }}>
+              {/avulso/i.test(sel.plano) ? "Sem plano ativo" : "Plano ativo"}
+            </span>
           </div>
 
           {/* Próximo + Pagamento */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
             <div style={{ background: c.surfaceAlt, borderRadius: 11, padding: "13px 15px" }}>
               <div style={eyebrow}>Próximo agendamento</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: c.inkTitle, marginTop: 5 }}>Ter 24 jun · 11:00</div>
-              <div style={{ fontSize: 12, color: c.ink2, marginTop: 2 }}>Corte + Barba · Everton</div>
+              {proximo ? (
+                <>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: c.inkTitle, marginTop: 5 }}>
+                    {isoParaLabel(proximo.date)} · {proximo.inicio}
+                  </div>
+                  <div style={{ fontSize: 12, color: c.ink2, marginTop: 2 }}>{proximo.servico} · {proximo.barbeiroNome}</div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: c.ink3, marginTop: 5 }}>Nenhum futuro</div>
+                  <button onClick={() => setAgendarOpen(true)} style={{ marginTop: 4, border: "none", background: "transparent", cursor: "pointer", color: c.brassDeep, fontSize: 12, fontWeight: 700, padding: 0 }}>
+                    Agendar →
+                  </button>
+                </>
+              )}
             </div>
             <div style={{ background: c.surfaceAlt, borderRadius: 11, padding: "13px 15px" }}>
               <div style={eyebrow}>Forma de pagamento</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: c.inkTitle, marginTop: 5 }}>Pix</div>
-              <div style={{ fontSize: 12, color: c.ink2, marginTop: 2 }}>ou cartão final 4421</div>
-            </div>
-          </div>
-
-          {/* Fidelidade */}
-          <div style={{ background: c.espresso, borderRadius: 12, padding: 16, marginTop: 12, color: c.darkText }}>
-            <div style={{ display: "flex", alignItems: "center" }}>
-              <span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>Fidelidade</span>
-              <span style={{ fontSize: 11.5, color: c.brass, fontWeight: 600 }}>7 / 10 para um corte grátis</span>
-            </div>
-            <div style={{ display: "flex", height: 7, background: c.ink, borderRadius: 4, overflow: "hidden", marginTop: 11 }}>
-              <div style={{ width: "70%", background: c.brass }} />
+              {formaPreferida ? (
+                <>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: c.inkTitle, marginTop: 5 }}>{formaPagamentoLabel[formaPreferida]}</div>
+                  <div style={{ fontSize: 12, color: c.ink2, marginTop: 2 }}>mais usada</div>
+                </>
+              ) : (
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: c.ink3, marginTop: 5 }}>Sem pagamentos</div>
+              )}
             </div>
           </div>
 
           {/* Observações */}
           <div style={{ marginTop: 18 }}>
             <div style={{ ...eyebrow, marginBottom: 7 }}>Observações</div>
-            <div style={{ fontSize: 13.5, color: c.inkTitle, lineHeight: 1.5, background: c.surfaceAlt, borderRadius: 11, padding: "13px 15px" }}>
-              Gosta de degradê baixo, máquina 1 nas laterais. Sempre marca com o Everton.
+            <div style={{ fontSize: 13.5, color: sel.observacoes ? c.inkTitle : c.ink3, lineHeight: 1.5, background: c.surfaceAlt, borderRadius: 11, padding: "13px 15px" }}>
+              {sel.observacoes || "Sem observações."}
             </div>
           </div>
 
           {/* Histórico */}
           <div style={{ marginTop: 20 }}>
             <div style={{ ...eyebrow, marginBottom: 6 }}>Histórico de atendimentos</div>
-            {historicoCliente.map((h) => (
-              <div key={h.data + h.servico} style={{ display: "flex", alignItems: "center", gap: 13, padding: "11px 0", borderBottom: `1px solid ${c.borderSoft}` }}>
-                <div style={{ fontFamily: font.serif, fontSize: 13, fontWeight: 600, color: c.brown2, width: 48 }}>{h.data}</div>
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: 13.5, fontWeight: 600, color: c.inkTitle }}>{h.servico}</span>
-                  <span style={{ fontSize: 12, color: c.ink2, marginLeft: 8 }}>{h.barbeiro}</span>
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: c.inkTitle }}>{h.valor}</div>
-              </div>
-            ))}
+            {historico.length === 0 ? (
+              <div style={{ fontSize: 13, color: c.ink3, padding: "12px 0" }}>Nenhum atendimento concluído ainda.</div>
+            ) : (
+              <>
+                {histVisivel.map((h) => (
+                  <div key={h.id} style={{ display: "flex", alignItems: "center", gap: 13, padding: "11px 0", borderBottom: `1px solid ${c.borderSoft}` }}>
+                    <div style={{ fontFamily: font.serif, fontSize: 13, fontWeight: 600, color: c.brown2, width: 48 }}>{h.data}</div>
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontSize: 13.5, fontWeight: 600, color: c.inkTitle }}>{h.servico}</span>
+                      <span style={{ fontSize: 12, color: c.ink2, marginLeft: 8 }}>{h.barbeiro}</span>
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: c.inkTitle }}>{formatBRL(h.valor)}</div>
+                  </div>
+                ))}
+                {historico.length > HIST_INICIAL ? (
+                  <button onClick={() => setVerTudo((v) => !v)} style={{ marginTop: 10, border: "none", background: "transparent", cursor: "pointer", color: c.brassDeep, fontSize: 12.5, fontWeight: 700, padding: 0 }}>
+                    {verTudo ? "Ver menos" : `Ver tudo (${historico.length})`}
+                  </button>
+                ) : null}
+              </>
+            )}
           </div>
         </Card>
-      ) : null}
+      ) : (
+        <Card pad="24px" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", gap: 6 }}>
+          <Avatar initials="" size={52} bg={c.surfaceAlt} color={c.ink4} />
+          <div style={{ fontFamily: font.serif, fontSize: 17, fontWeight: 600, color: c.inkTitle, marginTop: 6 }}>Selecione um cliente</div>
+          <div style={{ fontSize: 13, color: c.ink3, maxWidth: 260 }}>Escolha um cliente na lista ao lado para ver o perfil completo, ou cadastre um novo.</div>
+          <button onClick={() => setNovoOpen(true)} style={{ marginTop: 8, border: "none", cursor: "pointer", background: c.primaryBtnBg, color: c.primaryBtnText, padding: "9px 15px", borderRadius: 9, fontSize: 12.5, fontWeight: 700 }}>
+            + Novo cliente
+          </button>
+        </Card>
+      )}
 
       <ClienteModal open={novoOpen} onClose={() => setNovoOpen(false)} onSaved={(id) => { setFiltro("Todos"); setBusca(""); setSelId(id); }} />
       {sel ? <ClienteModal open={editOpen} onClose={() => setEditOpen(false)} cliente={sel} /> : null}
-      {sel ? <NovoAgendamentoModal open={agendarOpen} onClose={() => setAgendarOpen(false)} defaults={{ clienteNome: sel.nome }} /> : null}
+      {sel ? <NovoAgendamentoModal open={agendarOpen} onClose={() => setAgendarOpen(false)} defaults={{ clienteNome: sel.nome, clienteId: sel.id }} /> : null}
     </div>
   );
 }

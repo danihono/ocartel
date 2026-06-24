@@ -100,12 +100,12 @@ export const agoraHora = "14:24";
 
 // ---- Clientes ----
 export const clientes: Cliente[] = [
-  { id: "c1", nome: "João Pedro Almeida", telefone: "(11) 98876-2310", email: "joaopedro@email.com", plano: "Mensal C+B", tag: "VIP", ultimoAtendimento: "há 3 dias", totalGasto: "R$ 1.840", atendimentos: 24, desde: "jan/24", iniciais: "JP" },
-  { id: "c2", nome: "Marcos Vinícius", telefone: "(11) 99120-4488", email: "marcosv@email.com", plano: "Avulso", tag: "Novo", ultimoAtendimento: "hoje", totalGasto: "R$ 215", atendimentos: 3, desde: "jun/26", iniciais: "MV" },
-  { id: "c3", nome: "Felipe Costa", telefone: "(11) 97744-1290", email: "felipe.costa@email.com", plano: "Mensal Corte", tag: "", ultimoAtendimento: "há 1 semana", totalGasto: "R$ 980", atendimentos: 13, desde: "set/24", iniciais: "FC" },
-  { id: "c4", nome: "Rafael Lima", telefone: "(11) 98010-7765", email: "rafalima@email.com", plano: "Avulso", tag: "Inadimplente", ultimoAtendimento: "há 2 meses", totalGasto: "R$ 430", atendimentos: 6, desde: "mar/25", iniciais: "RL" },
-  { id: "c5", nome: "Bruno Alves", telefone: "(11) 99655-3321", email: "bruno.alves@email.com", plano: "Mensal C+B", tag: "VIP", ultimoAtendimento: "há 5 dias", totalGasto: "R$ 2.120", atendimentos: 29, desde: "nov/23", iniciais: "BA" },
-  { id: "c6", nome: "Thiago Mendes", telefone: "(11) 98233-0091", email: "thiagom@email.com", plano: "Avulso", tag: "", ultimoAtendimento: "há 2 semanas", totalGasto: "R$ 360", atendimentos: 5, desde: "fev/25", iniciais: "TM" },
+  { id: "c1", nome: "João Pedro Almeida", telefone: "(11) 98876-2310", email: "joaopedro@email.com", plano: "Mensal C+B", tag: "VIP", ultimoAtendimento: "há 3 dias", totalGasto: 1840, atendimentos: 24, desde: "jan/24", iniciais: "JP" },
+  { id: "c2", nome: "Marcos Vinícius", telefone: "(11) 99120-4488", email: "marcosv@email.com", plano: "Avulso", tag: "Novo", ultimoAtendimento: "hoje", totalGasto: 215, atendimentos: 3, desde: "jun/26", iniciais: "MV" },
+  { id: "c3", nome: "Felipe Costa", telefone: "(11) 97744-1290", email: "felipe.costa@email.com", plano: "Mensal Corte", tag: "", ultimoAtendimento: "há 1 semana", totalGasto: 980, atendimentos: 13, desde: "set/24", iniciais: "FC" },
+  { id: "c4", nome: "Rafael Lima", telefone: "(11) 98010-7765", email: "rafalima@email.com", plano: "Avulso", tag: "Inadimplente", ultimoAtendimento: "há 2 meses", totalGasto: 430, atendimentos: 6, desde: "mar/25", iniciais: "RL" },
+  { id: "c5", nome: "Bruno Alves", telefone: "(11) 99655-3321", email: "bruno.alves@email.com", plano: "Mensal C+B", tag: "VIP", ultimoAtendimento: "há 5 dias", totalGasto: 2120, atendimentos: 29, desde: "nov/23", iniciais: "BA" },
+  { id: "c6", nome: "Thiago Mendes", telefone: "(11) 98233-0091", email: "thiagom@email.com", plano: "Avulso", tag: "", ultimoAtendimento: "há 2 semanas", totalGasto: 360, atendimentos: 5, desde: "fev/25", iniciais: "TM" },
 ];
 
 export const clienteFiltros = [
