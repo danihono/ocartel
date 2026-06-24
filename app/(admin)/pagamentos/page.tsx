@@ -40,7 +40,7 @@ export default function PagamentosPage() {
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 1180 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 1600 }}>
       {/* KPIs */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16 }}>
         {kpis.map((k) => (
@@ -49,7 +49,7 @@ export default function PagamentosPage() {
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: k.dot }} />
               <span style={{ fontSize: 11.5, color: c.ink3, fontWeight: 600 }}>{k.l}</span>
             </div>
-            <div style={{ fontFamily: font.serif, fontSize: 23, fontWeight: 600, color: "#221A13", marginTop: 7 }}>{k.v}</div>
+            <div style={{ fontFamily: font.serif, fontSize: 23, fontWeight: 600, color: c.inkTitle, marginTop: 7 }}>{k.v}</div>
           </Card>
         ))}
       </div>
@@ -57,12 +57,12 @@ export default function PagamentosPage() {
       {/* Tabela */}
       <Card pad="0">
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "18px 20px 14px", borderBottom: `1px solid ${c.borderSoft}` }}>
-          <span style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: "#241B12" }}>Transações</span>
+          <span style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.inkTitle }}>Transações</span>
           <span style={{ fontSize: 12, color: c.ink3, background: c.surfaceWarm, borderRadius: 999, padding: "2px 9px", fontWeight: 600 }}>{transacoes.length}</span>
           <div style={{ flex: 1 }} />
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: c.surfaceWarm, border: `1px solid ${c.border}`, borderRadius: 10, padding: "8px 12px", width: 220 }}>
-            <span style={{ width: 13, height: 13, border: "1.6px solid #B6A78F", borderRadius: "50%", flex: "none" }} />
-            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar…" style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontSize: 13, color: "#241B12", fontFamily: font.sans }} />
+            <span style={{ width: 13, height: 13, border: `1.6px solid ${c.ink4}`, borderRadius: "50%", flex: "none" }} />
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar…" style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontSize: 13, color: c.inkTitle, fontFamily: font.sans }} />
           </div>
           <Button onClick={() => setLancar(true)}>+ Lançar pagamento</Button>
         </div>
@@ -71,7 +71,7 @@ export default function PagamentosPage() {
           {FILTROS.map((f) => {
             const on = f === filtro;
             return (
-              <button key={f} onClick={() => setFiltro(f)} style={{ border: "none", cursor: "pointer", fontSize: 12, fontWeight: on ? 700 : 600, color: on ? "#3E2C20" : c.ink3, background: on ? c.brassSoft : c.surfaceWarm, borderRadius: 999, padding: "5px 12px" }}>
+              <button key={f} onClick={() => setFiltro(f)} style={{ border: "none", cursor: "pointer", fontSize: 12, fontWeight: on ? 700 : 600, color: on ? c.inkTitle : c.ink3, background: on ? c.brassSoft : c.surfaceWarm, borderRadius: 999, padding: "5px 12px" }}>
                 {f}
               </button>
             );
@@ -93,10 +93,10 @@ export default function PagamentosPage() {
           return (
             <div key={t.id} style={{ display: "grid", gridTemplateColumns: COLS, alignItems: "center", padding: "13px 20px", borderBottom: `1px solid ${c.borderSoft}` }}>
               <span style={{ fontSize: 12.5, color: c.ink2, fontWeight: 600 }}>{t.data}</span>
-              <span style={{ fontSize: 13.5, color: "#241B12", fontWeight: 600 }}>{t.clienteNome}</span>
+              <span style={{ fontSize: 13.5, color: c.inkTitle, fontWeight: 600 }}>{t.clienteNome}</span>
               <span style={{ fontSize: 13, color: c.ink2 }}>{t.servico}</span>
               <span style={{ fontSize: 13, color: c.ink2 }}>{t.barbeiroNome}</span>
-              <span style={{ fontSize: 13.5, color: "#3E2C20", fontWeight: 700 }}>{formatBRL(t.valor)}</span>
+              <span style={{ fontSize: 13.5, color: c.inkTitle, fontWeight: 700 }}>{formatBRL(t.valor)}</span>
               <span>
                 <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: sm.bg, color: sm.fg }}>{sm.label}</span>
               </span>

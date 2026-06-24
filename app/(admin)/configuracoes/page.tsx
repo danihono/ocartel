@@ -12,7 +12,7 @@ import { useToast } from "@/components/ui/Toast";
 import type { Barbeiro } from "@/lib/types";
 
 const DIAS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
-const PALETA = ["#4A342A", "#5D4037", "#6B4A36", "#8A6A4E", "#A98A63"];
+const PALETA = ["#0EA37A", "#0FB6C8", "#7C5CFC", "#E0A21A", "#F0476A"];
 const HORAS = Array.from({ length: 15 }, (_, i) => `${String(7 + i).padStart(2, "0")}:00`);
 
 function iniciaisDe(nome: string): string {
@@ -90,7 +90,7 @@ export default function ConfiguracoesPage() {
   const eyebrow = { fontSize: 11, letterSpacing: 0.7, textTransform: "uppercase" as const, color: c.ink3, fontWeight: 600 };
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 18, maxWidth: 1180 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1.9fr 1fr", gap: 18, maxWidth: 1600 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
         {/* Dados da barbearia */}
         <Card>
@@ -131,7 +131,7 @@ export default function ConfiguracoesPage() {
                     <button
                       key={d}
                       onClick={() => toggleDia(i)}
-                      style={{ flex: 1, cursor: "pointer", border: `1.5px solid ${on ? c.brass : c.borderInput}`, background: on ? c.brassTint : c.surface, color: on ? "#3E2C20" : c.ink3, borderRadius: 9, padding: "9px 0", fontSize: 12, fontWeight: on ? 700 : 600 }}
+                      style={{ flex: 1, cursor: "pointer", border: `1.5px solid ${on ? c.brass : c.borderInput}`, background: on ? c.brassTint : c.surface, color: on ? c.inkTitle : c.ink3, borderRadius: 9, padding: "9px 0", fontSize: 12, fontWeight: on ? 700 : 600 }}
                     >
                       {d}
                     </button>
@@ -151,7 +151,7 @@ export default function ConfiguracoesPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
             {state.barbeiros.map((b) => (
               <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 11 }}>
-                <div style={{ width: 36, height: 36, borderRadius: "50%", background: b.cor, color: "#E8DAC0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flex: "none" }}>{b.iniciais}</div>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: b.cor, color: c.darkText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flex: "none" }}>{b.iniciais}</div>
                 <TextInput value={b.nome} onChange={(e) => setBarb(b, { nome: e.target.value, iniciais: iniciaisDe(e.target.value) })} />
                 <button onClick={() => { void actions.barbeiros.remove(b.id).then(() => toast("Barbeiro removido.")).catch(() => toast("Não foi possível remover.", "error")); }} aria-label="Remover" style={{ flex: "none", border: `1px solid ${c.borderInput}`, background: c.surface, borderRadius: 9, width: 38, height: 38, cursor: "pointer", color: c.red, fontSize: 15 }}>
                   ✕
@@ -171,9 +171,9 @@ export default function ConfiguracoesPage() {
         <Card>
           <CardTitle>Conta</CardTitle>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
-            <div style={{ width: 44, height: 44, borderRadius: "50%", background: c.leather, color: "#E8DAC0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700 }}>MR</div>
+            <div style={{ width: 44, height: 44, borderRadius: "50%", background: c.leather, color: c.darkText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700 }}>MR</div>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: "#241B12" }}>{state.auth.nome}</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: c.inkTitle }}>{state.auth.nome}</div>
               <div style={{ fontSize: 12, color: c.ink3 }}>Dona · Admin</div>
             </div>
           </div>

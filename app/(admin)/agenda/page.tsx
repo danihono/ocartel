@@ -26,10 +26,10 @@ const DIAS_CURTO = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
 const legenda = [
   { label: "Agendado", cor: c.brass },
-  { label: "Confirmado", cor: "#5E7A52" },
-  { label: "Em atendimento", cor: "#B07D2B" },
-  { label: "No-show", cor: "#A35C4F" },
-  { label: "Bloqueio", cor: "#9A8C7D" },
+  { label: "Confirmado", cor: "#0EA37A" },
+  { label: "Em atendimento", cor: "#E0A21A" },
+  { label: "No-show", cor: "#E5484D" },
+  { label: "Bloqueio", cor: "#9AA7A4" },
 ];
 
 function gridBg(): React.CSSProperties {
@@ -37,7 +37,7 @@ function gridBg(): React.CSSProperties {
     position: "relative",
     height: COL_H,
     backgroundImage:
-      "repeating-linear-gradient(to bottom,transparent 0,transparent 87px,#F2E9DA 87px,#F2E9DA 88px)",
+      `repeating-linear-gradient(to bottom,transparent 0,transparent 87px,${c.surfaceAlt} 87px,${c.surfaceAlt} 88px)`,
     cursor: "copy",
   };
 }
@@ -100,7 +100,7 @@ const btnNav: React.CSSProperties = {
   background: c.surface,
   borderRadius: 9,
   cursor: "pointer",
-  color: "#6B5C4B",
+  color: c.inkLabel,
   fontSize: 15,
 };
 
@@ -146,12 +146,12 @@ export default function AgendaPage() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, height: "100%", maxWidth: 1180 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, height: "100%", maxWidth: 1600 }}>
       {/* Toolbar */}
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button style={btnNav} onClick={() => passo(-1)}>‹</button>
-          <div style={{ fontFamily: font.serif, fontSize: 19, fontWeight: 600, color: "#241B12", minWidth: 190, textAlign: "center" }}>
+          <div style={{ fontFamily: font.serif, fontSize: 19, fontWeight: 600, color: c.inkTitle, minWidth: 190, textAlign: "center" }}>
             {tituloCentral}
           </div>
           <button style={btnNav} onClick={() => passo(1)}>›</button>
@@ -168,7 +168,7 @@ export default function AgendaPage() {
           </span>
         ) : null}
         <div style={{ flex: 1 }} />
-        <div style={{ display: "flex", background: "#EFE6D7", borderRadius: 9, padding: 3 }}>
+        <div style={{ display: "flex", background: c.surfaceAlt, borderRadius: 9, padding: 3 }}>
           {([
             ["Dia", "dia"],
             ["Semana", "semana"],
@@ -183,7 +183,7 @@ export default function AgendaPage() {
                   border: "none",
                   fontSize: 12.5,
                   fontWeight: on ? 700 : 600,
-                  color: on ? "#3E2C20" : c.ink3,
+                  color: on ? c.inkTitle : c.ink3,
                   padding: "7px 14px",
                   borderRadius: 7,
                   background: on ? c.surface : "transparent",
@@ -198,7 +198,7 @@ export default function AgendaPage() {
         </div>
         <button
           onClick={() => setBloquear(true)}
-          style={{ border: `1px solid ${c.borderInput}`, background: c.surface, cursor: "pointer", color: "#3E2C20", padding: "8px 14px", borderRadius: 9, fontSize: 13, fontWeight: 600 }}
+          style={{ border: `1px solid ${c.borderInput}`, background: c.surface, cursor: "pointer", color: c.inkTitle, padding: "8px 14px", borderRadius: 9, fontSize: 13, fontWeight: 600 }}
         >
           + Bloquear horário
         </button>
@@ -207,7 +207,7 @@ export default function AgendaPage() {
       {/* Legenda */}
       <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
         {legenda.map((l) => (
-          <span key={l.label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#7A6B59", fontWeight: 600 }}>
+          <span key={l.label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: c.ink2, fontWeight: 600 }}>
             <span style={{ width: 9, height: 9, borderRadius: 3, background: l.cor }} />
             {l.label}
           </span>
@@ -233,11 +233,11 @@ export default function AgendaPage() {
                   padding: "0 16px",
                 }}
               >
-                <div style={{ width: 28, height: 28, borderRadius: "50%", background: barbeiro.cor, color: "#E8DAC0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: barbeiro.cor, color: c.darkText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>
                   {barbeiro.iniciais}
                 </div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#241B12" }}>{barbeiro.nome}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: c.inkTitle }}>{barbeiro.nome}</div>
                   <div style={{ fontSize: 10.5, color: c.ink3 }}>{selectAtendimentosHoje(state, barbeiro.id, dateISO)} hoje</div>
                 </div>
               </div>
@@ -297,7 +297,7 @@ function SemanaView({ dateISO, state, onSelect, barbeiroId }: { dateISO: string;
           <div key={iso} style={{ borderLeft: i === 0 ? "none" : `1px solid ${c.borderSoft}`, minHeight: 520 }}>
             <div style={{ height: 50, borderBottom: `1px solid ${c.border}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: iso === HOJE_ISO ? c.brassSoft : "transparent" }}>
               <span style={{ fontSize: 11, color: c.ink3, fontWeight: 600 }}>{DIAS_CURTO[i]}</span>
-              <span style={{ fontFamily: font.serif, fontSize: 15, fontWeight: 700, color: "#3E2C20" }}>{iso.slice(8)}</span>
+              <span style={{ fontFamily: font.serif, fontSize: 15, fontWeight: 700, color: c.inkTitle }}>{iso.slice(8)}</span>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 5, padding: 7 }}>
               {ags.length === 0 ? <div style={{ fontSize: 11, color: c.ink4, textAlign: "center", marginTop: 12 }}>—</div> : null}
@@ -346,7 +346,7 @@ function MesView({ dateISO, state, onPick, barbeiroId }: { dateISO: string; stat
                 border: "none",
                 borderTop: `1px solid ${c.borderSoft}`,
                 borderLeft: `1px solid ${c.borderSoft}`,
-                background: cel.foraDoMes ? "#FBF7EF" : c.surface,
+                background: cel.foraDoMes ? c.surface : c.surface,
                 cursor: "pointer",
                 textAlign: "left",
                 padding: 9,
@@ -366,7 +366,7 @@ function MesView({ dateISO, state, onPick, barbeiroId }: { dateISO: string; stat
                   borderRadius: "50%",
                   fontSize: 12.5,
                   fontWeight: 700,
-                  color: cel.foraDoMes ? c.ink4 : "#3E2C20",
+                  color: cel.foraDoMes ? c.ink4 : c.inkTitle,
                   border: isHoje ? `1.5px solid ${c.brass}` : "1.5px solid transparent",
                 }}
               >

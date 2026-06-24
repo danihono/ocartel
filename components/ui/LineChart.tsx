@@ -4,8 +4,8 @@ import { c } from "@/lib/theme";
 export function LineChart({
   data,
   stroke = c.accent,
-  fill = "rgba(14,59,51,.12)",
-  gridColor = "#F0E7D8",
+  fill = "rgba(14,163,122,.14)",
+  gridColor = "#EDF1F3",
   gridLines = [60, 120, 180],
   height = 188,
   showLastDot = true,

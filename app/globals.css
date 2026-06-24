@@ -1,3 +1,15 @@
+/* Tokens espelhados de lib/theme.ts para o CSS global (micro-interações). */
+:root {
+  --oc-bg: #f5f7f8;
+  --oc-ink: #0f1b19;
+  --oc-primary: #0ea37a;
+  --oc-primary-hover: #0c8e69;
+  --oc-surface-alt: #edf1f3;
+  --oc-ring: rgba(14, 163, 122, 0.18);
+  --oc-nav-hover: rgba(14, 163, 122, 0.12);
+  --oc-scrollbar: #c9d4d8;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -9,8 +21,8 @@ body {
 }
 
 body {
-  background: #f1ece1;
-  color: #1e1812;
+  background: var(--oc-bg);
+  color: var(--oc-ink);
   font-family: var(--font-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -25,30 +37,31 @@ button {
   transition: filter 0.14s ease, background 0.14s ease, box-shadow 0.14s ease, transform 0.1s ease;
 }
 .oc-btn:hover {
-  filter: brightness(1.06);
+  filter: brightness(1.04);
 }
 .oc-btn:active {
   transform: translateY(1px);
 }
 .oc-btn-primary:hover {
-  background: #1c6b5c !important;
+  background: var(--oc-primary-hover) !important;
   filter: none;
+  box-shadow: 0 6px 18px rgba(14, 163, 122, 0.28);
 }
 .oc-btn-ghost:hover {
-  background: #f6f1e8 !important;
+  background: var(--oc-surface-alt) !important;
   filter: none;
 }
 .oc-nav {
   transition: background 0.12s ease, color 0.12s ease;
 }
 .oc-nav:hover {
-  background: rgba(28, 107, 92, 0.1);
+  background: var(--oc-nav-hover);
 }
 .oc-row {
   transition: background 0.12s ease, border-color 0.12s ease;
 }
 .oc-row:hover {
-  background: #f6f1e8;
+  background: var(--oc-surface-alt);
 }
 .oc-card {
   transition: box-shadow 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
@@ -58,8 +71,14 @@ button {
 }
 .oc-input:focus,
 .oc-input:focus-within {
-  border-color: #1c6b5c !important;
-  box-shadow: 0 0 0 3px rgba(28, 107, 92, 0.12);
+  border-color: var(--oc-primary) !important;
+  box-shadow: 0 0 0 3px var(--oc-ring);
+}
+
+/* Foco visível para teclado em qualquer elemento interativo */
+:focus-visible {
+  outline: 2px solid var(--oc-primary);
+  outline-offset: 2px;
 }
 
 a {
@@ -75,7 +94,7 @@ a {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d8cbb4;
+  background: var(--oc-scrollbar);
   border-radius: 10px;
 }
 
@@ -115,4 +134,15 @@ a {
 }
 .oc-toast {
   animation: oc-toast 0.18s ease-out;
+}
+
+/* Respeita usuários que pedem menos movimento */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

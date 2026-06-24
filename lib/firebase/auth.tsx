@@ -19,6 +19,8 @@ export interface UserProfile {
   tenantId: string;
   nome: string;
   email: string;
+  /** Vínculo opcional para usuários de papel `barbeiro` → doc em tenants/{t}/barbeiros. */
+  barbeiroId?: string;
 }
 
 interface AuthValue {

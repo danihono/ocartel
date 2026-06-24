@@ -34,11 +34,11 @@ export const faturamento30d = [150, 138, 156, 128, 140, 108, 120, 92, 104, 74, 8
   .map((v) => 210 - v); // invert so higher = more revenue
 
 export const servicosMaisVendidos = [
-  { nome: "Corte + Barba", qtd: 64, pct: 100, cor: "#5D4037" },
-  { nome: "Corte", qtd: 52, pct: 81, cor: "#6B4A36" },
-  { nome: "Barba", qtd: 38, pct: 59, cor: "#8A6A4E" },
-  { nome: "Luzes", qtd: 21, pct: 33, cor: "#A98A63" },
-  { nome: "Raspar", qtd: 14, pct: 22, cor: "#C9A86A" },
+  { nome: "Corte + Barba", qtd: 64, pct: 100, cor: "#0EA37A" },
+  { nome: "Corte", qtd: 52, pct: 81, cor: "#0FB6C8" },
+  { nome: "Barba", qtd: 38, pct: 59, cor: "#7C5CFC" },
+  { nome: "Luzes", qtd: 21, pct: 33, cor: "#E0A21A" },
+  { nome: "Raspar", qtd: 14, pct: 22, cor: "#F0476A" },
 ];
 
 export const proximos: ProximoAgendamento[] = [
@@ -67,9 +67,9 @@ export const financeiro = {
 
 // ---- Agenda (day view, 09:00–19:00) ----
 export const agendaBarbeiros = [
-  { nome: "Everton", iniciais: "EV", cor: "#4A342A", hoje: 4 },
-  { nome: "Raimundo", iniciais: "RA", cor: "#5D4037", hoje: 4 },
-  { nome: "Eduardo", iniciais: "ED", cor: "#6B4A36", hoje: 3 },
+  { nome: "Everton", iniciais: "EV", cor: "#0EA37A", hoje: 4 },
+  { nome: "Raimundo", iniciais: "RA", cor: "#0FB6C8", hoje: 4 },
+  { nome: "Eduardo", iniciais: "ED", cor: "#7C5CFC", hoje: 3 },
 ];
 
 export const agendaBlocos: BlocoAgenda[][] = [
@@ -133,8 +133,8 @@ export const saasKpis = [
 export const mrr12m = [20, 28, 40, 38, 56, 68, 80, 94, 98, 120, 134, 152];
 
 export const planosSaas = [
-  { nome: "Pro · R$ 249", qtd: 31, pct: 66, cor: "#C9A86A" },
-  { nome: "Básico · R$ 129", qtd: 16, pct: 34, cor: "#6B4A36" },
+  { nome: "Pro · R$ 249", qtd: 31, pct: 66, cor: "#34D6A6" },
+  { nome: "Básico · R$ 129", qtd: 16, pct: 34, cor: "#7C5CFC" },
 ];
 
 export const tenants: Tenant[] = [
@@ -147,10 +147,10 @@ export const tenants: Tenant[] = [
 ];
 
 export const atividadeSaas: AtividadeSaaS[] = [
-  { cor: "#5E7A52", texto: "Studio Navalha assinou o plano Pro", quando: "há 2h" },
-  { cor: "#C9A86A", texto: "Old School BBR iniciou um trial", quando: "há 5h" },
-  { cor: "#5E7A52", texto: "Barbearia Imperial fez upgrade para Pro", quando: "há 1 dia" },
-  { cor: "#A35C4F", texto: "Lâmina & Cia — pagamento em atraso", quando: "há 2 dias" },
+  { cor: "#34D6A6", texto: "Studio Navalha assinou o plano Pro", quando: "há 2h" },
+  { cor: "#E7C078", texto: "Old School BBR iniciou um trial", quando: "há 5h" },
+  { cor: "#34D6A6", texto: "Barbearia Imperial fez upgrade para Pro", quando: "há 1 dia" },
+  { cor: "#F0978A", texto: "Lâmina & Cia — pagamento em atraso", quando: "há 2 dias" },
 ];
 
 // ---- Booking público ----

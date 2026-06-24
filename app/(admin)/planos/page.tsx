@@ -49,7 +49,7 @@ export default function PlanosPage() {
   }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 18, maxWidth: 1180 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1.7fr 1fr", gap: 18, maxWidth: 1600 }}>
       {/* Serviços */}
       <Card>
         <CardTitle sub="Preços e durações usados na agenda e no agendamento público">Serviços</CardTitle>
@@ -91,7 +91,7 @@ export default function PlanosPage() {
             {state.planosTiers.map((tier) => (
               <div key={tier.id} style={{ border: `1px solid ${c.border}`, background: c.surfaceAlt, borderRadius: 12, padding: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
-                  <span style={{ fontFamily: font.serif, fontSize: 17, fontWeight: 600, color: "#241B12", flex: 1 }}>{tier.nome}</span>
+                  <span style={{ fontFamily: font.serif, fontSize: 17, fontWeight: 600, color: c.inkTitle, flex: 1 }}>{tier.nome}</span>
                   <div style={{ width: 120 }}>
                     <MoneyInput value={tier.preco} onChange={(n) => void actions.planosTiers.update({ ...tier, preco: n })} />
                   </div>

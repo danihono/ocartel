@@ -68,7 +68,7 @@ export function AgendamentoModal({ open, onClose, agendamentoId }: { open: boole
   const linha = (rotulo: string, valor: string) => (
     <div style={{ display: "flex", gap: 12, padding: "9px 0", borderBottom: `1px solid ${c.borderSoft}` }}>
       <span style={{ fontSize: 12.5, color: c.ink3, fontWeight: 600, width: 110, flex: "none" }}>{rotulo}</span>
-      <span style={{ fontSize: 13.5, color: "#241B12", fontWeight: 600 }}>{valor}</span>
+      <span style={{ fontSize: 13.5, color: c.inkTitle, fontWeight: 600 }}>{valor}</span>
     </div>
   );
 
@@ -88,7 +88,7 @@ export function AgendamentoModal({ open, onClose, agendamentoId }: { open: boole
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <span style={{ width: 9, height: 9, borderRadius: 3, background: meta.bar }} />
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: "#3E2C20" }}>{STATUS_LABEL[ag.status]}</span>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: c.inkTitle }}>{STATUS_LABEL[ag.status]}</span>
       </div>
 
       {linha("Cliente", ag.clienteNome)}

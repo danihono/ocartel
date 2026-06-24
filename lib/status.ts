@@ -5,7 +5,7 @@ export const statusMeta: Record<
   Exclude<AgendamentoStatus, "concluido" | "cancelado" | "bloqueio">,
   { label: string; fg: string; bg: string }
 > = {
-  agendado: { label: "Agendado", fg: "#7A6B59", bg: "#F1E9DA" },
+  agendado: { label: "Agendado", fg: "#0A5560", bg: "#E6F6F8" },
   confirmado: { label: "Confirmado", fg: c.greenText, bg: c.greenBg },
   atendimento: { label: "Em atendimento", fg: c.amberText, bg: c.amberBg },
   noshow: { label: "No-show", fg: c.redText, bg: c.redBg },
@@ -16,13 +16,13 @@ export const blocoMeta: Record<
   AgendamentoStatus,
   { bg: string; bar: string; title: string; sub: string }
 > = {
-  confirmado: { bg: "#E4EFEA", bar: "#2E6E54", title: "#234A3A", sub: "#4a6b59" },
-  agendado: { bg: "#F4EEE2", bar: c.brass, title: "#5a4427", sub: "#8a7656" },
-  atendimento: { bg: "#F7EEDC", bar: "#B07D2B", title: "#6b4a16", sub: "#8a6c33" },
-  noshow: { bg: "#F5E8E4", bar: "#A35C4F", title: "#6e362d", sub: "#9a6b62" },
-  bloqueio: { bg: "repeating-linear-gradient(45deg,#EAE3D8,#EAE3D8 7px,#E2DACB 7px,#E2DACB 14px)", bar: "#9A8C7D", title: "#5c5247", sub: "#857a6c" },
-  concluido: { bg: "#EFE7DD", bar: c.leather, title: "#3a2c24", sub: "#8a7a68" },
-  cancelado: { bg: "#EFEAE2", bar: "#9A8C7D", title: "#7a6b59", sub: "#9a8b79" },
+  confirmado: { bg: "#E3F5EE", bar: "#0EA37A", title: "#0C5C46", sub: "#3F7A6A" },
+  agendado: { bg: "#E6F6F8", bar: "#0FB6C8", title: "#0A5560", sub: "#3E7480" },
+  atendimento: { bg: "#FBF1DC", bar: "#E0A21A", title: "#7A5610", sub: "#9A6E0E" },
+  noshow: { bg: "#FDEAEA", bar: "#E5484D", title: "#A8333A", sub: "#C0353A" },
+  bloqueio: { bg: "repeating-linear-gradient(45deg,#E7ECEE,#E7ECEE 7px,#DCE3E6 7px,#DCE3E6 14px)", bar: "#9AA7A4", title: "#51605D", sub: "#74827F" },
+  concluido: { bg: "#EDF1F3", bar: "#5B6B69", title: "#2C3A37", sub: "#6B7A77" },
+  cancelado: { bg: "#EFF2F3", bar: "#9AA7A4", title: "#5B6B69", sub: "#82908D" },
 };
 
 export function tagMeta(tag: ClienteTag): { fg: string; bg: string } | null {
@@ -36,9 +36,9 @@ export function tagMeta(tag: ClienteTag): { fg: string; bg: string } | null {
 }
 
 export const tenantStatusMeta: Record<TenantStatus, { label: string; fg: string; bg: string }> = {
-  ativo: { label: "Ativo", fg: c.darkGreen, bg: "rgba(94,122,82,.22)" },
-  trial: { label: "Trial", fg: c.darkAmber, bg: "rgba(201,168,106,.18)" },
-  atrasado: { label: "Atrasado", fg: c.darkRed, bg: "rgba(163,92,79,.22)" },
+  ativo: { label: "Ativo", fg: c.darkGreen, bg: "rgba(52,214,166,.18)" },
+  trial: { label: "Trial", fg: c.darkAmber, bg: "rgba(231,192,120,.18)" },
+  atrasado: { label: "Atrasado", fg: c.darkRed, bg: "rgba(240,151,138,.20)" },
 };
 
 // "09:00" -> minutes since 09:00, used to position calendar blocks (30min = 44px)

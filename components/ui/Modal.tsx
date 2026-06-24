@@ -33,7 +33,7 @@ export function Modal({
 
   const surface = dark ? c.darkSurface : c.surface;
   const border = dark ? c.darkLine : c.border;
-  const titleColor = dark ? "#F2E6D2" : c.inkTitle;
+  const titleColor = dark ? c.darkText : c.inkTitle;
   const closeColor = dark ? c.darkMuted : c.ink3;
 
   return (
@@ -42,7 +42,7 @@ export function Modal({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(27,19,15,.46)",
+        background: "rgba(8,19,15,.5)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

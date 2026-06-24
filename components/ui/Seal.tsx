@@ -38,8 +38,8 @@ export function Seal({
 export function Avatar({
   initials,
   size = 38,
-  bg = "#EFE4D2",
-  color = c.brown2,
+  bg = c.brassSoft,
+  color = c.brassDeep,
   fontSize,
 }: {
   initials: string;

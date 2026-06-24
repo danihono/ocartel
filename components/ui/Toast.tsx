@@ -38,7 +38,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               alignItems: "center",
               gap: 11,
               background: c.espresso,
-              color: "#E8DAC0",
+              color: c.darkText,
               borderRadius: 11,
               padding: "12px 16px 12px 13px",
               boxShadow: shadow.pop,

@@ -1,76 +1,91 @@
 // Design tokens for O Cartel — palette, fonts, shadows.
 // Fonts are wired as CSS variables in app/layout.tsx (next/font).
 //
-// Paleta "Esmeralda & Latão": o marrom (espresso/couro/creme) é o PALCO; o
-// verde-esmeralda (accent*) é a cor que "chama atenção" — botões, nav ativo,
-// série principal de gráficos, KPI destaque. Latão fica como brilho metálico.
+// Paleta "Esmeralda Elétrica": base CINZA-FRIA (nada de bege/marrom). O
+// esmeralda (#0EA37A) é o HERO — botões, nav ativa, série principal de
+// gráficos, KPI destaque. Teal/lima/violeta entram como sistema de cor
+// SEMÂNTICO (categorias, barbeiros, comparativos). O escuro (sidebar /
+// super-admin) é um carvão-esmeralda frio, não mais espresso marrom.
 
 export const c = {
-  // surfaces
-  bg: "#F1ECE1",
+  // surfaces — base fria, sem bege
+  bg: "#F5F7F8",
   surface: "#FFFFFF",
-  surfaceAlt: "#F6F1E8",
-  surfaceWarm: "#F2EDE2",
-  // ink
-  ink: "#1E1812",
-  ink2: "#7C6E5E",
-  ink3: "#8F8170",
-  ink4: "#A2937C",
-  inkTitle: "#241B12", // títulos (antes hardcoded em vários lugares)
-  inkLabel: "#6B5C4B", // labels de campo (antes hardcoded)
-  // borders
-  border: "#E6DCCB",
-  borderSoft: "#F1EADC",
-  borderInput: "#DCD0BC",
-  // browns (palco — mantidos como charme)
-  espresso: "#1F1611",
-  espressoDeep: "#190F0B",
-  espressoLine: "#34271E",
-  leather: "#4A342A",
-  brown: "#5D4037",
-  brown2: "#6B4A36",
-  // brass accent (metálico — um pouco mais brilhante)
-  brass: "#CDAA63",
-  brassSoft: "#F1E4C6",
-  brassTint: "#FBF3E2",
-  brassDeep: "#9C6F28",
-  // accent — esmeralda (hero da marca)
-  accent: "#0E3B33",
-  accentBright: "#1C6B5C",
-  accentSoft: "#E4EFEA",
-  accentDark: "#6FC9B4", // verdigris — hero do tema escuro (super-admin)
-  // botão primário (antes hardcoded #241711 / #F4EAD8)
-  primaryBtnBg: "#0E3B33",
-  primaryBtnText: "#F4EAD8",
-  // status
-  green: "#3E7A4E",
-  greenText: "#3c6a45",
-  greenBg: "#E7EFE6",
-  red: "#A35C4F",
-  redText: "#8a463b",
-  redBg: "#F5E8E4",
-  amber: "#B07D2B",
-  amberText: "#8a5f1c",
-  amberBg: "#F7EEDC",
-  // dark theme (super admin)
-  darkBg: "#101512",
-  darkSurface: "#18211C",
-  darkLine: "#24302A",
-  darkText: "#E5E9DF",
-  darkMuted: "#8E9A8C",
-  darkGreen: "#A6D697",
+  surfaceAlt: "#EDF1F3",
+  surfaceWarm: "#EDF1F3", // (compat: outrora bege, agora frio)
+  // ink — ardósia fria
+  ink: "#0F1B19",
+  ink2: "#5B6B69",
+  ink3: "#82908D",
+  ink4: "#9DA9A6",
+  inkTitle: "#0F1B19",
+  inkLabel: "#475553",
+  // borders — cinza frio
+  border: "#E2E8EC",
+  borderSoft: "#EEF2F4",
+  borderInput: "#D8E0E4",
+  // shell escuro (sidebar / super-admin) — carvão-esmeralda, não marrom
+  espresso: "#0B201C",
+  espressoDeep: "#071714",
+  espressoLine: "#16332D",
+  leather: "#2F4A44", // fundo de avatar (slate-esmeralda)
+  brown: "#7C5CFC", // (repaginado) categoria secundária = violeta
+  brown2: "#475553", // (repaginado) texto frio legível
+  // destaque metálico → agora ESMERALDA (mantido sob os nomes brass* p/ compat)
+  brass: "#0EA37A",
+  brassSoft: "#DCF3EC",
+  brassTint: "#EAF8F2",
+  brassDeep: "#0C7D5E",
+  // accent — esmeralda viva (hero da marca)
+  accent: "#0EA37A",
+  accentBright: "#0C8E69",
+  accentSoft: "#E3F5EE",
+  accentDark: "#34D6A6", // verdigris — hero do tema escuro (super-admin)
+  // botão primário
+  primaryBtnBg: "#0EA37A",
+  primaryBtnText: "#FFFFFF",
+  // sistema de cor semântico (novos)
+  primary: "#0EA37A",
+  primaryHover: "#0C8E69",
+  teal: "#0FB6C8",
+  lime: "#A0E61A",
+  violet: "#7C5CFC",
+  pink: "#F0476A",
+  // ordem categórica fixa p/ gráficos, barbeiros, planos, tags de categoria
+  series: ["#0EA37A", "#0FB6C8", "#7C5CFC", "#E0A21A", "#F0476A"] as readonly string[],
+  // status — limpo e moderno
+  green: "#12A150",
+  greenText: "#0E7A3D",
+  greenBg: "#E4F5EA",
+  red: "#E5484D",
+  redText: "#C0353A",
+  redBg: "#FDEAEA",
+  amber: "#E0A21A",
+  amberText: "#9A6E0E",
+  amberBg: "#FBF1DC",
+  // dark theme (super admin) — carvão-esmeralda
+  darkBg: "#08130F",
+  darkSurface: "#102019",
+  darkLine: "#1E332B",
+  darkText: "#E5EFEA",
+  darkMuted: "#8FA59E",
+  darkGreen: "#34D6A6",
   darkAmber: "#E7C078",
-  darkRed: "#E6A293",
+  darkRed: "#F0978A",
 } as const;
 
 export const font = {
   cinzel: "var(--font-cinzel), serif",
-  serif: "var(--font-spectral), Georgia, serif",
+  // serifa aposentada da UI (cue "rústico"): apontada para a sans moderna.
+  // O wordmark "O CARTEL" segue em Cinzel (font.cinzel).
+  serif: "var(--font-sans), system-ui, sans-serif",
   sans: "var(--font-sans), system-ui, sans-serif",
 } as const;
 
 export const shadow = {
-  card: "0 1px 2px rgba(60,40,20,.04)",
-  pop: "0 1px 2px rgba(0,0,0,.08)",
-  phone: "0 30px 70px rgba(40,25,10,.4)",
+  // sombras frias e neutras (antes quentes/marrom) + glow esmeralda p/ hero
+  card: "0 1px 2px rgba(15,27,25,.05)",
+  pop: "0 8px 24px rgba(15,27,25,.12)",
+  phone: "0 30px 70px rgba(11,32,28,.40)",
+  glow: "0 8px 24px rgba(14,163,122,.22)",
 } as const;

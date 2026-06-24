@@ -11,19 +11,20 @@ export const btnPrimary: CSSProperties = {
   background: c.primaryBtnBg,
   color: c.primaryBtnText,
   padding: "11px 16px",
-  borderRadius: 10,
+  borderRadius: 12,
   fontSize: 13.5,
   fontWeight: 700,
   whiteSpace: "nowrap",
+  boxShadow: "0 4px 14px rgba(14,163,122,.22)",
 };
 
 export const btnGhost: CSSProperties = {
   border: `1px solid ${c.borderInput}`,
   cursor: "pointer",
   background: c.surface,
-  color: "#3E2C20",
+  color: c.ink,
   padding: "10px 15px",
-  borderRadius: 10,
+  borderRadius: 12,
   fontSize: 13.5,
   fontWeight: 600,
   whiteSpace: "nowrap",

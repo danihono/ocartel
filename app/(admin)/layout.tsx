@@ -1,10 +1,12 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import Sidebar from "@/components/admin/Sidebar";
 import Topbar from "@/components/admin/Topbar";
 import AuthGuard from "@/components/auth/AuthGuard";
+import { useAuth } from "@/lib/firebase/auth";
 
 const titles: Record<string, [string, string]> = {
   "/dashboard": ["Visão geral", "Bom dia, Marina"],
@@ -17,7 +19,17 @@ const titles: Record<string, [string, string]> = {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  const router = useRouter();
+  const { role } = useAuth();
+
+  // O barbeiro é mobile-only: nunca cai no painel desktop — vai para /barbeiro.
+  useEffect(() => {
+    if (role === "barbeiro") router.replace("/barbeiro");
+  }, [role, router]);
+
   const [eyebrow, title] = titles[path] ?? ["", ""];
+
+  if (role === "barbeiro") return <div style={{ height: "100vh", background: c.bg }} />;
 
   return (
     <AuthGuard need="tenant">

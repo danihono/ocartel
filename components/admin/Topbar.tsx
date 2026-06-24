@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { c, font } from "@/lib/theme";
+import { c, font, shadow } from "@/lib/theme";
 import { isoParaLabel, HOJE_ISO } from "@/lib/date";
 import { NovoAgendamentoModal } from "@/components/admin/NovoAgendamentoModal";
 
@@ -34,7 +34,7 @@ export default function Topbar({ eyebrow, title }: { eyebrow: string; title: str
         <div style={{ fontSize: 10.5, letterSpacing: 1.5, textTransform: "uppercase", color: c.ink4, fontWeight: 600, whiteSpace: "nowrap" }}>
           {eyebrow}
         </div>
-        <div style={{ fontFamily: "var(--font-spectral), serif", fontSize: 24, fontWeight: 600, color: "#241B12", marginTop: 1, whiteSpace: "nowrap" }}>
+        <div style={{ fontFamily: font.sans, fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: c.inkTitle, marginTop: 1, whiteSpace: "nowrap" }}>
           {title}
         </div>
       </div>
@@ -58,31 +58,33 @@ export default function Topbar({ eyebrow, title }: { eyebrow: string; title: str
           color: c.ink4,
         }}
       >
-        <span style={{ width: 13, height: 13, border: "1.6px solid #B6A78F", borderRadius: "50%", display: "inline-block", flex: "none" }} />
+        <span style={{ width: 13, height: 13, border: `1.6px solid ${c.ink4}`, borderRadius: "50%", display: "inline-block", flex: "none" }} />
         <input
           value={q}
           onChange={(e) => buscar(e.target.value)}
           placeholder="Buscar cliente…"
-          style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontSize: 13, color: "#241B12", fontFamily: font.sans }}
+          style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontSize: 13, color: c.inkTitle, fontFamily: font.sans }}
         />
       </form>
 
-      <div style={{ fontSize: 13, color: "#6B5C4B", fontWeight: 600, background: c.surfaceWarm, border: `1px solid ${c.border}`, borderRadius: 10, padding: "10px 13px", whiteSpace: "nowrap" }}>
+      <div style={{ fontSize: 13, color: c.inkLabel, fontWeight: 600, background: c.surfaceWarm, border: `1px solid ${c.border}`, borderRadius: 10, padding: "10px 13px", whiteSpace: "nowrap" }}>
         {isoParaLabel(HOJE_ISO)}
       </div>
 
       <button
         onClick={() => setNovo(true)}
+        className="oc-btn oc-btn-primary"
         style={{
           border: "none",
           cursor: "pointer",
-          background: "#241711",
-          color: "#F4EAD8",
+          background: c.primaryBtnBg,
+          color: c.primaryBtnText,
           padding: "11px 16px",
-          borderRadius: 10,
+          borderRadius: 12,
           fontSize: 13.5,
           fontWeight: 700,
           whiteSpace: "nowrap",
+          boxShadow: shadow.glow,
         }}
       >
         + Novo agendamento
