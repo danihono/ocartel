@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Field";
-import { useStore, makeId } from "@/lib/store";
+import { FinalizarAtendimentoModal } from "./FinalizarAtendimentoModal";
+import { useStore } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { barbeiroNomePorId, fmtDur, formatBRL, precoServico, tagDerivadaCliente } from "@/lib/selectors";
-import { HOJE_ISO, isoParaDiaMes, isoParaLabelLongo } from "@/lib/date";
+import { HOJE_ISO, isoParaLabelLongo } from "@/lib/date";
 import { c, font } from "@/lib/theme";
 import { blocoMeta, tagMeta } from "@/lib/status";
 import type { AgendamentoStatus } from "@/lib/types";
@@ -31,6 +32,7 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
   // Observações: rascunho local, semeado a cada abertura.
   const [obs, setObs] = useState("");
   const [salvandoObs, setSalvandoObs] = useState(false);
+  const [finalizando, setFinalizando] = useState(false);
   useEffect(() => {
     if (open && ag) setObs(ag.observacoes ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -47,36 +49,11 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
   const preco = precoServico(state, ag.servico);
   const obsAlterada = obs.trim() !== (ag.observacoes ?? "").trim();
 
+  // A conclusão (com a regra de plano) é feita no FinalizarAtendimentoModal.
   async function setStatus(status: AgendamentoStatus, msg: string) {
     if (!ag) return;
     try {
-      if (status === "concluido") {
-        // Vincula ao cliente (id preferido; nome como fallback) p/ histórico e agregados.
-        const clienteId = ag.clienteId ?? state.clientes.find((cl) => cl.nome === ag.clienteNome)?.id;
-        const valor = precoServico(state, ag.servico);
-        await actions.agendamentos.concluir(
-          ag.id,
-          {
-            id: makeId("tx"),
-            data: isoParaDiaMes(ag.date),
-            clienteNome: ag.clienteNome,
-            clienteId,
-            servico: ag.servico,
-            barbeiroNome: barbeiroNomePorId(state, ag.barbeiroId),
-            valor,
-            status: "pago",
-            forma: "pix",
-            type: "avulso",
-            source: "manual",
-            paidAt: ag.date,
-            amount: valor,
-            amountReceived: valor,
-          },
-          clienteId ? { id: clienteId, valor, dataISO: ag.date } : undefined,
-        );
-      } else {
-        await actions.agendamentos.setStatus(ag.id, status);
-      }
+      await actions.agendamentos.setStatus(ag.id, status);
       toast(msg);
       onClose();
     } catch {
@@ -116,6 +93,7 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
   );
 
   return (
+    <>
     <div
       onClick={onClose}
       className="oc-fade"
@@ -209,7 +187,7 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
               <Button variant="ghost" onClick={() => setStatus("atendimento", "Atendimento iniciado.")}>Iniciar</Button>
             ) : null}
             {ag.status !== "concluido" ? (
-              <Button onClick={() => setStatus("concluido", "Atendimento concluído.")}>Concluir</Button>
+              <Button onClick={() => setFinalizando(true)}>Concluir</Button>
             ) : null}
             {ag.status !== "noshow" ? (
               <Button variant="ghost" onClick={() => setStatus("noshow", "Marcado como no-show.")}>No-show</Button>
@@ -221,5 +199,15 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
         )}
       </div>
     </div>
+    <FinalizarAtendimentoModal
+      open={finalizando}
+      agendamentoId={ag.id}
+      onClose={() => setFinalizando(false)}
+      onConcluido={() => {
+        setFinalizando(false);
+        onClose();
+      }}
+    />
+    </>
   );
 }

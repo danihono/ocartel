@@ -21,7 +21,7 @@ function gerarHorarios(abre: string, fecha: string): string[] {
   const ini = min(abre);
   const fim = min(fecha);
   const out: string[] = [];
-  for (let t = ini; t < fim; t += 30) {
+  for (let t = ini; t < fim; t += 15) {
     out.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
   }
   return out;

@@ -24,10 +24,10 @@ import { BloquearHorarioModal } from "@/components/admin/BloquearHorarioModal";
 import { NovoAgendamentoModal, type NovoAgendamentoDefaults } from "@/components/admin/NovoAgendamentoModal";
 
 const COL_H = 880;
-const HOURS = Array.from({ length: 11 }, (_, i) => 9 + i); // 09..19
+const GUTTER_MARKS = Array.from({ length: 21 }, (_, i) => i * 30); // 0..600 min → rótulos 09:00..19:00 (a cada 30 min)
 const DIAS_CURTO = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
-const SNAP_MIN = 10; // granularidade do arraste / resize / clique-no-vazio
-const MIN_DUR_MIN = 10; // duração mínima ao redimensionar
+const SNAP_MIN = 15; // granularidade do arraste / resize / clique-no-vazio (alinha às linhas de 15 min)
+const MIN_DUR_MIN = 15; // duração mínima ao redimensionar
 const STEP_PX = SNAP_MIN * PX_PER_MIN; // 1 passo de snap em pixels
 
 const legenda = [
@@ -42,8 +42,12 @@ function gridBg(): React.CSSProperties {
   return {
     position: "relative",
     height: COL_H,
-    backgroundImage:
-      `repeating-linear-gradient(to bottom,transparent 0,transparent 87px,${c.surfaceAlt} 87px,${c.surfaceAlt} 88px)`,
+    backgroundImage: [
+      // 30 min: linha mais marcada, alinhada aos rótulos (pintada por cima)
+      `repeating-linear-gradient(to bottom,transparent 0,transparent 43px,${c.border} 43px,${c.border} 44px)`,
+      // 15 min: subdivisão mais leve
+      `repeating-linear-gradient(to bottom,transparent 0,transparent 21px,${c.surfaceAlt} 21px,${c.surfaceAlt} 22px)`,
+    ].join(","),
     cursor: "copy",
   };
 }
@@ -394,9 +398,9 @@ export default function AgendaPage() {
 
             {/* gutter */}
             <div style={{ position: "relative", height: COL_H, borderRight: `1px solid ${c.borderSoft}` }}>
-              {HOURS.map((h, i) => (
-                <div key={h} style={{ position: "absolute", top: i === 0 ? -7 : i * 88 - 7, right: 10, fontSize: 11, color: c.ink4, fontWeight: i === 0 ? 500 : 400 }}>
-                  {String(h).padStart(2, "0")}:00
+              {GUTTER_MARKS.map((min) => (
+                <div key={min} style={{ position: "absolute", top: min * PX_PER_MIN - 7, right: 10, fontSize: 11, color: c.ink4, fontWeight: min % 60 === 0 ? 500 : 400 }}>
+                  {horaDesde9(min)}
                 </div>
               ))}
               {ehHoje ? (

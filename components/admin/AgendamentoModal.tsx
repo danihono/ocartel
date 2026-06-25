@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { useStore, makeId } from "@/lib/store";
+import { FinalizarAtendimentoModal } from "./FinalizarAtendimentoModal";
+import { useStore } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
-import { barbeiroNomePorId, fmtDur, precoServico } from "@/lib/selectors";
-import { isoParaDiaMes, isoParaLabelLongo } from "@/lib/date";
+import { barbeiroNomePorId, fmtDur } from "@/lib/selectors";
+import { isoParaLabelLongo } from "@/lib/date";
 import { c } from "@/lib/theme";
 import { blocoMeta } from "@/lib/status";
 import type { AgendamentoStatus } from "@/lib/types";
@@ -23,41 +25,16 @@ const STATUS_LABEL: Record<AgendamentoStatus, string> = {
 export function AgendamentoModal({ open, onClose, agendamentoId }: { open: boolean; onClose: () => void; agendamentoId: string | null }) {
   const { state, actions } = useStore();
   const toast = useToast();
+  const [finalizando, setFinalizando] = useState(false);
 
   const ag = state.agendamentos.find((a) => a.id === agendamentoId) ?? null;
   if (!open || !ag) return null;
 
+  // A conclusão (com a regra de plano) é feita no FinalizarAtendimentoModal.
   async function setStatus(status: AgendamentoStatus, msg: string) {
     if (!ag) return;
     try {
-      if (status === "concluido") {
-        // Vincula ao cliente (id preferido; nome como fallback p/ dados legados),
-        // para alimentar histórico, agregados e segmentos.
-        const clienteId = ag.clienteId ?? state.clientes.find((cl) => cl.nome === ag.clienteNome)?.id;
-        const valor = precoServico(state, ag.servico);
-        await actions.agendamentos.concluir(
-          ag.id,
-          {
-            id: makeId("tx"),
-            data: isoParaDiaMes(ag.date),
-            clienteNome: ag.clienteNome,
-            clienteId,
-            servico: ag.servico,
-            barbeiroNome: barbeiroNomePorId(state, ag.barbeiroId),
-            valor,
-            status: "pago",
-            forma: "pix",
-            type: "avulso",
-            source: "manual",
-            paidAt: ag.date,
-            amount: valor,
-            amountReceived: valor,
-          },
-          clienteId ? { id: clienteId, valor, dataISO: ag.date } : undefined,
-        );
-      } else {
-        await actions.agendamentos.setStatus(ag.id, status);
-      }
+      await actions.agendamentos.setStatus(ag.id, status);
       toast(msg);
       onClose();
     } catch {
@@ -87,6 +64,7 @@ export function AgendamentoModal({ open, onClose, agendamentoId }: { open: boole
   );
 
   return (
+    <>
     <Modal
       open={open}
       onClose={onClose}
@@ -120,7 +98,7 @@ export function AgendamentoModal({ open, onClose, agendamentoId }: { open: boole
             <Button variant="ghost" onClick={() => setStatus("atendimento", "Atendimento iniciado.")}>Iniciar</Button>
           ) : null}
           {ag.status !== "concluido" ? (
-            <Button onClick={() => setStatus("concluido", "Atendimento concluído.")}>Concluir</Button>
+            <Button onClick={() => setFinalizando(true)}>Concluir</Button>
           ) : null}
           {ag.status !== "noshow" ? (
             <Button variant="ghost" onClick={() => setStatus("noshow", "Marcado como no-show.")}>No-show</Button>
@@ -131,5 +109,15 @@ export function AgendamentoModal({ open, onClose, agendamentoId }: { open: boole
         </div>
       ) : null}
     </Modal>
+    <FinalizarAtendimentoModal
+      open={finalizando}
+      agendamentoId={ag.id}
+      onClose={() => setFinalizando(false)}
+      onConcluido={() => {
+        setFinalizando(false);
+        onClose();
+      }}
+    />
+    </>
   );
 }

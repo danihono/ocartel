@@ -254,7 +254,11 @@ export default function PagamentosPage() {
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 15, fontWeight: 700, color: c.inkTitle }}>{formatBRL(valorMostrado)}</span>
                   {divergente ? <span style={{ fontSize: 11.5, color: c.ink3 }}>cobrado {formatBRL(cobrado)}</span> : null}
-                  {st === "pago" ? <span style={{ fontSize: 12, color: c.ink3, marginLeft: "auto" }}>{formaPagamentoLabel[t.forma]}</span> : null}
+                  {t.cobertoPorPlano ? (
+                    <span style={{ fontSize: 12, color: c.greenText, fontWeight: 600, marginLeft: "auto" }}>Coberto pelo plano</span>
+                  ) : st === "pago" ? (
+                    <span style={{ fontSize: 12, color: c.ink3, marginLeft: "auto" }}>{formaPagamentoLabel[t.forma]}</span>
+                  ) : null}
                 </div>
                 {st !== "pago" ? (
                   <Button variant="ghost" onClick={() => setPagar(t)} style={{ alignSelf: "flex-start" }}>Registrar pagamento</Button>
@@ -276,7 +280,9 @@ export default function PagamentosPage() {
               <span>
                 <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: sm.bg, color: sm.fg }}>{sm.label}</span>
               </span>
-              <span style={{ fontSize: 12.5, color: c.ink2 }}>{st === "pago" ? formaPagamentoLabel[t.forma] : "—"}</span>
+              <span style={{ fontSize: 12.5, color: t.cobertoPorPlano ? c.greenText : c.ink2, fontWeight: t.cobertoPorPlano ? 600 : undefined }}>
+                {t.cobertoPorPlano ? "Coberto pelo plano" : st === "pago" ? formaPagamentoLabel[t.forma] : "—"}
+              </span>
               <span style={{ display: "flex", justifyContent: "flex-end" }}>
                 {st !== "pago" ? (
                   <button onClick={() => setPagar(t)} style={{ border: `1px solid ${c.borderInput}`, background: c.surface, cursor: "pointer", color: c.green, fontSize: 11.5, fontWeight: 700, borderRadius: 8, padding: "6px 11px", whiteSpace: "nowrap" }}>

@@ -125,6 +125,8 @@ export interface Agendamento {
   status: AgendamentoStatus;
   origem?: "admin" | "booking";
   observacoes?: string; // texto livre, editável no painel de detalhe
+  /** Conclusão coberta pela assinatura do cliente (atendimento R$ 0; ver selectors). */
+  cobertoPorPlano?: boolean;
 }
 
 export type FormaPagamento = "pix" | "cartao" | "cartao_debito" | "dinheiro";
@@ -168,6 +170,11 @@ export interface Transacao {
   source?: "manual" | "gateway";
   /** Nome do admin que confirmou o pagamento (auditoria). */
   confirmedBy?: string;
+  /**
+   * Atendimento coberto pela assinatura do cliente: registro de R$ 0,00 gerado na
+   * conclusão (não cobra o corte). Em Pagamentos exibe "Coberto pelo plano".
+   */
+  cobertoPorPlano?: boolean;
 }
 
 export interface ConfigBarbearia {

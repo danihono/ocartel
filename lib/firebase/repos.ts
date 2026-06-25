@@ -157,7 +157,11 @@ export const agendamentos = {
     cliente?: { id: string; valor: number; dataISO: string },
   ) {
     const batch = writeBatch(db);
-    batch.update(sub(tenantId, "agendamentos/" + id), { status: "concluido" });
+    batch.update(sub(tenantId, "agendamentos/" + id), {
+      status: "concluido",
+      // Marca o atendimento como coberto p/ o histórico do cliente exibir R$ 0.
+      ...(transacao.cobertoPorPlano ? { cobertoPorPlano: true } : {}),
+    });
     batch.set(doc(col(tenantId, "transacoes")), { ...semId(transacao), createdAt: serverTimestamp() });
     if (cliente?.id) {
       batch.update(sub(tenantId, "clientes/" + cliente.id), {

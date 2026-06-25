@@ -175,6 +175,16 @@ export function clienteEstaInadimplente(state: AppState, cliente: Cliente, hojeI
 }
 
 /**
+ * Cliente assinante: tem um plano atribuído diferente de "Avulso" — então os
+ * atendimentos são cobertos (R$ 0) ao concluir. Mesma convenção do filtro de
+ * "Avulsos" (`/avulso/i`). Sem data de vencimento por enquanto.
+ */
+export function clientePossuiPlanoAtivo(cliente: Cliente | null | undefined): boolean {
+  const p = (cliente?.plano ?? "").trim();
+  return p !== "" && !/avulso/i.test(p);
+}
+
+/**
  * Marcador exibido. "Inadimplente" é DERIVADO das cobranças (fonte única); o tag
  * manual cobre só VIP/Novo. Um "Inadimplente" gravado à mão (legado) é ignorado.
  */
@@ -290,7 +300,8 @@ export function selectHistoricoCliente(state: AppState, cliente: Cliente): Histo
       data: isoParaDiaMes(a.date),
       servico: a.servico,
       barbeiro: barbeiroNomePorId(state, a.barbeiroId),
-      valor: precoServico(state, a.servico),
+      // Atendimento coberto pelo plano não cobra o corte → R$ 0 no histórico.
+      valor: a.cobertoPorPlano ? 0 : precoServico(state, a.servico),
     }));
 }
 
@@ -311,7 +322,8 @@ export function selectProximoAgendamentoCliente(
 export function selectFormaPreferidaCliente(state: AppState, cliente: Cliente): FormaPagamento | null {
   const contagem = new Map<FormaPagamento, number>();
   for (const t of state.transacoes) {
-    if (ehDoCliente(t, cliente)) contagem.set(t.forma, (contagem.get(t.forma) ?? 0) + 1);
+    // Cobertos pelo plano não têm forma real de pagamento — não contam aqui.
+    if (ehDoCliente(t, cliente) && !t.cobertoPorPlano) contagem.set(t.forma, (contagem.get(t.forma) ?? 0) + 1);
   }
   let melhor: FormaPagamento | null = null;
   let max = 0;
