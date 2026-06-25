@@ -21,6 +21,7 @@ import {
 } from "@/lib/selectors";
 import { HOJE_ISO, isoParaLabel, tempoRelativo } from "@/lib/date";
 import { ClienteModal } from "@/components/admin/ClienteModal";
+import { ImportarClientesModal } from "@/components/admin/ImportarClientesModal";
 import { NovoAgendamentoModal } from "@/components/admin/NovoAgendamentoModal";
 
 const eyebrow = { fontSize: 11, letterSpacing: 0.7, textTransform: "uppercase" as const, color: c.ink3, fontWeight: 600 };
@@ -35,6 +36,7 @@ export default function ClientesPage() {
   const [filtro, setFiltro] = useState<FiltroCliente>("Todos");
   const [selId, setSelId] = useState("");
   const [novoOpen, setNovoOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [agendarOpen, setAgendarOpen] = useState(false);
   const [verTudo, setVerTudo] = useState(false);
@@ -88,6 +90,9 @@ export default function ClientesPage() {
             <span style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.inkTitle }}>Clientes</span>
             <span style={{ fontSize: 12, color: c.ink3, background: c.surfaceWarm, borderRadius: 999, padding: "2px 9px", fontWeight: 600 }}>{contagens.Todos}</span>
             <div style={{ flex: 1 }} />
+            <button onClick={() => setImportOpen(true)} style={{ border: `1px solid ${c.borderInput}`, cursor: "pointer", background: c.surface, color: c.inkTitle, padding: "8px 13px", borderRadius: 9, fontSize: 12.5, fontWeight: 600 }}>
+              Importar
+            </button>
             <button onClick={() => setNovoOpen(true)} style={{ border: "none", cursor: "pointer", background: c.primaryBtnBg, color: c.primaryBtnText, padding: "8px 13px", borderRadius: 9, fontSize: 12.5, fontWeight: 700 }}>
               + Novo cliente
             </button>
@@ -296,6 +301,7 @@ export default function ClientesPage() {
       )}
 
       <ClienteModal open={novoOpen} onClose={() => setNovoOpen(false)} onSaved={(id) => { setFiltro("Todos"); setBusca(""); setSelId(id); }} />
+      <ImportarClientesModal open={importOpen} onClose={() => setImportOpen(false)} />
       {sel ? <ClienteModal open={editOpen} onClose={() => setEditOpen(false)} cliente={sel} /> : null}
       {sel ? <NovoAgendamentoModal open={agendarOpen} onClose={() => setAgendarOpen(false)} defaults={{ clienteNome: sel.nome, clienteId: sel.id }} /> : null}
     </div>

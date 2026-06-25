@@ -33,6 +33,12 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
   const [obs, setObs] = useState("");
   const [salvandoObs, setSalvandoObs] = useState(false);
   const [finalizando, setFinalizando] = useState(false);
+  const [excluindoSerie, setExcluindoSerie] = useState(false); // passo de confirmação
+  const [removendo, setRemovendo] = useState(false);
+  useEffect(() => {
+    setExcluindoSerie(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agendamentoId]);
   useEffect(() => {
     if (open && ag) setObs(ag.observacoes ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -84,6 +90,21 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
       onClose();
     } catch {
       toast("Não foi possível remover.", "error");
+    }
+  }
+
+  async function excluirSerie() {
+    if (!ag?.recorrenciaId) return;
+    setRemovendo(true);
+    try {
+      const r = await actions.agendamentos.removeSerie(ag.recorrenciaId);
+      toast(r.mantidos ? `Série excluída (${r.excluidos}); ${r.mantidos} concluído(s) mantido(s).` : `Série excluída (${r.excluidos}).`);
+      onClose();
+    } catch {
+      toast("Não foi possível excluir a série.", "error");
+    } finally {
+      setRemovendo(false);
+      setExcluindoSerie(false);
     }
   }
 
@@ -202,6 +223,29 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
             ) : null}
           </div>
         )}
+
+        {/* Série recorrente: excluir todos de uma vez (mantém os concluídos). */}
+        {!isBloqueio && ag.recorrenciaId ? (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${c.borderSoft}` }}>
+            {excluindoSerie ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12.5, color: c.ink2, fontWeight: 600, flex: 1, minWidth: 150 }}>
+                  Excluir toda a série? (concluídos são mantidos)
+                </span>
+                <Button variant="ghost" onClick={() => setExcluindoSerie(false)} disabled={removendo}>Cancelar</Button>
+                <Button onClick={excluirSerie} loading={removendo} style={{ background: c.red }}>Confirmar exclusão</Button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setExcluindoSerie(true)}
+                style={{ border: "none", background: "transparent", color: c.red, fontSize: 12.5, fontWeight: 700, cursor: "pointer", padding: 0 }}
+              >
+                Excluir série toda
+              </button>
+            )}
+          </div>
+        ) : null}
       </div>
     </div>
     <FinalizarAtendimentoModal

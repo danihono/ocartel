@@ -160,14 +160,21 @@ function reducer(state: AppState, action: Action): AppState {
 // ---- Ações de escrita (assíncronas, escopadas no tenant atual) ----
 type Ref = { id: string };
 export interface StoreActions {
-  clientes: { add: (c: Cliente) => Promise<Ref>; update: (c: Cliente) => Promise<void>; remove: (id: string) => Promise<void> };
+  clientes: {
+    add: (c: Cliente) => Promise<Ref>;
+    addMany: (lista: Cliente[], onProgress?: (feitos: number, total: number) => void) => Promise<void>;
+    update: (c: Cliente) => Promise<void>;
+    remove: (id: string) => Promise<void>;
+  };
   barbeiros: { add: (b: Barbeiro) => Promise<Ref>; update: (b: Barbeiro) => Promise<void>; remove: (id: string) => Promise<void> };
   servicos: { add: (s: Servico) => Promise<Ref>; update: (s: Servico) => Promise<void>; remove: (id: string) => Promise<void> };
   agendamentos: {
     add: (a: Agendamento) => Promise<Ref>;
+    addMany: (lista: Agendamento[]) => Promise<void>;
     update: (id: string, patch: Partial<Agendamento>) => Promise<void>;
     setStatus: (id: string, status: AgendamentoStatus) => Promise<void>;
     remove: (id: string) => Promise<void>;
+    removeSerie: (recorrenciaId: string) => Promise<{ excluidos: number; mantidos: number }>;
     concluir: (
       id: string,
       transacao: Transacao,
@@ -192,6 +199,7 @@ function buildActions(tenantId: string): StoreActions {
   return {
     clientes: {
       add: (c) => repo.clientes.add(tenantId, c),
+      addMany: (lista, onProgress) => repo.clientes.addMany(tenantId, lista, onProgress),
       update: (c) => repo.clientes.update(tenantId, c),
       remove: (id) => repo.clientes.remove(tenantId, id),
     },
@@ -207,9 +215,11 @@ function buildActions(tenantId: string): StoreActions {
     },
     agendamentos: {
       add: (a) => repo.agendamentos.add(tenantId, a),
+      addMany: (lista) => repo.agendamentos.addMany(tenantId, lista),
       update: (id, patch) => repo.agendamentos.update(tenantId, id, patch),
       setStatus: (id, status) => repo.agendamentos.setStatus(tenantId, id, status),
       remove: (id) => repo.agendamentos.remove(tenantId, id),
+      removeSerie: (recorrenciaId) => repo.agendamentos.removeSerie(tenantId, recorrenciaId),
       concluir: (id, transacao, cliente) => repo.agendamentos.concluir(tenantId, id, transacao, cliente),
     },
     transacoes: {

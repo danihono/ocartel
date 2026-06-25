@@ -8,6 +8,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   increment,
   limit,
   onSnapshot,
@@ -37,6 +38,8 @@ import type {
 } from "@/lib/types";
 
 // ---- helpers ----
+// Firestore limita um writeBatch a 500 operações; fatiamos em commits sequenciais.
+const BATCH_LIMIT = 500;
 const col = (tenantId: string, name: string) => collection(db, "tenants", tenantId, name);
 const sub = (tenantId: string, name: string) => doc(db, "tenants", tenantId, name);
 
@@ -57,6 +60,23 @@ export const clientes = {
   },
   add(tenantId: string, c: Cliente) {
     return addDoc(col(tenantId, "clientes"), { ...semId(c), createdAt: serverTimestamp() });
+  },
+  /**
+   * Importação em massa: grava N clientes em lotes de até 500 (teto do writeBatch),
+   * commitando sequencialmente. `onProgress` é chamado após cada lote (clientes
+   * já gravados / total). Mesmo padrão de `transacoes.gerarMensalidades`.
+   */
+  async addMany(tenantId: string, lista: Cliente[], onProgress?: (feitos: number, total: number) => void) {
+    const total = lista.length;
+    for (let i = 0; i < total; i += BATCH_LIMIT) {
+      const fatia = lista.slice(i, i + BATCH_LIMIT);
+      const batch = writeBatch(db);
+      for (const c of fatia) {
+        batch.set(doc(col(tenantId, "clientes")), { ...semId(c), createdAt: serverTimestamp() });
+      }
+      await batch.commit();
+      onProgress?.(Math.min(i + BATCH_LIMIT, total), total);
+    }
   },
   update(tenantId: string, c: Cliente) {
     return updateDoc(sub(tenantId, "clientes/" + c.id), semId(c) as DocumentData);
@@ -156,6 +176,31 @@ export const agendamentos = {
   },
   add(tenantId: string, a: Agendamento) {
     return addDoc(col(tenantId, "agendamentos"), { ...semId(a), createdAt: serverTimestamp() });
+  },
+  /** Cria N agendamentos de uma vez (agendamento recorrente). Fatiado em commits de 500. */
+  async addMany(tenantId: string, lista: Agendamento[]) {
+    for (let i = 0; i < lista.length; i += BATCH_LIMIT) {
+      const batch = writeBatch(db);
+      for (const a of lista.slice(i, i + BATCH_LIMIT)) {
+        batch.set(doc(col(tenantId, "agendamentos")), { ...semId(a), createdAt: serverTimestamp() });
+      }
+      await batch.commit();
+    }
+  },
+  /**
+   * Exclui a série inteira (consulta o Firestore por `recorrenciaId` — pega
+   * ocorrências futuras fora da janela de ~180d carregada no cliente). PRESERVA
+   * os já concluídos (eles geraram transação/agregados do cliente). Fatiado em 500.
+   */
+  async removeSerie(tenantId: string, recorrenciaId: string) {
+    const snap = await getDocs(query(col(tenantId, "agendamentos"), where("recorrenciaId", "==", recorrenciaId)));
+    const alvo = snap.docs.filter((d) => (d.data() as Agendamento).status !== "concluido");
+    for (let i = 0; i < alvo.length; i += BATCH_LIMIT) {
+      const batch = writeBatch(db);
+      for (const d of alvo.slice(i, i + BATCH_LIMIT)) batch.delete(d.ref);
+      await batch.commit();
+    }
+    return { excluidos: alvo.length, mantidos: snap.size - alvo.length };
   },
   setStatus(tenantId: string, id: string, status: AgendamentoStatus) {
     return updateDoc(sub(tenantId, "agendamentos/" + id), { status });

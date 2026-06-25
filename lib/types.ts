@@ -39,6 +39,10 @@ export interface Cliente {
   id: string;
   nome: string;
   telefone: string;
+  /** Telefone só dígitos (ex.: "11990000000") — base de deduplicação; o booking já grava. */
+  telefoneNorm?: string;
+  /** CPF só dígitos (11) — identificador forte; obrigatório na importação em massa. */
+  cpf?: string;
   email: string;
   /** Rótulo denormalizado do plano (nome do plano ou "Avulso") — exibição/compat. */
   plano: string;
@@ -127,6 +131,8 @@ export interface Agendamento {
   observacoes?: string; // texto livre, editável no painel de detalhe
   /** Conclusão coberta pela assinatura do cliente (atendimento R$ 0; ver selectors). */
   cobertoPorPlano?: boolean;
+  /** Liga este agendamento a uma série criada em massa. Ausente nos individuais. */
+  recorrenciaId?: string;
 }
 
 export type FormaPagamento = "pix" | "cartao" | "cartao_debito" | "dinheiro";

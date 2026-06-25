@@ -22,6 +22,7 @@ import {
 import { AgendamentoPanel } from "@/components/admin/AgendamentoPanel";
 import { BloquearHorarioModal } from "@/components/admin/BloquearHorarioModal";
 import { NovoAgendamentoModal, type NovoAgendamentoDefaults } from "@/components/admin/NovoAgendamentoModal";
+import { AgendamentoRecorrenteModal } from "@/components/admin/AgendamentoRecorrenteModal";
 
 const DIAS_CURTO = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 const SNAP_MIN = 15; // granularidade do arraste / resize / clique-no-vazio (alinha às linhas de 15 min)
@@ -208,6 +209,7 @@ export default function AgendaPage() {
   const [view, setView] = useState<View>("dia");
   const [agSel, setAgSel] = useState<string | null>(null);
   const [bloquear, setBloquear] = useState(false);
+  const [recorrenteOpen, setRecorrenteOpen] = useState(false);
   const [novoOpen, setNovoOpen] = useState(false);
   const [novoDefaults, setNovoDefaults] = useState<NovoAgendamentoDefaults>({});
   const [busca, setBusca] = useState("");
@@ -363,6 +365,12 @@ export default function AgendaPage() {
           })}
         </div>
         <button
+          onClick={() => setRecorrenteOpen(true)}
+          style={{ border: `1px solid ${c.borderInput}`, background: c.surface, cursor: "pointer", color: c.inkTitle, padding: "8px 14px", borderRadius: 9, fontSize: 13, fontWeight: 600 }}
+        >
+          + Agendamento recorrente
+        </button>
+        <button
           onClick={() => setBloquear(true)}
           style={{ border: `1px solid ${c.borderInput}`, background: c.surface, cursor: "pointer", color: c.inkTitle, padding: "8px 14px", borderRadius: 9, fontSize: 13, fontWeight: 600 }}
         >
@@ -452,6 +460,7 @@ export default function AgendaPage() {
       <AgendamentoPanel open={agSel !== null} onClose={() => setAgSel(null)} agendamentoId={agSel} />
       <BloquearHorarioModal open={bloquear} onClose={() => setBloquear(false)} defaults={{ dateISO }} />
       <NovoAgendamentoModal open={novoOpen} onClose={() => setNovoOpen(false)} defaults={novoDefaults} />
+      <AgendamentoRecorrenteModal open={recorrenteOpen} onClose={() => setRecorrenteOpen(false)} defaults={{ dateISO, barbeiroId: barbId ?? undefined }} />
     </div>
   );
 }

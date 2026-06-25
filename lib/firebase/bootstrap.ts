@@ -94,41 +94,20 @@ export async function bootstrapTenant(params: BootstrapParams): Promise<{ tenant
   await identidade.commit();
   // (o slug já foi reservado atomicamente em reservarSlug, antes deste commit)
 
-  // Commit 2 — catálogo inicial (agora owns(tenantId) já é verdadeiro).
+  // Commit 2 — barbearia começa VAZIA (sem dados de exemplo): só a config (com os
+  // dados reais do onboarding) e os tiers SaaS do O Cartel. Serviços, barbeiros,
+  // planos de cliente, clientes e agendamentos são cadastrados pelo próprio admin.
   const catalogo = writeBatch(db);
 
-  // Config da barbearia.
+  // Config da barbearia (endereço fica em branco para o admin preencher).
   catalogo.set(doc(db, "tenants", tenantId, "config", "main"), {
     nome: params.barbeariaNome,
-    endereco: BARBEARIA.endereco,
+    endereco: "",
     telefone: params.telefone,
     horario: { abre: "09:00", fecha: "19:00", diasAtivos: [true, true, true, true, true, true, false] },
   });
 
-  // Serviços iniciais.
-  seedServicos.forEach((s) => {
-    catalogo.set(doc(collection(db, "tenants", tenantId, "servicos")), {
-      nome: s.nome,
-      duracaoMin: s.duracaoMin,
-      preco: s.preco,
-      createdAt: serverTimestamp(),
-    });
-  });
-
-  // Barbeiros iniciais (mescla cor/iniciais com rating/especialidade do booking).
-  agendaBarbeiros.forEach((b) => {
-    const bk = bookingBarbeiros.find((x) => x.nome === b.nome);
-    catalogo.set(doc(collection(db, "tenants", tenantId, "barbeiros")), {
-      nome: b.nome,
-      iniciais: b.iniciais,
-      cor: b.cor,
-      ...(bk?.rating ? { rating: bk.rating } : {}),
-      ...(bk?.especialidade ? { especialidade: bk.especialidade } : {}),
-      createdAt: serverTimestamp(),
-    });
-  });
-
-  // Planos de assinatura (tiers).
+  // Tiers da assinatura SaaS do O Cartel (estrutural — não é dado de negócio da barbearia).
   catalogo.set(doc(db, "tenants", tenantId, "planosTiers", "basico"), {
     id: "basico",
     nome: "Básico",
@@ -140,17 +119,6 @@ export async function bootstrapTenant(params: BootstrapParams): Promise<{ tenant
     nome: "Pro",
     preco: 249,
     descricao: "Multi-unidade · ilimitado",
-  });
-
-  // Planos de assinatura do cliente (mensalidade) — id estável = id do seed.
-  seedPlanos.forEach((p) => {
-    catalogo.set(doc(db, "tenants", tenantId, "planos", p.id), {
-      nome: p.nome,
-      valor: p.valor,
-      diaVencimento: p.diaVencimento ?? 5,
-      ativo: p.ativo ?? true,
-      createdAt: serverTimestamp(),
-    });
   });
 
   await catalogo.commit();

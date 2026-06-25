@@ -7,17 +7,8 @@ import { Button } from "@/components/ui/Button";
 import { useStore, makeId } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { mesAnoCurto, HOJE_ISO } from "@/lib/date";
+import { EMAIL_RE, iniciaisDe, maskCpf, maskTelefone, normalizarCpf, normalizarTelefone, validarCpf } from "@/lib/clientes-import";
 import type { Cliente, ClienteTag } from "@/lib/types";
-
-/** Máscara de telefone BR conforme digita: (11) 90000-0000. */
-function maskTelefone(v: string): string {
-  const d = v.replace(/\D/g, "").slice(0, 11);
-  if (d.length <= 2) return d.replace(/^(\d{0,2})/, "($1");
-  if (d.length <= 6) return d.replace(/^(\d{2})(\d{0,4})/, "($1) $2");
-  if (d.length <= 10) return d.replace(/^(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3");
-  return d.replace(/^(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3");
-}
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // "Inadimplente" NÃO é um marcador manual: é derivado das cobranças em atraso
 // (ver selectors.tagDerivadaCliente). Aqui só os marcadores escolhidos à mão.
@@ -26,11 +17,6 @@ const TAGS: { value: ClienteTag; label: string }[] = [
   { value: "VIP", label: "VIP" },
   { value: "Novo", label: "Novo" },
 ];
-
-function iniciaisDe(nome: string): string {
-  const partes = nome.trim().split(/\s+/);
-  return ((partes[0]?.[0] ?? "") + (partes[1]?.[0] ?? "")).toUpperCase() || "?";
-}
 
 export function ClienteModal({
   open,
@@ -49,6 +35,7 @@ export function ClienteModal({
 
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
+  const [cpf, setCpf] = useState("");
   const [email, setEmail] = useState("");
   const [planId, setPlanId] = useState(""); // "" = Avulso (sem plano)
   const [tag, setTag] = useState<ClienteTag>("");
@@ -59,6 +46,7 @@ export function ClienteModal({
     if (!open) return;
     setNome(cliente?.nome ?? "");
     setTelefone(cliente?.telefone ?? "");
+    setCpf(cliente?.cpf ? maskCpf(cliente.cpf) : "");
     setEmail(cliente?.email ?? "");
     // planId direto; senão tenta casar pelo rótulo `plano` legado; senão Avulso.
     const porNome = cliente?.plano ? state.planos.find((p) => p.nome === cliente.plano)?.id : undefined;
@@ -84,10 +72,15 @@ export function ClienteModal({
       toast("E-mail inválido.", "error");
       return;
     }
+    if (cpf.trim() && !validarCpf(cpf)) {
+      toast("CPF inválido.", "error");
+      return;
+    }
+    const cpfNorm = normalizarCpf(cpf);
     setSalvando(true);
     try {
       if (editando && cliente) {
-        const atualizado: Cliente = { ...cliente, nome: nome.trim(), telefone, email: email.trim(), plano: planoLabel, planId, tag, observacoes: observacoes.trim(), iniciais: iniciaisDe(nome) };
+        const atualizado: Cliente = { ...cliente, nome: nome.trim(), telefone, telefoneNorm: normalizarTelefone(telefone), cpf: cpfNorm, email: email.trim(), plano: planoLabel, planId, tag, observacoes: observacoes.trim(), iniciais: iniciaisDe(nome) };
         await actions.clientes.update(atualizado);
         toast("Cliente atualizado.");
         onSaved?.(cliente.id);
@@ -96,6 +89,8 @@ export function ClienteModal({
           id: makeId("c"),
           nome: nome.trim(),
           telefone,
+          telefoneNorm: normalizarTelefone(telefone),
+          cpf: cpfNorm,
           email: email.trim(),
           plano: planoLabel,
           planId,
@@ -139,10 +134,13 @@ export function ClienteModal({
           <Field label="Telefone" style={{ flex: 1 }}>
             <TextInput value={telefone} onChange={(e) => setTelefone(maskTelefone(e.target.value))} placeholder="(11) 90000-0000" inputMode="tel" />
           </Field>
-          <Field label="E-mail" style={{ flex: 1 }}>
-            <TextInput value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@exemplo.com" />
+          <Field label="CPF" style={{ flex: 1 }}>
+            <TextInput value={cpf} onChange={(e) => setCpf(maskCpf(e.target.value))} placeholder="000.000.000-00" inputMode="numeric" />
           </Field>
         </div>
+        <Field label="E-mail">
+          <TextInput value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@exemplo.com" />
+        </Field>
         <div style={{ display: "flex", gap: 12 }}>
           <Field label="Plano" style={{ flex: 1 }}>
             <Select value={planId} onChange={(e) => setPlanId(e.target.value)}>
