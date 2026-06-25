@@ -7,6 +7,7 @@ import { Tag } from "@/components/ui/StatusPill";
 import { Avatar } from "@/components/ui/Seal";
 import { tagMeta } from "@/lib/status";
 import { useStore } from "@/lib/store";
+import { useToast } from "@/components/ui/Toast";
 import {
   selectClientesFiltrados,
   selectContagensCliente,
@@ -27,7 +28,8 @@ const FILTROS: FiltroCliente[] = ["Todos", "VIP", "Avulsos", "Inadimplentes"];
 const HIST_INICIAL = 8;
 
 export default function ClientesPage() {
-  const { state } = useStore();
+  const { state, actions } = useStore();
+  const toast = useToast();
 
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<FiltroCliente>("Todos");
@@ -59,6 +61,23 @@ export default function ClientesPage() {
   const proximo = sel ? selectProximoAgendamentoCliente(state, sel, HOJE_ISO) : null;
   const formaPreferida = sel ? selectFormaPreferidaCliente(state, sel) : null;
   const histVisivel = verTudo ? historico : historico.slice(0, HIST_INICIAL);
+
+  async function excluirCliente() {
+    if (!sel) return;
+    const ativos: string[] = ["agendado", "confirmado", "atendimento"];
+    const futuros = state.agendamentos.filter(
+      (a) => (a.clienteId ? a.clienteId === sel.id : a.clienteNome === sel.nome) && a.date >= HOJE_ISO && ativos.includes(a.status),
+    ).length;
+    const aviso = futuros > 0 ? `\n\nAtenção: ${futuros} agendamento(s) futuro(s) deste cliente continuarão na agenda.` : "";
+    if (!window.confirm(`Excluir ${sel.nome}? Esta ação não pode ser desfeita.${aviso}`)) return;
+    try {
+      await actions.clientes.remove(sel.id);
+      toast("Cliente excluído.");
+      setSelId("");
+    } catch {
+      toast("Não foi possível excluir o cliente.", "error");
+    }
+  }
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1.45fr 1fr", gap: 18, height: "100%", maxWidth: 1600 }}>
@@ -170,6 +189,9 @@ export default function ClientesPage() {
               </button>
               <button onClick={() => setEditOpen(true)} style={{ border: `1px solid ${c.borderInput}`, cursor: "pointer", background: c.surface, color: c.inkTitle, padding: "8px 12px", borderRadius: 9, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>
                 Editar
+              </button>
+              <button onClick={excluirCliente} style={{ border: `1px solid ${c.borderInput}`, cursor: "pointer", background: c.surface, color: c.red, padding: "8px 12px", borderRadius: 9, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>
+                Excluir
               </button>
             </div>
           </div>

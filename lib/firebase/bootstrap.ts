@@ -2,7 +2,7 @@
 // slug público, cria o perfil do usuário (role "admin") e semeia o catálogo
 // inicial (serviços, barbeiros, config, planos) — tudo num writeBatch atômico.
 
-import { collection, doc, getDoc, serverTimestamp, writeBatch } from "firebase/firestore";
+import { collection, doc, runTransaction, serverTimestamp, setDoc, writeBatch } from "firebase/firestore";
 import { db } from "./config";
 import { slug as slugify } from "@/lib/selectors";
 import { HOJE_ISO } from "@/lib/date";
@@ -12,6 +12,7 @@ import {
   bookingBarbeiros,
   BARBEARIA,
   clientes as seedClientes,
+  planosCliente as seedPlanos,
   servicos as seedServicos,
 } from "@/lib/mock-data";
 import type { PlanoSaaS } from "@/lib/types";
@@ -23,12 +24,29 @@ function monograma(nome: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-/** Garante um slug único reservando slugs/{slug} -> tenantId. */
+/**
+ * Reserva ATOMICAMENTE slugs/{slug} -> tenantId (cria o doc dentro de uma
+ * transação, eliminando a corrida check-then-set). Tenta o slug base; em caso de
+ * colisão, sufixa com pedaços do tenantId até conseguir. O doc do slug já é
+ * criado aqui — por isso NÃO deve ser recriado nos batches dos chamadores.
+ */
 async function reservarSlug(base: string, tenantId: string): Promise<string> {
-  const candidato = base || "barbearia";
-  const existe = await getDoc(doc(db, "slugs", candidato));
-  if (!existe.exists()) return candidato;
-  return `${candidato}-${tenantId.slice(0, 4).toLowerCase()}`;
+  const raiz = base || "barbearia";
+  const candidatos = [raiz, `${raiz}-${tenantId.slice(0, 4).toLowerCase()}`, `${raiz}-${tenantId.slice(0, 8).toLowerCase()}`];
+  for (const cand of candidatos) {
+    const ok = await runTransaction(db, async (tx) => {
+      const ref = doc(db, "slugs", cand);
+      const snap = await tx.get(ref);
+      if (snap.exists()) return false;
+      tx.set(ref, { tenantId, createdAt: serverTimestamp() });
+      return true;
+    });
+    if (ok) return cand;
+  }
+  // Último recurso: slug derivado do tenantId (único por construção).
+  const unico = `barbearia-${tenantId.slice(0, 12).toLowerCase()}`;
+  await setDoc(doc(db, "slugs", unico), { tenantId, createdAt: serverTimestamp() });
+  return unico;
 }
 
 export interface BootstrapParams {
@@ -64,9 +82,6 @@ export async function bootstrapTenant(params: BootstrapParams): Promise<{ tenant
     createdAt: serverTimestamp(),
   });
 
-  // Reserva do slug público.
-  identidade.set(doc(db, "slugs", slug), { tenantId, createdAt: serverTimestamp() });
-
   // Perfil do usuário (role admin — superAdmin nunca é auto-concedido).
   identidade.set(doc(db, "users", params.uid), {
     role: "admin",
@@ -77,6 +92,7 @@ export async function bootstrapTenant(params: BootstrapParams): Promise<{ tenant
   });
 
   await identidade.commit();
+  // (o slug já foi reservado atomicamente em reservarSlug, antes deste commit)
 
   // Commit 2 — catálogo inicial (agora owns(tenantId) já é verdadeiro).
   const catalogo = writeBatch(db);
@@ -126,6 +142,17 @@ export async function bootstrapTenant(params: BootstrapParams): Promise<{ tenant
     descricao: "Multi-unidade · ilimitado",
   });
 
+  // Planos de assinatura do cliente (mensalidade) — id estável = id do seed.
+  seedPlanos.forEach((p) => {
+    catalogo.set(doc(db, "tenants", tenantId, "planos", p.id), {
+      nome: p.nome,
+      valor: p.valor,
+      diaVencimento: p.diaVencimento ?? 5,
+      ativo: p.ativo ?? true,
+      createdAt: serverTimestamp(),
+    });
+  });
+
   await catalogo.commit();
   return { tenantId, slug };
 }
@@ -161,7 +188,7 @@ export async function seedDemoTenant(params: { ownerUid: string; nome?: string }
     ownerUid: params.ownerUid,
     createdAt: serverTimestamp(),
   });
-  batch.set(doc(db, "slugs", slug), { tenantId, createdAt: serverTimestamp() });
+  // (slug já reservado atomicamente em reservarSlug)
 
   // Config.
   batch.set(doc(db, "tenants", tenantId, "config", "main"), {
@@ -221,9 +248,20 @@ export async function seedDemoTenant(params: { ownerUid: string; nome?: string }
     });
   });
 
-  // Planos de assinatura.
+  // Planos de assinatura (tiers SaaS).
   batch.set(doc(db, "tenants", tenantId, "planosTiers", "basico"), { id: "basico", nome: "Básico", preco: 129, descricao: "1 unidade · até 3 barbeiros" });
   batch.set(doc(db, "tenants", tenantId, "planosTiers", "pro"), { id: "pro", nome: "Pro", preco: 249, descricao: "Multi-unidade · ilimitado" });
+
+  // Planos de assinatura do cliente (mensalidade).
+  seedPlanos.forEach((p) => {
+    batch.set(doc(db, "tenants", tenantId, "planos", p.id), {
+      nome: p.nome,
+      valor: p.valor,
+      diaVencimento: p.diaVencimento ?? 5,
+      ativo: p.ativo ?? true,
+      createdAt: serverTimestamp(),
+    });
+  });
 
   await batch.commit();
   return { tenantId, slug };

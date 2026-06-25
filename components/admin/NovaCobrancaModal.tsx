@@ -19,6 +19,7 @@ export function NovaCobrancaModal({ open, onClose }: { open: boolean; onClose: (
   const [item, setItem] = useState("");
   const [valor, setValor] = useState(0);
   const [vencISO, setVencISO] = useState(HOJE_ISO);
+  const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -52,6 +53,7 @@ export function NovaCobrancaModal({ open, onClose }: { open: boolean; onClose: (
       return;
     }
     const clienteId = state.clientes.find((cl) => cl.nome === nomeLimpo)?.id;
+    setSalvando(true);
     try {
       await actions.transacoes.add({
         id: makeId("tx"),
@@ -72,6 +74,8 @@ export function NovaCobrancaModal({ open, onClose }: { open: boolean; onClose: (
       onClose();
     } catch {
       toast("Não foi possível criar a cobrança.", "error");
+    } finally {
+      setSalvando(false);
     }
   }
 
@@ -82,8 +86,8 @@ export function NovaCobrancaModal({ open, onClose }: { open: boolean; onClose: (
       title="Nova cobrança"
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <Button onClick={salvar}>Criar cobrança</Button>
+          <Button variant="ghost" onClick={onClose} disabled={salvando}>Cancelar</Button>
+          <Button onClick={salvar} loading={salvando}>Criar cobrança</Button>
         </>
       }
     >

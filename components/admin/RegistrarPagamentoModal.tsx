@@ -33,6 +33,7 @@ export function RegistrarPagamentoModal({
   const [valor, setValor] = useState(0);
   const [forma, setForma] = useState<FormaPagamento>("pix");
   const [dataISO, setDataISO] = useState(HOJE_ISO);
+  const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
     if (!open || !transacao) return;
@@ -51,17 +52,21 @@ export function RegistrarPagamentoModal({
       toast("Informe o valor recebido.", "error");
       return;
     }
+    setSalvando(true);
     try {
       await actions.transacoes.registrarPagamento(transacao.id, {
         paidAt: dataISO,
         forma,
         amountReceived: valor,
         confirmedBy,
+        clienteId: transacao.clienteId, // mantém totalGasto do cliente em sincronia
       });
       toast("Pagamento confirmado.");
       onClose();
     } catch {
       toast("Não foi possível confirmar o pagamento.", "error");
+    } finally {
+      setSalvando(false);
     }
   }
 
@@ -72,8 +77,8 @@ export function RegistrarPagamentoModal({
       title="Registrar pagamento"
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <Button onClick={salvar}>Confirmar</Button>
+          <Button variant="ghost" onClick={onClose} disabled={salvando}>Cancelar</Button>
+          <Button onClick={salvar} loading={salvando}>Confirmar</Button>
         </>
       }
     >

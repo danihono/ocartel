@@ -2,14 +2,23 @@
 
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { Field, Select, TextInput } from "@/components/ui/Field";
+import { Field, Select, Textarea, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { useStore, makeId } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { mesAnoCurto, HOJE_ISO } from "@/lib/date";
 import type { Cliente, ClienteTag } from "@/lib/types";
 
-const PLANOS = ["Avulso", "Mensal Corte", "Mensal C+B"];
+/** Máscara de telefone BR conforme digita: (11) 90000-0000. */
+function maskTelefone(v: string): string {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 2) return d.replace(/^(\d{0,2})/, "($1");
+  if (d.length <= 6) return d.replace(/^(\d{2})(\d{0,4})/, "($1) $2");
+  if (d.length <= 10) return d.replace(/^(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3");
+  return d.replace(/^(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3");
+}
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 // "Inadimplente" NÃO é um marcador manual: é derivado das cobranças em atraso
 // (ver selectors.tagDerivadaCliente). Aqui só os marcadores escolhidos à mão.
 const TAGS: { value: ClienteTag; label: string }[] = [
@@ -34,34 +43,51 @@ export function ClienteModal({
   cliente?: Cliente;
   onSaved?: (id: string) => void;
 }) {
-  const { actions } = useStore();
+  const { state, actions } = useStore();
   const toast = useToast();
   const editando = !!cliente;
 
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [email, setEmail] = useState("");
-  const [plano, setPlano] = useState(PLANOS[0]);
+  const [planId, setPlanId] = useState(""); // "" = Avulso (sem plano)
   const [tag, setTag] = useState<ClienteTag>("");
+  const [observacoes, setObservacoes] = useState("");
+  const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setNome(cliente?.nome ?? "");
     setTelefone(cliente?.telefone ?? "");
     setEmail(cliente?.email ?? "");
-    setPlano(cliente?.plano ?? PLANOS[0]);
+    // planId direto; senão tenta casar pelo rótulo `plano` legado; senão Avulso.
+    const porNome = cliente?.plano ? state.planos.find((p) => p.nome === cliente.plano)?.id : undefined;
+    setPlanId(cliente?.planId ?? porNome ?? "");
     setTag(cliente?.tag ?? "");
+    setObservacoes(cliente?.observacoes ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  const planoSel = state.planos.find((p) => p.id === planId) ?? null;
+  const planoLabel = planoSel ? planoSel.nome : "Avulso";
 
   async function salvar() {
     if (!nome.trim()) {
       toast("Informe o nome do cliente.", "error");
       return;
     }
+    if (telefone.replace(/\D/g, "").length < 10) {
+      toast("Informe um telefone válido (com DDD).", "error");
+      return;
+    }
+    if (email.trim() && !EMAIL_RE.test(email.trim())) {
+      toast("E-mail inválido.", "error");
+      return;
+    }
+    setSalvando(true);
     try {
       if (editando && cliente) {
-        const atualizado: Cliente = { ...cliente, nome: nome.trim(), telefone, email, plano, tag, iniciais: iniciaisDe(nome) };
+        const atualizado: Cliente = { ...cliente, nome: nome.trim(), telefone, email: email.trim(), plano: planoLabel, planId, tag, observacoes: observacoes.trim(), iniciais: iniciaisDe(nome) };
         await actions.clientes.update(atualizado);
         toast("Cliente atualizado.");
         onSaved?.(cliente.id);
@@ -70,9 +96,11 @@ export function ClienteModal({
           id: makeId("c"),
           nome: nome.trim(),
           telefone,
-          email,
-          plano,
+          email: email.trim(),
+          plano: planoLabel,
+          planId,
           tag,
+          observacoes: observacoes.trim(),
           ultimoAtendimento: "—",
           totalGasto: 0,
           atendimentos: 0,
@@ -86,6 +114,8 @@ export function ClienteModal({
       onClose();
     } catch {
       toast("Não foi possível salvar o cliente.", "error");
+    } finally {
+      setSalvando(false);
     }
   }
 
@@ -96,8 +126,8 @@ export function ClienteModal({
       title={editando ? "Editar cliente" : "Novo cliente"}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <Button onClick={salvar}>{editando ? "Salvar" : "Adicionar"}</Button>
+          <Button variant="ghost" onClick={onClose} disabled={salvando}>Cancelar</Button>
+          <Button onClick={salvar} loading={salvando}>{editando ? "Salvar" : "Adicionar"}</Button>
         </>
       }
     >
@@ -107,7 +137,7 @@ export function ClienteModal({
         </Field>
         <div style={{ display: "flex", gap: 12 }}>
           <Field label="Telefone" style={{ flex: 1 }}>
-            <TextInput value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(11) 90000-0000" />
+            <TextInput value={telefone} onChange={(e) => setTelefone(maskTelefone(e.target.value))} placeholder="(11) 90000-0000" inputMode="tel" />
           </Field>
           <Field label="E-mail" style={{ flex: 1 }}>
             <TextInput value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@exemplo.com" />
@@ -115,10 +145,11 @@ export function ClienteModal({
         </div>
         <div style={{ display: "flex", gap: 12 }}>
           <Field label="Plano" style={{ flex: 1 }}>
-            <Select value={plano} onChange={(e) => setPlano(e.target.value)}>
-              {PLANOS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
+            <Select value={planId} onChange={(e) => setPlanId(e.target.value)}>
+              <option value="">Avulso (sem plano)</option>
+              {state.planos.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nome} · R$ {p.valor}/mês
                 </option>
               ))}
             </Select>
@@ -133,6 +164,9 @@ export function ClienteModal({
             </Select>
           </Field>
         </div>
+        <Field label="Observações">
+          <Textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} placeholder="Preferência de corte, alergia, lembrete…" />
+        </Field>
       </div>
     </Modal>
   );

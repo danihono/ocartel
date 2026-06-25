@@ -13,7 +13,8 @@ import type {
   Transacao,
   TransacaoStatus,
 } from "./types";
-import { comparaHora, HOJE_ISO, isoParaDiaMes } from "./date";
+import { addDias, comparaHora, HOJE_ISO, isoParaDiaMes } from "./date";
+import { horaParaMin, ocupaHorario } from "./agenda";
 
 /** Slug estável para ids (minúsculo, sem acento). */
 export function slug(nome: string): string {
@@ -342,3 +343,115 @@ export const formaPagamentoLabel: Record<FormaPagamento, string> = {
   cartao_debito: "Cartão de débito",
   dinheiro: "Dinheiro",
 };
+
+// ---- Derivações do Dashboard (substituem o mock de lib/mock-data.ts) ----
+
+/** Taxa de ocupação de HOJE: minutos ocupados / minutos disponíveis (janela do tenant × barbeiros). */
+export function selectOcupacaoHoje(state: AppState, hojeISO: string = HOJE_ISO): number {
+  const janela = Math.max(0, horaParaMin(state.config.horario.fecha) - horaParaMin(state.config.horario.abre));
+  const disp = janela * Math.max(1, state.barbeiros.length);
+  if (!disp) return 0;
+  const ocup = state.agendamentos
+    .filter((a) => a.date === hojeISO && ocupaHorario(a.status))
+    .reduce((s, a) => s + a.duracaoMin, 0);
+  return Math.min(100, Math.round((ocup / disp) * 100));
+}
+
+/** KPIs escalares do dashboard, todos derivados do store. */
+export function selectDashboardKpis(
+  state: AppState,
+  hojeISO: string = HOJE_ISO,
+): { faturamentoMes: number; ticketMedio: number; ocupacaoPct: number } {
+  const { recebidoMes } = selectResumoFinanceiro(state, hojeISO);
+  const mes = hojeISO.slice(0, 7);
+  const concluidosMes = state.agendamentos.filter((a) => a.status === "concluido" && a.date.slice(0, 7) === mes);
+  const faturConcluidos = concluidosMes.reduce((s, a) => s + (a.cobertoPorPlano ? 0 : precoServico(state, a.servico)), 0);
+  const ticketMedio = concluidosMes.length ? Math.round(faturConcluidos / concluidosMes.length) : 0;
+  return { faturamentoMes: recebidoMes, ticketMedio, ocupacaoPct: selectOcupacaoHoje(state, hojeISO) };
+}
+
+/** Assinaturas: contagem real de assinantes/avulsos e receita recorrente do mês (cobranças de mensalidade). */
+export function selectAssinaturas(
+  state: AppState,
+  hojeISO: string = HOJE_ISO,
+): { assinantes: number; avulsos: number; recorrenteMes: number } {
+  const assinantes = state.clientes.filter((cl) => clientePossuiPlanoAtivo(cl)).length;
+  const mes = hojeISO.slice(0, 7);
+  const recorrenteMes = state.transacoes
+    .filter((t) => tipoCobranca(t) === "mensalidade" && (t.dueDate ?? "").slice(0, 7) === mes)
+    .reduce((s, t) => s + valorCobrado(t), 0);
+  return { assinantes, avulsos: state.clientes.length - assinantes, recorrenteMes };
+}
+
+export interface DesempenhoBarbeiroReal {
+  id: string;
+  nome: string;
+  iniciais: string;
+  atendimentos: number;
+  faturamento: number;
+  pct: number;
+}
+
+/** Desempenho dos barbeiros HOJE: atendimentos (exclui bloqueio) e faturamento dos concluídos. */
+export function selectDesempenhoBarbeiros(state: AppState, hojeISO: string = HOJE_ISO): DesempenhoBarbeiroReal[] {
+  const linhas = state.barbeiros.map((b) => {
+    const doDiaB = state.agendamentos.filter((a) => a.barbeiroId === b.id && a.date === hojeISO);
+    const atendimentos = doDiaB.filter((a) => a.status !== "bloqueio").length;
+    const faturamento = doDiaB
+      .filter((a) => a.status === "concluido")
+      .reduce((s, a) => s + (a.cobertoPorPlano ? 0 : precoServico(state, a.servico)), 0);
+    return { id: b.id, nome: b.nome, iniciais: b.iniciais, atendimentos, faturamento, pct: 0 };
+  });
+  const maxFat = Math.max(1, ...linhas.map((l) => l.faturamento));
+  return linhas
+    .map((l) => ({ ...l, pct: Math.round((l.faturamento / maxFat) * 100) }))
+    .sort((a, b) => b.faturamento - a.faturamento);
+}
+
+const CORES_SERVICO = ["#0EA37A", "#0FB6C8", "#7C5CFC", "#E0A21A", "#F0476A"];
+
+/** Serviços mais vendidos: derivado dos atendimentos concluídos (top 5). */
+export function selectServicosMaisVendidos(
+  state: AppState,
+  hojeISO: string = HOJE_ISO,
+  janelaDias = 30,
+): { nome: string; qtd: number; pct: number; cor: string }[] {
+  const inicio = addDias(hojeISO, -(janelaDias - 1));
+  const contagem = new Map<string, number>();
+  for (const a of state.agendamentos) {
+    if (a.status === "concluido" && a.date >= inicio && a.date <= hojeISO) {
+      contagem.set(a.servico, (contagem.get(a.servico) ?? 0) + 1);
+    }
+  }
+  const ordenado = [...contagem.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const maxQtd = Math.max(1, ...ordenado.map(([, q]) => q));
+  return ordenado.map(([nome, qtd], i) => ({ nome, qtd, pct: Math.round((qtd / maxQtd) * 100), cor: CORES_SERVICO[i % CORES_SERVICO.length] }));
+}
+
+/** Série de faturamento (recebido por dia) dos últimos `dias`, com rótulos esparsos. */
+export function selectFaturamentoSerie(
+  state: AppState,
+  dias: number,
+  hojeISO: string = HOJE_ISO,
+): { data: number[]; labels: string[] } {
+  const recebidoPorDia = new Map<string, number>();
+  for (const t of state.transacoes) {
+    if (statusCobranca(t, hojeISO) === "pago" && t.paidAt) {
+      recebidoPorDia.set(t.paidAt, (recebidoPorDia.get(t.paidAt) ?? 0) + valorRecebido(t));
+    }
+  }
+  const datas: string[] = [];
+  const data: number[] = [];
+  for (let i = dias - 1; i >= 0; i--) {
+    const d = addDias(hojeISO, -i);
+    datas.push(d);
+    data.push(recebidoPorDia.get(d) ?? 0);
+  }
+  const nLabels = Math.min(5, dias);
+  const labels: string[] = [];
+  for (let k = 0; k < nLabels; k++) {
+    const idx = nLabels === 1 ? 0 : Math.round((k / (nLabels - 1)) * (dias - 1));
+    labels.push(isoParaDiaMes(datas[idx]));
+  }
+  return { data, labels };
+}

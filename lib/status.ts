@@ -41,17 +41,27 @@ export const tenantStatusMeta: Record<TenantStatus, { label: string; fg: string;
   atrasado: { label: "Atrasado", fg: c.darkRed, bg: "rgba(240,151,138,.20)" },
 };
 
-// "09:00" -> minutes since 09:00, used to position calendar blocks (30min = 44px)
+// 30min = 44px na grade da agenda.
 export const PX_PER_MIN = 44 / 30;
-export function minutosDesde9(hhmm: string): number {
+
+function _min(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
-  return (h - 9) * 60 + m;
+  return (h || 0) * 60 + (m || 0);
 }
 
-// minutos desde 09:00 -> "HH:MM" (inverso de minutosDesde9; usado no drag/resize)
-export function horaDesde9(min: number): string {
-  const total = 9 * 60 + min;
+/** Minutos de `hhmm` desde a hora-base `base` (ex.: abertura da barbearia). */
+export function minutosDesde(hhmm: string, base: string): number {
+  return _min(hhmm) - _min(base);
+}
+
+/** Inverso de minutosDesde: minutos desde `base` -> "HH:MM". Usado no drag/resize/criação. */
+export function horaDesde(min: number, base: string): string {
+  const total = _min(base) + min;
   const h = Math.floor(total / 60);
-  const m = total % 60;
+  const m = ((total % 60) + 60) % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
+
+// Wrappers ancorados em 09:00 (compat — base padrão da grade legada).
+export const minutosDesde9 = (hhmm: string): number => minutosDesde(hhmm, "09:00");
+export const horaDesde9 = (min: number): string => horaDesde(min, "09:00");

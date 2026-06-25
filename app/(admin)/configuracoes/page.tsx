@@ -7,11 +7,12 @@ import { Card, CardTitle } from "@/components/ui/Card";
 import { Field, Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { useStore, makeId } from "@/lib/store";
-import { signOutApp } from "@/lib/firebase/auth";
+import { signOutApp, useAuth } from "@/lib/firebase/auth";
 import { useToast } from "@/components/ui/Toast";
-import type { Barbeiro } from "@/lib/types";
+import type { Barbeiro, Role } from "@/lib/types";
 
 const DIAS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+const PAPEL_LABEL: Record<Role, string> = { superAdmin: "Super admin", admin: "Admin", barbeiro: "Barbeiro", cliente: "Cliente" };
 const PALETA = ["#0EA37A", "#0FB6C8", "#7C5CFC", "#E0A21A", "#F0476A"];
 const HORAS = Array.from({ length: 15 }, (_, i) => `${String(7 + i).padStart(2, "0")}:00`);
 
@@ -22,6 +23,7 @@ function iniciaisDe(nome: string): string {
 
 export default function ConfiguracoesPage() {
   const { state, actions } = useStore();
+  const { profile } = useAuth();
   const toast = useToast();
   const router = useRouter();
 
@@ -35,7 +37,7 @@ export default function ConfiguracoesPage() {
   const [novoBarbeiro, setNovoBarbeiro] = useState("");
 
   // Sincroniza o formulário sempre que a config do store mudar
-  // (após hidratar do localStorage ou após "Restaurar dados").
+  // (a config chega via listener onSnapshot do Firestore — ver lib/store.tsx).
   useEffect(() => {
     setNome(state.config.nome);
     setEndereco(state.config.endereco);
@@ -171,10 +173,10 @@ export default function ConfiguracoesPage() {
         <Card>
           <CardTitle>Conta</CardTitle>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
-            <div style={{ width: 44, height: 44, borderRadius: "50%", background: c.leather, color: c.darkText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700 }}>MR</div>
+            <div style={{ width: 44, height: 44, borderRadius: "50%", background: c.leather, color: c.darkText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700 }}>{iniciaisDe(profile?.nome || state.auth.nome || "")}</div>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: c.inkTitle }}>{state.auth.nome}</div>
-              <div style={{ fontSize: 12, color: c.ink3 }}>Dona · Admin</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: c.inkTitle }}>{profile?.nome || state.auth.nome || "Conta"}</div>
+              <div style={{ fontSize: 12, color: c.ink3 }}>{profile ? PAPEL_LABEL[profile.role] : "Admin"}</div>
             </div>
           </div>
           <button onClick={sair} style={{ width: "100%", marginTop: 18, border: `1px solid ${c.borderInput}`, background: c.surface, color: c.red, cursor: "pointer", padding: 12, borderRadius: 11, fontSize: 14, fontWeight: 600 }}>

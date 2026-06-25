@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { useStore, makeId } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { duracaoServico } from "@/lib/selectors";
+import { horarioLivre, ocupaHorario } from "@/lib/agenda";
 import { HOJE_ISO } from "@/lib/date";
 
 export interface NovoAgendamentoDefaults {
@@ -35,6 +36,7 @@ export function NovoAgendamentoModal({
   const [barbeiroId, setBarbeiroId] = useState("");
   const [date, setDate] = useState(HOJE_ISO);
   const [inicio, setInicio] = useState("09:00");
+  const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -55,6 +57,15 @@ export function NovoAgendamentoModal({
     const nomeLimpo = cliente.trim();
     // Vincula ao cadastro: default explícito, senão casa pelo nome digitado.
     const clienteId = defaults?.clienteId ?? state.clientes.find((cl) => cl.nome === nomeLimpo)?.id;
+    const duracaoMin = duracaoServico(state, servico);
+
+    // Aviso de sobreposição (não bloqueia — mesmo comportamento do drag/resize na agenda).
+    const ocupados = state.agendamentos
+      .filter((a) => a.barbeiroId === barbeiroId && a.date === date && ocupaHorario(a.status))
+      .map((a) => ({ inicio: a.inicio, duracaoMin: a.duracaoMin }));
+    const haConflito = !horarioLivre(ocupados, inicio, duracaoMin);
+
+    setSalvando(true);
     try {
       await actions.agendamentos.add({
         id: makeId("ag"),
@@ -65,14 +76,16 @@ export function NovoAgendamentoModal({
         servico,
         servicoId: svc?.id,
         inicio,
-        duracaoMin: duracaoServico(state, servico),
+        duracaoMin,
         status: "agendado",
         origem: "admin",
       });
-      toast("Agendamento criado.");
+      toast(haConflito ? "Agendamento criado — atenção: há sobreposição de horário." : "Agendamento criado.", haConflito ? "error" : undefined);
       onClose();
     } catch {
       toast("Não foi possível criar o agendamento.", "error");
+    } finally {
+      setSalvando(false);
     }
   }
 
@@ -83,8 +96,8 @@ export function NovoAgendamentoModal({
       title="Novo agendamento"
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <Button onClick={salvar}>Agendar</Button>
+          <Button variant="ghost" onClick={onClose} disabled={salvando}>Cancelar</Button>
+          <Button onClick={salvar} loading={salvando}>Agendar</Button>
         </>
       }
     >

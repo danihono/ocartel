@@ -6,7 +6,13 @@
 
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
-import { horarioLivre, ocupaHorario, type IntervaloOcupado } from "@/lib/agenda";
+import { horaParaMin, horarioLivre, ocupaHorario, type IntervaloOcupado } from "@/lib/agenda";
+import { indiceSegDom, mesAnoCurto } from "@/lib/date";
+
+function iniciaisDe(nome: string): string {
+  const p = nome.trim().split(/\s+/);
+  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
+}
 
 export interface BookingPayload {
   barbeiroId: string;
@@ -37,15 +43,42 @@ export async function criarAgendamentoPublico(slug: string, payload: BookingPayl
     const tenantId = slugSnap.data()!.tenantId as string;
 
     const tenantRef = adminDb.collection("tenants").doc(tenantId);
-    const [barbeiroSnap, servicoSnap] = await Promise.all([
+    const [barbeiroSnap, servicoSnap, configSnap] = await Promise.all([
       tenantRef.collection("barbeiros").doc(payload.barbeiroId).get(),
       tenantRef.collection("servicos").doc(payload.servicoId).get(),
+      tenantRef.collection("config").doc("main").get(),
     ]);
     if (!barbeiroSnap.exists) return { ok: false, error: "Profissional indisponível." };
     if (!servicoSnap.exists) return { ok: false, error: "Serviço indisponível." };
 
     const servico = servicoSnap.data()!;
     const duracaoMin = typeof servico.duracaoMin === "number" ? servico.duracaoMin : 30;
+
+    // Guardas de calendário (autoritativas, lado servidor): a tela do cliente já
+    // filtra, mas isto vale mesmo contra requisições forjadas.
+    const horario = (configSnap.exists ? configSnap.data()?.horario : null) as
+      | { abre?: string; fecha?: string; diasAtivos?: boolean[] }
+      | null;
+
+    // Não permite data passada (nível de dia — evita ambiguidade de fuso).
+    const agora = new Date();
+    const hojeISO = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, "0")}-${String(agora.getDate()).padStart(2, "0")}`;
+    if (payload.date < hojeISO) return { ok: false, error: "Escolha uma data futura." };
+
+    // Dia fechado (config.horario.diasAtivos, Seg..Dom).
+    if (Array.isArray(horario?.diasAtivos) && horario!.diasAtivos.length === 7 && horario!.diasAtivos[indiceSegDom(payload.date)] === false) {
+      return { ok: false, error: "A barbearia não atende nesse dia." };
+    }
+
+    // Dentro do expediente (cabe entre abertura e fechamento).
+    if (horario?.abre || horario?.fecha) {
+      const abreMin = horario.abre ? horaParaMin(horario.abre) : 0;
+      const fechaMin = horario.fecha ? horaParaMin(horario.fecha) : 24 * 60;
+      const iniMin = horaParaMin(payload.inicio);
+      if (iniMin < abreMin || iniMin + duracaoMin > fechaMin) {
+        return { ok: false, error: "Horário fora do expediente." };
+      }
+    }
 
     // Guarda autoritativa: recusa o agendamento se o intervalo sobrepuser
     // qualquer agendamento/bloqueio ativo do barbeiro naquele dia. É isto que
@@ -55,10 +88,39 @@ export async function criarAgendamentoPublico(slug: string, payload: BookingPayl
       return { ok: false, error: "Esse horário não está mais disponível." };
     }
 
+    // Vincula/cria o cliente por telefone (id determinístico = evita duplicar a
+    // cada agendamento). Só cria com defaults se ainda não existir.
+    let clienteId: string | undefined;
+    const telDigits = (payload.clienteTelefone ?? "").replace(/\D/g, "");
+    if (telDigits.length >= 10) {
+      clienteId = `tel-${telDigits}`;
+      const cliRef = tenantRef.collection("clientes").doc(clienteId);
+      const cliSnap = await cliRef.get();
+      if (!cliSnap.exists) {
+        await cliRef.set({
+          nome,
+          telefone: (payload.clienteTelefone ?? "").trim(),
+          telefoneNorm: telDigits,
+          email: "",
+          plano: "Avulso",
+          planId: "",
+          tag: "",
+          ultimoAtendimento: "—",
+          totalGasto: 0,
+          atendimentos: 0,
+          desde: mesAnoCurto(hojeISO),
+          iniciais: iniciaisDe(nome),
+          origem: "booking",
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
+
     await tenantRef.collection("agendamentos").add({
       date: payload.date,
       barbeiroId: payload.barbeiroId,
       clienteNome: nome,
+      ...(clienteId ? { clienteId } : {}),
       clienteTelefone: (payload.clienteTelefone ?? "").trim(),
       servico: servico.nome ?? "",
       servicoId: payload.servicoId,

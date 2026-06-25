@@ -17,10 +17,11 @@ import {
   bookingBarbeiros,
   clientes as seedClientes,
   historicoCliente,
+  planosCliente as seedPlanos,
   servicos as seedServicos,
   tenants as seedTenants,
 } from "./mock-data";
-import { HOJE_ISO, isoParaDiaMes } from "./date";
+import { addDias, HOJE_ISO, hojeLocalISO, isoParaDiaMes } from "./date";
 import { slug } from "./selectors";
 import { useAuth } from "./firebase/auth";
 import * as repo from "./firebase/repos";
@@ -31,6 +32,7 @@ import type {
   Cliente,
   ConfigBarbearia,
   FormaPagamento,
+  Plano,
   PlanoTier,
   Role,
   Servico,
@@ -48,6 +50,7 @@ export interface AppState {
   config: ConfigBarbearia;
   tenants: Tenant[];
   planosTiers: PlanoTier[];
+  planos: Plano[];
   ui: { hidratado: boolean; visao: Role; barbeiroVisaoId: string | null };
 }
 
@@ -129,6 +132,7 @@ export function buildSeedState(): AppState {
     config,
     tenants: seedTenants.map((t) => ({ ...t })),
     planosTiers,
+    planos: seedPlanos.map((p) => ({ ...p })),
     ui: { hidratado: false, visao: "admin", barbeiroVisaoId: barbeiros[0]?.id ?? null },
   };
 }
@@ -174,12 +178,13 @@ export interface StoreActions {
     add: (t: Transacao) => Promise<Ref>;
     registrarPagamento: (
       id: string,
-      patch: { paidAt: string; forma: FormaPagamento; amountReceived: number; confirmedBy?: string },
+      patch: { paidAt: string; forma: FormaPagamento; amountReceived: number; confirmedBy?: string; clienteId?: string },
     ) => Promise<void>;
     gerarMensalidades: (novas: Transacao[]) => Promise<void>;
   };
   config: { update: (patch: Partial<ConfigBarbearia>) => Promise<void> };
   planosTiers: { update: (tier: PlanoTier) => Promise<void> };
+  planos: { add: (p: Plano) => Promise<Ref>; update: (p: Plano) => Promise<void>; remove: (id: string) => Promise<void> };
   tenants: { update: (tenantId: string, patch: Partial<Tenant>) => Promise<void> };
 }
 
@@ -214,6 +219,11 @@ function buildActions(tenantId: string): StoreActions {
     },
     config: { update: (patch) => repo.config.update(tenantId, patch) },
     planosTiers: { update: (tier) => repo.planosTiers.update(tenantId, tier) },
+    planos: {
+      add: (p) => repo.planos.add(tenantId, p),
+      update: (p) => repo.planos.update(tenantId, p),
+      remove: (id) => repo.planos.remove(tenantId, id),
+    },
     tenants: { update: (tid, patch) => repo.tenants.update(tid, patch) },
   };
 }
@@ -247,11 +257,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         barbeiros: [],
         transacoes: [],
         tenants: [],
+        planos: [],
         ui: { hidratado: false },
       },
     });
 
     const unsubs: Array<() => void> = [];
+
+    // Janela de agendamentos: ~6 meses atrás + tudo no futuro (não puxa todo o
+    // histórico de todos os tempos). `date` é "YYYY-MM-DD" (compara lexicograficamente).
+    const cutoffAgendamentos = addDias(hojeLocalISO(), -180);
 
     if (tenantId) {
       unsubs.push(
@@ -259,8 +274,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         repo.barbeiros.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { barbeiros: rows } })),
         repo.servicos.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { servicos: rows } })),
         repo.transacoes.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { transacoes: rows } })),
-        repo.agendamentos.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { agendamentos: rows } })),
+        repo.agendamentos.subscribe(tenantId, cutoffAgendamentos, (rows) => dispatch({ type: "SET_DATA", patch: { agendamentos: rows } })),
         repo.planosTiers.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { planosTiers: rows } })),
+        repo.planos.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { planos: rows } })),
         repo.config.subscribe(tenantId, (cfg) => {
           if (cfg) dispatch({ type: "SET_DATA", patch: { config: cfg, auth: { logado: true, nome, barbeariaNome: cfg.nome }, ui: { hidratado: true } } });
         }),

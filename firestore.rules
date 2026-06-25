@@ -23,6 +23,24 @@ service cloud.firestore {
       return owns(tenantId) || isSuper();
     }
 
+    // ---- Validações de shape/valor (escritas financeiras e de agenda) ----
+    function statusAgendamentoValido(s) {
+      return s in ['agendado', 'confirmado', 'atendimento', 'concluido', 'noshow', 'cancelado', 'bloqueio'];
+    }
+    function transacaoCreateValida() {
+      let d = request.resource.data;
+      return d.valor is number && d.valor >= 0
+        && d.clienteNome is string
+        && d.status in ['pago', 'pendente', 'atrasado'];
+    }
+    function transacaoUpdateValida() {
+      let novo = request.resource.data;
+      // `amount` (valor cobrado original) é imutável depois de criado.
+      return (!('amount' in resource.data) || novo.amount == resource.data.amount)
+        // Marcar como "pago" exige registro de recebimento (auditabilidade).
+        && (novo.status != 'pago' || (novo.paidAt is string && novo.amountReceived is number));
+    }
+
     // Perfil do usuário. Auto-cadastro só pode criar a si mesmo como 'admin'.
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isSuper());
@@ -61,9 +79,26 @@ service cloud.firestore {
       match /planosTiers/{id} { allow read: if true; allow write: if canManage(tenantId); }
 
       // Dados privados do tenant.
-      match /clientes/{id}    { allow read, write: if canManage(tenantId); }
-      match /transacoes/{id}  { allow read, write: if canManage(tenantId); }
-      match /agendamentos/{id} { allow read, write: if canManage(tenantId); }
+      match /clientes/{id} {
+        allow read, delete: if canManage(tenantId);
+        allow create, update: if canManage(tenantId) && request.resource.data.nome is string;
+      }
+      match /transacoes/{id} {
+        allow read, delete: if canManage(tenantId);
+        allow create: if canManage(tenantId) && transacaoCreateValida();
+        allow update: if canManage(tenantId) && transacaoUpdateValida();
+      }
+      match /agendamentos/{id} {
+        allow read, delete: if canManage(tenantId);
+        allow create, update: if canManage(tenantId)
+          && statusAgendamentoValido(request.resource.data.status)
+          && request.resource.data.duracaoMin is number;
+      }
+      // Planos de assinatura do cliente (mensalidade) — privados do tenant.
+      match /planos/{id} {
+        allow read, delete: if canManage(tenantId);
+        allow create, update: if canManage(tenantId) && request.resource.data.valor is number;
+      }
     }
   }
 }

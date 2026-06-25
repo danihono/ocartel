@@ -8,6 +8,7 @@ import { useStore, makeId } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/lib/firebase/auth";
 import {
+  clientePossuiPlanoAtivo,
   ehDoCliente,
   formaPagamentoLabel,
   formatBRL,
@@ -93,51 +94,53 @@ export default function PagamentosPage() {
 
   function gerarMensalidades() {
     const cicloMes = HOJE_ISO.slice(0, 7); // "YYYY-MM"
-    const venc = `${cicloMes}-10`; // vencimento dia 10 do ciclo
-    const ativos = state.clientes.filter((cl) => cl.plano && !/avulso/i.test(cl.plano));
 
-    const valorAnterior = (cl: (typeof ativos)[number]): number | null => {
-      const ant = state.transacoes
-        .filter((t) => tipoCobranca(t) === "mensalidade" && ehDoCliente(t, cl))
-        .sort((a, b) => (b.dueDate ?? "").localeCompare(a.dueDate ?? ""))[0];
-      return ant ? valorCobrado(ant) : null;
+    // Plano vigente do cliente: por planId (preferido) ou casando o rótulo legado pelo nome.
+    const planoDoCliente = (cl: (typeof state.clientes)[number]) => {
+      const p = cl.planId
+        ? state.planos.find((pl) => pl.id === cl.planId)
+        : state.planos.find((pl) => pl.nome === cl.plano);
+      return p && (p.ativo ?? true) ? p : null;
     };
 
     const novas: Transacao[] = [];
-    let semValor = 0;
-    for (const cl of ativos) {
+    let semPlano = 0; // assinante (rótulo) sem plano cadastrado correspondente
+    for (const cl of state.clientes) {
+      const plano = planoDoCliente(cl);
+      if (!plano) {
+        if (clientePossuiPlanoAtivo(cl)) semPlano += 1;
+        continue;
+      }
       const jaTem = state.transacoes.some(
         (t) => tipoCobranca(t) === "mensalidade" && ehDoCliente(t, cl) && (t.dueDate ?? "").slice(0, 7) === cicloMes,
       );
       if (jaTem) continue;
-      const valor = valorAnterior(cl);
-      if (valor == null) {
-        semValor += 1; // sem mensalidade anterior → não dá pra inferir o valor
-        continue;
-      }
+      const dia = String(Math.min(28, Math.max(1, plano.diaVencimento ?? 5))).padStart(2, "0");
+      const venc = `${cicloMes}-${dia}`;
       novas.push({
         id: makeId("tx"),
         data: isoParaDiaMes(venc),
         clienteNome: cl.nome,
         clienteId: cl.id,
-        servico: cl.plano,
+        servico: plano.nome,
         barbeiroNome: "",
-        valor,
+        valor: plano.valor,
         status: "pendente",
         forma: "pix",
         type: "mensalidade",
+        planId: plano.id,
         dueDate: venc,
-        amount: valor,
+        amount: plano.valor,
         source: "manual",
       });
     }
 
     if (novas.length === 0) {
       toast(
-        semValor > 0
-          ? `Nada gerado: ${semValor} cliente(s) sem mensalidade anterior. Crie a 1ª manualmente.`
+        semPlano > 0
+          ? `Nada gerado: ${semPlano} cliente(s) com plano sem cadastro correspondente. Confira os planos em /planos.`
           : "Mensalidades deste mês já geradas.",
-        semValor > 0 ? "error" : undefined,
+        semPlano > 0 ? "error" : undefined,
       );
       return;
     }
@@ -146,7 +149,7 @@ export default function PagamentosPage() {
       .then(() =>
         toast(
           `${novas.length} mensalidade${novas.length === 1 ? "" : "s"} gerada${novas.length === 1 ? "" : "s"}` +
-            (semValor > 0 ? ` · ${semValor} sem valor anterior` : ""),
+            (semPlano > 0 ? ` · ${semPlano} sem plano cadastrado` : ""),
         ),
       )
       .catch(() => toast("Não foi possível gerar as mensalidades.", "error"));

@@ -6,6 +6,7 @@ import { Field, Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { useStore, makeId } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
+import { horarioLivre, ocupaHorario } from "@/lib/agenda";
 import { HOJE_ISO } from "@/lib/date";
 
 export function BloquearHorarioModal({
@@ -25,6 +26,7 @@ export function BloquearHorarioModal({
   const [inicio, setInicio] = useState("12:00");
   const [duracaoMin, setDuracaoMin] = useState(60);
   const [motivo, setMotivo] = useState("Almoço");
+  const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -37,6 +39,13 @@ export function BloquearHorarioModal({
   }, [open]);
 
   async function salvar() {
+    // Aviso de sobreposição (não bloqueia — admin pode sobrepor de propósito).
+    const ocupados = state.agendamentos
+      .filter((a) => a.barbeiroId === barbeiroId && a.date === date && ocupaHorario(a.status))
+      .map((a) => ({ inicio: a.inicio, duracaoMin: a.duracaoMin }));
+    const haConflito = !horarioLivre(ocupados, inicio, duracaoMin);
+
+    setSalvando(true);
     try {
       await actions.agendamentos.add({
         id: makeId("bl"),
@@ -49,10 +58,12 @@ export function BloquearHorarioModal({
         status: "bloqueio",
         origem: "admin",
       });
-      toast("Horário bloqueado.");
+      toast(haConflito ? "Horário bloqueado — atenção: havia algo nesse horário." : "Horário bloqueado.", haConflito ? "error" : undefined);
       onClose();
     } catch {
       toast("Não foi possível bloquear o horário.", "error");
+    } finally {
+      setSalvando(false);
     }
   }
 
@@ -63,8 +74,8 @@ export function BloquearHorarioModal({
       title="Bloquear horário"
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <Button onClick={salvar}>Bloquear</Button>
+          <Button variant="ghost" onClick={onClose} disabled={salvando}>Cancelar</Button>
+          <Button onClick={salvar} loading={salvando}>Bloquear</Button>
         </>
       }
     >

@@ -7,9 +7,9 @@ import { Seal } from "@/components/ui/Seal";
 import { fieldInput, fieldLabel } from "@/components/ui/Field";
 import { useToast } from "@/components/ui/Toast";
 import { formatBRL, fmtDur } from "@/lib/selectors";
-import { addDias, diaSemanaCurtoLabel, hojeLocalISO, isoParaDiaMes } from "@/lib/date";
+import { addDias, agoraHHMM, diaSemanaCurtoLabel, hojeLocalISO, indiceSegDom, isoParaDiaMes } from "@/lib/date";
 import { carregarCatalogoPorSlug, type BookingCatalog } from "@/lib/firebase/booking";
-import { horarioLivre, type IntervaloOcupado } from "@/lib/agenda";
+import { horaParaMin, horarioLivre, type IntervaloOcupado } from "@/lib/agenda";
 import { criarAgendamentoPublico, disponibilidadePublica } from "./actions";
 
 const sectionTitle: React.CSSProperties = { fontFamily: font.serif, fontSize: 16, fontWeight: 600, color: c.inkTitle, margin: "20px 0 10px" };
@@ -47,6 +47,8 @@ export default function BookingPage() {
   const [telefone, setTelefone] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [ocupados, setOcupados] = useState<IntervaloOcupado[]>([]);
+  const [hojeISO, setHojeISO] = useState("");
+  const [agoraMin, setAgoraMin] = useState(-1);
 
   // Carrega o catálogo do tenant (pós-mount, no cliente) — datas/horários reais.
   useEffect(() => {
@@ -60,13 +62,21 @@ export default function BookingPage() {
           setCarregando(false);
           return;
         }
-        const proximosDias = Array.from({ length: 6 }, (_, i) => addDias(hojeLocalISO(), i));
+        // Só dias em que a barbearia atende (config.horario.diasAtivos, Seg..Dom).
+        const hojeIso = hojeLocalISO();
+        const proximosDias: string[] = [];
+        for (let i = 0; i < 28 && proximosDias.length < 6; i++) {
+          const d = addDias(hojeIso, i);
+          if (cat.diasAtivos[indiceSegDom(d)]) proximosDias.push(d);
+        }
         const slots = gerarHorarios(cat.abre, cat.fecha);
         setCatalog(cat);
+        setHojeISO(hojeIso);
+        setAgoraMin(horaParaMin(agoraHHMM()));
         setServicoId(cat.servicos[0]?.id ?? "");
         setBarbeiroId(cat.barbeiros[0]?.id ?? "");
         setDias(proximosDias);
-        setDia(proximosDias[0]);
+        setDia(proximosDias[0] ?? "");
         setHorarios(slots);
         setHora(slots[0] ?? "");
         setCarregando(false);
@@ -99,19 +109,28 @@ export default function BookingPage() {
     };
   }, [slug, barbeiroId, dia]);
 
-  // Mantém um horário LIVRE selecionado quando a disponibilidade/serviço muda.
-  useEffect(() => {
-    if (!horarios.length) return;
-    const dur = catalog?.servicos.find((s) => s.id === servicoId)?.duracaoMin ?? 30;
-    setHora((atual) => {
-      if (atual && horarioLivre(ocupados, atual, dur)) return atual;
-      return horarios.find((h) => horarioLivre(ocupados, h, dur)) ?? "";
-    });
-  }, [ocupados, horarios, servicoId, catalog]);
-
   const svc = catalog?.servicos.find((s) => s.id === servicoId) ?? null;
   const barb = catalog?.barbeiros.find((b) => b.id === barbeiroId) ?? null;
   const quando = dia ? `${isoParaDiaMes(dia)} · ${hora}` : "";
+
+  // Um slot só é ofertável se: cabe antes do fechamento, não está no passado (hoje)
+  // e não sobrepõe um intervalo ocupado/bloqueado do barbeiro.
+  const dur = svc?.duracaoMin ?? 30;
+  const fechaMin = catalog ? horaParaMin(catalog.fecha) : 24 * 60;
+  const ehHojeSel = dia === hojeISO;
+  function slotDisponivel(h: string): boolean {
+    const m = horaParaMin(h);
+    if (m + dur > fechaMin) return false; // não cabe antes de fechar
+    if (ehHojeSel && agoraMin >= 0 && m < agoraMin) return false; // já passou
+    return horarioLivre(ocupados, h, dur);
+  }
+
+  // Mantém um horário DISPONÍVEL selecionado quando disponibilidade/serviço/dia muda.
+  useEffect(() => {
+    if (!horarios.length) return;
+    setHora((atual) => (atual && slotDisponivel(atual) ? atual : horarios.find(slotDisponivel) ?? ""));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ocupados, horarios, servicoId, catalog, dia, hojeISO, agoraMin]);
 
   async function confirmar() {
     if (!nome.trim()) {
@@ -263,7 +282,7 @@ export default function BookingPage() {
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
                       {horarios.map((h) => {
                         const on = h === hora;
-                        const livre = horarioLivre(ocupados, h, svc?.duracaoMin ?? 30);
+                        const livre = slotDisponivel(h);
                         return (
                           <button
                             key={h}

@@ -41,6 +41,11 @@ export function diaSemanaCurtoLabel(iso: string): string {
   return DIAS_CURTO[diaSemana(iso)];
 }
 
+/** Índice 0..6 com Segunda=0 … Domingo=6 — alinha com `config.horario.diasAtivos`. */
+export function indiceSegDom(iso: string): number {
+  return (diaSemana(iso) + 6) % 7; // diaSemana: 0=Dom..6=Sáb
+}
+
 /** "Seg, 23 jun" */
 export function isoParaLabel(iso: string): string {
   const { d } = parse(iso);

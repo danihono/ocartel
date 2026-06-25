@@ -21,6 +21,21 @@ export function LineChart({
   const W = 560;
   const H = 200;
   const pad = 16;
+
+  // Série vazia ou com 1 ponto não desenha linha (evita NaN em (v-min)/span e i/(len-1)).
+  // Desenha uma linha plana no meio como placeholder.
+  if (data.length < 2) {
+    const yMid = H / 2;
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height, display: "block" }} preserveAspectRatio="none">
+        {gridLines.map((y) => (
+          <line key={y} x1={0} y1={y} x2={W} y2={y} stroke={gridColor} strokeWidth={1} />
+        ))}
+        <line x1={0} y1={yMid} x2={W} y2={yMid} stroke={stroke} strokeWidth={1.5} strokeDasharray="4 5" opacity={0.5} />
+      </svg>
+    );
+  }
+
   const max = Math.max(...data);
   const min = Math.min(...data);
   const span = max - min || 1;

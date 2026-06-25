@@ -1,20 +1,20 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { c, font, shadow } from "@/lib/theme";
 import { useStore } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { selectAgendaPorBarbeiro, selectAtendimentosHoje } from "@/lib/selectors";
-import { blocoMeta, horaDesde9, minutosDesde9, PX_PER_MIN } from "@/lib/status";
+import { blocoMeta, horaDesde, minutosDesde, PX_PER_MIN } from "@/lib/status";
 import { intervalosSobrepoem } from "@/lib/agenda";
+import { useRelogio } from "@/lib/useRelogio";
 import type { Agendamento } from "@/lib/types";
 import {
-  HOJE_ISO,
-  AGORA_HHMM,
   addDias,
   addMeses,
   diasDaSemana,
   diasDoMes,
+  hojeLocalISO,
   isoParaLabelLongo,
   labelSemana,
   mesLabel,
@@ -23,8 +23,6 @@ import { AgendamentoPanel } from "@/components/admin/AgendamentoPanel";
 import { BloquearHorarioModal } from "@/components/admin/BloquearHorarioModal";
 import { NovoAgendamentoModal, type NovoAgendamentoDefaults } from "@/components/admin/NovoAgendamentoModal";
 
-const COL_H = 880;
-const GUTTER_MARKS = Array.from({ length: 21 }, (_, i) => i * 30); // 0..600 min → rótulos 09:00..19:00 (a cada 30 min)
 const DIAS_CURTO = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 const SNAP_MIN = 15; // granularidade do arraste / resize / clique-no-vazio (alinha às linhas de 15 min)
 const MIN_DUR_MIN = 15; // duração mínima ao redimensionar
@@ -38,10 +36,10 @@ const legenda = [
   { label: "Bloqueio", cor: "#9AA7A4" },
 ];
 
-function gridBg(): React.CSSProperties {
+function gridBg(colH: number): React.CSSProperties {
   return {
     position: "relative",
-    height: COL_H,
+    height: colH,
     backgroundImage: [
       // 30 min: linha mais marcada, alinhada aos rótulos (pintada por cima)
       `repeating-linear-gradient(to bottom,transparent 0,transparent 43px,${c.border} 43px,${c.border} 44px)`,
@@ -59,6 +57,8 @@ function Bloco({
   cliente,
   servico,
   status,
+  base,
+  colH,
   atenuado = false,
   onClick,
   onMove,
@@ -70,6 +70,8 @@ function Bloco({
   cliente: string;
   servico: string;
   status: keyof typeof blocoMeta;
+  base: string;
+  colH: number;
   atenuado?: boolean;
   onClick: (id: string) => void;
   onMove: (id: string, novoInicio: string) => void;
@@ -77,7 +79,7 @@ function Bloco({
 }) {
   const m = blocoMeta[status];
   const fixo = status === "bloqueio"; // bloqueios não arrastam nem redimensionam
-  const baseTop = minutosDesde9(inicio) * PX_PER_MIN;
+  const baseTop = minutosDesde(inicio, base) * PX_PER_MIN;
   const baseH = dur * PX_PER_MIN;
 
   // Gesto em curso (ref, p/ não re-renderizar a cada pointermove) + preview visual.
@@ -112,12 +114,12 @@ function Bloco({
     if (Math.abs(dy) > 3) g.moved = true;
     if (g.kind === "move") {
       let t = Math.round((g.startTop + dy) / STEP_PX) * STEP_PX;
-      t = Math.max(0, Math.min(COL_H - g.startH, t)); // dentro do expediente
+      t = Math.max(0, Math.min(colH - g.startH, t)); // dentro do expediente
       g.lastTop = t;
       setPreview({ top: t, h: g.startH });
     } else {
       let h = Math.round((g.startH + dy) / STEP_PX) * STEP_PX;
-      h = Math.max(MIN_DUR_MIN * PX_PER_MIN, Math.min(COL_H - g.startTop, h));
+      h = Math.max(MIN_DUR_MIN * PX_PER_MIN, Math.min(colH - g.startTop, h));
       g.lastH = h;
       setPreview({ top: g.startTop, h });
     }
@@ -134,13 +136,13 @@ function Bloco({
       return;
     }
     if (g.kind === "move") {
-      onMove(id, horaDesde9(Math.round(g.lastTop / PX_PER_MIN / SNAP_MIN) * SNAP_MIN));
+      onMove(id, horaDesde(Math.round(g.lastTop / PX_PER_MIN / SNAP_MIN) * SNAP_MIN, base));
     } else {
       onResize(id, Math.max(MIN_DUR_MIN, Math.round(g.lastH / PX_PER_MIN / SNAP_MIN) * SNAP_MIN));
     }
   }
 
-  const horaPreview = preview ? horaDesde9(Math.round(preview.top / PX_PER_MIN / SNAP_MIN) * SNAP_MIN) : inicio;
+  const horaPreview = preview ? horaDesde(Math.round(preview.top / PX_PER_MIN / SNAP_MIN) * SNAP_MIN, base) : inicio;
 
   return (
     <div
@@ -201,13 +203,29 @@ type View = "dia" | "semana" | "mes";
 export default function AgendaPage() {
   const { state, dispatch, actions } = useStore();
   const toast = useToast();
-  const [dateISO, setDateISO] = useState(HOJE_ISO);
+  const { hoje, agora } = useRelogio();
+  const [dateISO, setDateISO] = useState(hoje);
   const [view, setView] = useState<View>("dia");
   const [agSel, setAgSel] = useState<string | null>(null);
   const [bloquear, setBloquear] = useState(false);
   const [novoOpen, setNovoOpen] = useState(false);
   const [novoDefaults, setNovoDefaults] = useState<NovoAgendamentoDefaults>({});
   const [busca, setBusca] = useState("");
+
+  // Pós-mount, salta para a data real do sistema (o 1º render usa a semente p/ SSR).
+  useEffect(() => {
+    setDateISO(hojeLocalISO());
+  }, []);
+
+  // Janela da grade derivada do horário de funcionamento do tenant (não mais fixa 09–19).
+  const abre = state.config.horario.abre || "09:00";
+  const fecha = state.config.horario.fecha || "19:00";
+  const janelaMin = Math.max(60, minutosDesde(fecha, abre));
+  const colH = janelaMin * PX_PER_MIN;
+  const gutterMarks = useMemo(
+    () => Array.from({ length: Math.floor(janelaMin / 30) + 1 }, (_, i) => i * 30),
+    [janelaMin],
+  );
 
   // Visão barbeiro: restringe a agenda a um único barbeiro (fallback: o 1º).
   const visaoBarbeiro = state.ui.visao === "barbeiro";
@@ -218,8 +236,8 @@ export default function AgendaPage() {
 
   const todasColunas = selectAgendaPorBarbeiro(state, dateISO);
   const colunas = barbId ? todasColunas.filter((col) => col.barbeiro.id === barbId) : todasColunas;
-  const ehHoje = dateISO === HOJE_ISO;
-  const nowTop = minutosDesde9(AGORA_HHMM) * PX_PER_MIN;
+  const ehHoje = dateISO === hoje;
+  const nowTop = minutosDesde(agora, abre) * PX_PER_MIN;
 
   // Busca (visão Dia): isola as colunas com cliente correspondente e atenua os demais cards.
   const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -239,8 +257,8 @@ export default function AgendaPage() {
   function criarNoHorario(e: React.MouseEvent<HTMLDivElement>, barbeiroId: string) {
     const rect = e.currentTarget.getBoundingClientRect();
     const y = e.clientY - rect.top;
-    const totalMin = Math.max(0, Math.min(600, Math.round(y / PX_PER_MIN / SNAP_MIN) * SNAP_MIN));
-    setNovoDefaults({ dateISO, barbeiroId, inicio: horaDesde9(totalMin) });
+    const totalMin = Math.max(0, Math.min(janelaMin, Math.round(y / PX_PER_MIN / SNAP_MIN) * SNAP_MIN));
+    setNovoDefaults({ dateISO, barbeiroId, inicio: horaDesde(totalMin, abre) });
     setNovoOpen(true);
   }
 
@@ -284,7 +302,7 @@ export default function AgendaPage() {
           </div>
           <button style={btnNav} onClick={() => passo(1)}>›</button>
           <button
-            onClick={() => setDateISO(HOJE_ISO)}
+            onClick={() => setDateISO(hoje)}
             style={{ border: "none", fontSize: 12, fontWeight: 700, color: c.brassDeep, background: c.brassSoft, borderRadius: 999, padding: "6px 13px", cursor: "pointer" }}
           >
             Hoje
@@ -397,16 +415,16 @@ export default function AgendaPage() {
             ))}
 
             {/* gutter */}
-            <div style={{ position: "relative", height: COL_H, borderRight: `1px solid ${c.borderSoft}` }}>
-              {GUTTER_MARKS.map((min) => (
+            <div style={{ position: "relative", height: colH, borderRight: `1px solid ${c.borderSoft}` }}>
+              {gutterMarks.map((min) => (
                 <div key={min} style={{ position: "absolute", top: min * PX_PER_MIN - 7, right: 10, fontSize: 11, color: c.ink4, fontWeight: min % 60 === 0 ? 500 : 400 }}>
-                  {horaDesde9(min)}
+                  {horaDesde(min, abre)}
                 </div>
               ))}
-              {ehHoje ? (
+              {ehHoje && nowTop >= 0 && nowTop <= colH ? (
                 <>
                   <div style={{ position: "absolute", top: nowTop - 7, right: 8, fontSize: 10, color: c.red, fontWeight: 700, background: c.surface, padding: "1px 0" }}>
-                    {AGORA_HHMM}
+                    {agora}
                   </div>
                   <div style={{ position: "absolute", top: nowTop - 4, right: -4, width: 8, height: 8, borderRadius: "50%", background: c.red, zIndex: 4 }} />
                 </>
@@ -415,19 +433,19 @@ export default function AgendaPage() {
 
             {/* barber columns */}
             {colunasDia.map(({ barbeiro, blocos }) => (
-              <div key={barbeiro.id} style={gridBg()} onClick={(e) => criarNoHorario(e, barbeiro.id)}>
-                {ehHoje ? <div style={{ position: "absolute", left: 0, right: 0, top: nowTop, height: 2, background: c.red, zIndex: 3 }} /> : null}
+              <div key={barbeiro.id} style={gridBg(colH)} onClick={(e) => criarNoHorario(e, barbeiro.id)}>
+                {ehHoje && nowTop >= 0 && nowTop <= colH ? <div style={{ position: "absolute", left: 0, right: 0, top: nowTop, height: 2, background: c.red, zIndex: 3 }} /> : null}
                 {blocos.map((b) => (
-                  <Bloco key={b.id} id={b.id} inicio={b.inicio} dur={b.duracaoMin} cliente={b.cliente} servico={b.servico} status={b.status} atenuado={buscaAtiva && !matchCliente(b.cliente)} onClick={setAgSel} onMove={moverAgendamento} onResize={redimensionar} />
+                  <Bloco key={b.id} id={b.id} inicio={b.inicio} dur={b.duracaoMin} cliente={b.cliente} servico={b.servico} status={b.status} base={abre} colH={colH} atenuado={buscaAtiva && !matchCliente(b.cliente)} onClick={setAgSel} onMove={moverAgendamento} onResize={redimensionar} />
                 ))}
               </div>
             ))}
           </div>
           )
         ) : view === "semana" ? (
-          <SemanaView dateISO={dateISO} state={state} onSelect={setAgSel} barbeiroId={barbId} />
+          <SemanaView dateISO={dateISO} hoje={hoje} state={state} onSelect={setAgSel} barbeiroId={barbId} />
         ) : (
-          <MesView dateISO={dateISO} state={state} onPick={(iso) => { setDateISO(iso); setView("dia"); }} barbeiroId={barbId} />
+          <MesView dateISO={dateISO} hoje={hoje} state={state} onPick={(iso) => { setDateISO(iso); setView("dia"); }} barbeiroId={barbId} />
         )}
       </div>
 
@@ -439,7 +457,7 @@ export default function AgendaPage() {
 }
 
 // ---- Semana: 7 colunas, chips por horário (todos os barbeiros) ----
-function SemanaView({ dateISO, state, onSelect, barbeiroId }: { dateISO: string; state: ReturnType<typeof useStore>["state"]; onSelect: (id: string) => void; barbeiroId: string | null }) {
+function SemanaView({ dateISO, hoje, state, onSelect, barbeiroId }: { dateISO: string; hoje: string; state: ReturnType<typeof useStore>["state"]; onSelect: (id: string) => void; barbeiroId: string | null }) {
   const dias = diasDaSemana(dateISO);
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", minWidth: 820 }}>
@@ -449,7 +467,7 @@ function SemanaView({ dateISO, state, onSelect, barbeiroId }: { dateISO: string;
           .sort((a, b) => a.inicio.localeCompare(b.inicio));
         return (
           <div key={iso} style={{ borderLeft: i === 0 ? "none" : `1px solid ${c.borderSoft}`, minHeight: 520 }}>
-            <div style={{ height: 50, borderBottom: `1px solid ${c.border}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: iso === HOJE_ISO ? c.brassSoft : "transparent" }}>
+            <div style={{ height: 50, borderBottom: `1px solid ${c.border}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: iso === hoje ? c.brassSoft : "transparent" }}>
               <span style={{ fontSize: 11, color: c.ink3, fontWeight: 600 }}>{DIAS_CURTO[i]}</span>
               <span style={{ fontFamily: font.serif, fontSize: 15, fontWeight: 700, color: c.inkTitle }}>{iso.slice(8)}</span>
             </div>
@@ -478,7 +496,7 @@ function SemanaView({ dateISO, state, onSelect, barbeiroId }: { dateISO: string;
 }
 
 // ---- Mês: grade 6×7 com contagem por dia ----
-function MesView({ dateISO, state, onPick, barbeiroId }: { dateISO: string; state: ReturnType<typeof useStore>["state"]; onPick: (iso: string) => void; barbeiroId: string | null }) {
+function MesView({ dateISO, hoje, state, onPick, barbeiroId }: { dateISO: string; hoje: string; state: ReturnType<typeof useStore>["state"]; onPick: (iso: string) => void; barbeiroId: string | null }) {
   const celulas = diasDoMes(dateISO);
   return (
     <div style={{ minWidth: 740 }}>
@@ -490,7 +508,7 @@ function MesView({ dateISO, state, onPick, barbeiroId }: { dateISO: string; stat
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
         {celulas.map((cel) => {
           const total = state.agendamentos.filter((a) => a.date === cel.iso && a.status !== "bloqueio" && (!barbeiroId || a.barbeiroId === barbeiroId)).length;
-          const isHoje = cel.iso === HOJE_ISO;
+          const isHoje = cel.iso === hoje;
           return (
             <button
               key={cel.iso}

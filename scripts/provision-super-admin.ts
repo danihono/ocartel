@@ -61,7 +61,19 @@ async function main() {
     console.log(`Usuário ${email} criado no Auth.`);
   }
 
-  await db.collection("users").doc(user.uid).set({ role: "superAdmin", email }, { merge: true });
+  // Preenche o shape de UserProfile (role/tenantId/nome/email) sem sobrescrever
+  // um tenantId já existente (caso esteja promovendo um admin).
+  const ref = db.collection("users").doc(user.uid);
+  const existing = (await ref.get()).data() ?? {};
+  await ref.set(
+    {
+      role: "superAdmin",
+      email,
+      nome: existing.nome || user.displayName || email.split("@")[0],
+      tenantId: existing.tenantId ?? "",
+    },
+    { merge: true },
+  );
   try {
     await auth.setCustomUserClaims(user.uid, { role: "superAdmin" });
   } catch {

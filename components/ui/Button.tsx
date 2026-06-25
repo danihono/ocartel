@@ -49,9 +49,20 @@ const variants: Record<Variant, CSSProperties> = {
   dark: { ...btnGhost, background: "transparent", color: c.darkText, border: `1px solid ${c.darkLine}` },
 };
 
-type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant };
+type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; loading?: boolean };
 
-export function Button({ variant = "primary", style, className, ...rest }: Props) {
+export function Button({ variant = "primary", style, className, loading = false, disabled, children, ...rest }: Props) {
   const cls = `oc-btn oc-btn-${variant}${className ? ` ${className}` : ""}`;
-  return <button {...rest} className={cls} style={{ ...variants[variant], ...(rest.disabled ? { opacity: 0.5, cursor: "not-allowed" } : null), ...style }} />;
+  const off = disabled || loading;
+  return (
+    <button
+      {...rest}
+      disabled={off}
+      aria-busy={loading ? "true" : undefined}
+      className={cls}
+      style={{ ...variants[variant], ...(off ? { opacity: 0.5, cursor: "not-allowed" } : null), ...style }}
+    >
+      {loading ? "Salvando…" : children}
+    </button>
+  );
 }

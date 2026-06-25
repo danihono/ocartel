@@ -2,14 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { c, font } from "@/lib/theme";
 import { Seal } from "@/components/ui/Seal";
 import { fieldInput, fieldLabel } from "@/components/ui/Field";
 import { auth, db } from "@/lib/firebase/config";
+import { signOutApp } from "@/lib/firebase/auth";
 import { bootstrapTenant } from "@/lib/firebase/bootstrap";
 import { useToast } from "@/components/ui/Toast";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function mensagemErroAuth(e: unknown): string {
   const code = typeof e === "object" && e && "code" in e ? String((e as { code: unknown }).code) : "";
@@ -47,6 +50,19 @@ export default function LoginPage() {
   const [seuNome, setSeuNome] = useState("");
   const [telefone, setTelefone] = useState("");
 
+  async function esqueciSenha() {
+    if (!email.trim()) {
+      toast("Digite seu e-mail acima para enviarmos o link.", "error");
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+    } catch {
+      /* não revela se a conta existe — mensagem genérica abaixo */
+    }
+    toast("Se houver uma conta com esse e-mail, enviamos um link de recuperação.", "info");
+  }
+
   async function entrar() {
     if (!email.trim() || !senha.trim()) {
       toast("Preencha e-mail e senha.", "error");
@@ -68,15 +84,39 @@ export default function LoginPage() {
     }
   }
 
+  /** Validação do passo 1 (conta): e-mail válido + senha forte o suficiente. */
+  function validarPasso1(): boolean {
+    if (!EMAIL_RE.test(email.trim())) {
+      toast("Informe um e-mail válido.", "error");
+      return false;
+    }
+    if (senha.length < 6) {
+      toast("A senha precisa ter ao menos 6 caracteres.", "error");
+      return false;
+    }
+    return true;
+  }
+
   async function concluirOnboarding() {
-    if (!email.trim() || !senha.trim()) {
-      toast("Preencha e-mail e senha no passo 1.", "error");
+    if (!validarPasso1()) {
       setStep(1);
       return;
     }
     setCarregando(true);
+
+    // Cria a conta — erros aqui são de credencial (e-mail em uso, senha fraca…).
+    let cred;
     try {
-      const cred = await createUserWithEmailAndPassword(auth, email.trim(), senha);
+      cred = await createUserWithEmailAndPassword(auth, email.trim(), senha);
+    } catch (e) {
+      toast(mensagemErroAuth(e), "error");
+      setCarregando(false);
+      return;
+    }
+
+    // Cria o tenant/catálogo. Se falhar, faz ROLLBACK da conta recém-criada para
+    // não deixar um usuário órfão (sem barbearia) que não consegue nem refazer o onboarding.
+    try {
       await bootstrapTenant({
         uid: cred.user.uid,
         email: email.trim(),
@@ -87,8 +127,13 @@ export default function LoginPage() {
       });
       toast("Sua barbearia foi criada. Teste grátis iniciado!");
       router.push("/dashboard");
-    } catch (e) {
-      toast(mensagemErroAuth(e), "error");
+    } catch {
+      try {
+        await cred.user.delete();
+      } catch {
+        await signOutApp();
+      }
+      toast("Não foi possível configurar a barbearia. Nenhuma conta foi criada — tente novamente.", "error");
       setCarregando(false);
     }
   }
@@ -154,7 +199,7 @@ export default function LoginPage() {
               <label style={fieldLabel}>Senha</label>
               <input type="password" style={{ ...fieldInput, marginBottom: 10 }} value={senha} onChange={(e) => setSenha(e.target.value)} />
               <div style={{ textAlign: "right", marginBottom: 22 }}>
-                <button onClick={() => toast("Enviamos um link de recuperação para seu e-mail.", "info")} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 12.5, color: c.brassDeep, fontWeight: 600 }}>
+                <button onClick={esqueciSenha} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 12.5, color: c.brassDeep, fontWeight: 600 }}>
                   Esqueci minha senha
                 </button>
               </div>
@@ -186,7 +231,7 @@ export default function LoginPage() {
                   <input style={{ ...fieldInput, marginBottom: 14 }} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@email.com" />
                   <label style={fieldLabel}>Senha</label>
                   <input type="password" style={{ ...fieldInput, marginBottom: 22 }} value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="Crie uma senha" />
-                  <button onClick={() => setStep(2)} style={{ width: "100%", border: "none", cursor: "pointer", background: c.primaryBtnBg, color: c.primaryBtnText, padding: 14, borderRadius: 11, fontSize: 14.5, fontWeight: 700 }}>Continuar</button>
+                  <button onClick={() => { if (validarPasso1()) setStep(2); }} style={{ width: "100%", border: "none", cursor: "pointer", background: c.primaryBtnBg, color: c.primaryBtnText, padding: 14, borderRadius: 11, fontSize: 14.5, fontWeight: 700 }}>Continuar</button>
                 </>
               ) : step === 2 ? (
                 <>

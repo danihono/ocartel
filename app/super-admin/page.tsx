@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { c, font } from "@/lib/theme";
 import { Seal } from "@/components/ui/Seal";
 import { LineChart } from "@/components/ui/LineChart";
-import { atividadeSaas, mrr12m, planosSaas, saasKpis } from "@/lib/mock-data";
+import { atividadeSaas, mrr12m, saasKpis } from "@/lib/mock-data";
 import { tenantStatusMeta } from "@/lib/status";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/firebase/auth";
@@ -23,6 +23,10 @@ function brl(n: number): string {
 function parseMrr(s: string): number {
   return Number(s.replace(/[^\d]/g, "")) || 0;
 }
+function iniciaisDe(nome: string): string {
+  const p = nome.trim().split(/\s+/);
+  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "SA";
+}
 
 const filtrosStatus: { label: string; status: TenantStatus | "todas" }[] = [
   { label: "Todas", status: "todas" },
@@ -33,13 +37,14 @@ const filtrosStatus: { label: string; status: TenantStatus | "todas" }[] = [
 
 export default function SuperAdminPage() {
   const { state } = useStore();
-  const { user, enterTenant } = useAuth();
+  const { user, profile, enterTenant } = useAuth();
   const toast = useToast();
   const router = useRouter();
   const [aba, setAba] = useState<Aba>("Visão geral");
   const [filtro, setFiltro] = useState<TenantStatus | "todas">("todas");
   const [drawer, setDrawer] = useState<Tenant | null>(null);
   const [criando, setCriando] = useState(false);
+  const [resolvidos, setResolvidos] = useState<number[]>([]);
 
   async function criarDemo() {
     if (!user || criando) return;
@@ -58,6 +63,20 @@ export default function SuperAdminPage() {
   const ativas = state.tenants.filter((t) => t.status === "ativo").length;
   const trials = state.tenants.filter((t) => t.status === "trial").length;
   const mrrTotal = state.tenants.reduce((acc, t) => acc + parseMrr(t.mrr), 0);
+  const ticketMedioSaas = ativas ? Math.round(mrrTotal / ativas) : 0;
+
+  // Distribuição de planos: derivada das barbearias reais (não mock).
+  const distribPlanos = (() => {
+    const pro = state.tenants.filter((t) => t.plano === "Pro").length;
+    const basico = state.tenants.filter((t) => t.plano === "Básico").length;
+    const total = pro + basico || 1;
+    return [
+      { nome: "Pro · R$ 249", qtd: pro, pct: Math.round((pro / total) * 100), cor: "#34D6A6" },
+      { nome: "Básico · R$ 129", qtd: basico, pct: Math.round((basico / total) * 100), cor: "#7C5CFC" },
+    ];
+  })();
+
+  const nomeSuper = profile?.nome || "Super Admin";
 
   const tenantsFiltrados = filtro === "todas" ? state.tenants : state.tenants.filter((t) => t.status === filtro);
 
@@ -104,10 +123,10 @@ export default function SuperAdminPage() {
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: c.darkText }}>Daniel H.</div>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: c.darkText }}>{nomeSuper}</div>
             <div style={{ fontSize: 10.5, color: c.darkMuted }}>Super Admin</div>
           </div>
-          <div style={{ width: 32, height: 32, borderRadius: "50%", background: c.leather, color: c.darkText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>DH</div>
+          <div style={{ width: 32, height: 32, borderRadius: "50%", background: c.leather, color: c.darkText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>{iniciaisDe(nomeSuper)}</div>
         </div>
       </header>
 
@@ -131,7 +150,7 @@ export default function SuperAdminPage() {
                 <div style={{ fontSize: 12, color: c.darkMuted, marginTop: 2, marginBottom: 14 }}>Últimos 12 meses</div>
                 <LineChart data={mrr12m} stroke={c.brass} fill="rgba(14,163,122,.16)" gridColor={c.darkLine} gridLines={[60, 120]} height={180} />
               </div>
-              <PlanosCard />
+              <PlanosCard distrib={distribPlanos} ticketMedio={ticketMedioSaas} />
             </div>
             <AtividadeCard />
           </>
@@ -210,14 +229,28 @@ export default function SuperAdminPage() {
           /* Suporte */
           <div style={{ background: c.darkSurface, border: `1px solid ${c.darkLine}`, borderRadius: 14, marginTop: 16, padding: "18px 22px" }}>
             <div style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.darkText, marginBottom: 6 }}>Atividade & suporte</div>
-            {atividadeSaas.map((a, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 0", borderTop: i === 0 ? "none" : `1px solid ${c.darkLine}` }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: a.cor, flex: "none" }} />
-                <span style={{ flex: 1, fontSize: 13.5, color: c.darkText }}>{a.texto}</span>
-                <span style={{ fontSize: 12, color: c.darkMuted }}>{a.quando}</span>
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: c.darkGreen, background: "rgba(52,214,166,.16)", borderRadius: 999, padding: "3px 11px" }}>Resolver</span>
-              </div>
-            ))}
+            {atividadeSaas.filter((_, i) => !resolvidos.includes(i)).length === 0 ? (
+              <div style={{ padding: "16px 0", fontSize: 13, color: c.darkMuted }}>Tudo resolvido. Nenhum item pendente.</div>
+            ) : (
+              atividadeSaas.map((a, i) =>
+                resolvidos.includes(i) ? null : (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 0", borderTop: i === 0 ? "none" : `1px solid ${c.darkLine}` }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: a.cor, flex: "none" }} />
+                    <span style={{ flex: 1, fontSize: 13.5, color: c.darkText }}>{a.texto}</span>
+                    <span style={{ fontSize: 12, color: c.darkMuted }}>{a.quando}</span>
+                    <button
+                      onClick={() => {
+                        setResolvidos((r) => [...r, i]);
+                        toast("Item marcado como resolvido.");
+                      }}
+                      style={{ border: "none", cursor: "pointer", fontSize: 11.5, fontWeight: 700, color: c.darkGreen, background: "rgba(52,214,166,.16)", borderRadius: 999, padding: "4px 12px" }}
+                    >
+                      Resolver
+                    </button>
+                  </div>
+                ),
+              )
+            )}
           </div>
         )}
       </div>
@@ -236,11 +269,11 @@ function MiniKpi({ label, value }: { label: string; value: string }) {
   );
 }
 
-function PlanosCard() {
+function PlanosCard({ distrib, ticketMedio }: { distrib: { nome: string; qtd: number; pct: number; cor: string }[]; ticketMedio: number }) {
   return (
     <div style={{ background: c.darkSurface, border: `1px solid ${c.darkLine}`, borderRadius: 14, padding: "20px 22px" }}>
       <div style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.darkText, marginBottom: 16 }}>Distribuição de planos</div>
-      {planosSaas.map((p, i) => (
+      {distrib.map((p, i) => (
         <div key={p.nome} style={{ marginBottom: i === 0 ? 16 : 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
             <span style={{ color: c.darkText, fontWeight: 600 }}>{p.nome}</span>
@@ -254,7 +287,7 @@ function PlanosCard() {
       <div style={{ borderTop: `1px solid ${c.darkLine}`, marginTop: 18, paddingTop: 14 }}>
         <div style={{ fontSize: 11, letterSpacing: 0.6, textTransform: "uppercase", color: c.darkMuted, fontWeight: 600 }}>Ticket médio SaaS</div>
         <div style={{ fontFamily: font.serif, fontSize: 22, fontWeight: 600, color: c.darkText, marginTop: 4 }}>
-          R$ 210<span style={{ fontSize: 12, fontFamily: font.sans, color: c.darkMuted, fontWeight: 500 }}>/barbearia</span>
+          {brl(ticketMedio)}<span style={{ fontSize: 12, fontFamily: font.sans, color: c.darkMuted, fontWeight: 500 }}>/barbearia</span>
         </div>
       </div>
     </div>

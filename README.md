@@ -29,7 +29,7 @@ Para promover um usuário a `superAdmin`: `npm run provision:super-admin -- voce
 | `/clientes` | Lista com filtros e busca + ficha; criar/editar cliente; novo agendamento |
 | `/planos` | Planos & Serviços — CRUD de serviços (preço/duração) e edição dos planos de assinatura |
 | `/pagamentos` | Transações com filtros/busca, "marcar como pago" e "lançar pagamento"; KPIs somados |
-| `/configuracoes` | Dados da barbearia, horário, equipe (CRUD de barbeiros), sair e restaurar demo |
+| `/configuracoes` | Dados da barbearia, horário, equipe (CRUD de barbeiros) e sair |
 | `/super-admin` | Console SaaS (dark): abas Visão geral/Barbearias/Billing/Suporte; linha de barbearia abre drawer (suspender/trocar plano) |
 | `/login` | Login + Onboarding (wizard de 3 passos) — botões navegam para o painel |
 | `/book/[slug]` | Agendamento público (mobile) — lê o catálogo da barbearia pelo slug e grava via server action; aparece na agenda/dashboard |

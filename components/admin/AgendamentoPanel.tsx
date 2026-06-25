@@ -48,6 +48,8 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
   const selo = tagMeta(seloTag);
   const preco = precoServico(state, ag.servico);
   const obsAlterada = obs.trim() !== (ag.observacoes ?? "").trim();
+  // Estado ATIVO = ainda pode mudar (concluir/no-show/cancelar). Os demais são terminais.
+  const ehAtivo = ag.status === "agendado" || ag.status === "confirmado" || ag.status === "atendimento";
 
   // A conclusão (com a regra de plano) é feita no FinalizarAtendimentoModal.
   async function setStatus(status: AgendamentoStatus, msg: string) {
@@ -180,20 +182,23 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
           </div>
         ) : (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 22 }}>
+            {/* Transições válidas: a partir de um estado ATIVO (agendado/confirmado/atendimento).
+                concluído/no-show/cancelado são terminais — sem ações. */}
             {ag.status === "agendado" ? (
               <Button variant="ghost" onClick={() => setStatus("confirmado", "Agendamento confirmado.")}>Confirmar</Button>
             ) : null}
-            {ag.status !== "atendimento" && ag.status !== "concluido" ? (
+            {ag.status === "agendado" || ag.status === "confirmado" ? (
               <Button variant="ghost" onClick={() => setStatus("atendimento", "Atendimento iniciado.")}>Iniciar</Button>
             ) : null}
-            {ag.status !== "concluido" ? (
-              <Button onClick={() => setFinalizando(true)}>Concluir</Button>
-            ) : null}
-            {ag.status !== "noshow" ? (
+            {ehAtivo ? <Button onClick={() => setFinalizando(true)}>Concluir</Button> : null}
+            {ehAtivo ? (
               <Button variant="ghost" onClick={() => setStatus("noshow", "Marcado como no-show.")}>No-show</Button>
             ) : null}
-            {ag.status !== "cancelado" ? (
+            {ehAtivo ? (
               <Button variant="ghost" onClick={() => setStatus("cancelado", "Agendamento cancelado.")} style={{ color: c.red }}>Cancelar</Button>
+            ) : null}
+            {!ehAtivo ? (
+              <span style={{ fontSize: 12.5, color: c.ink3, fontWeight: 600 }}>Agendamento {STATUS_LABEL[ag.status].toLowerCase()} — sem ações disponíveis.</span>
             ) : null}
           </div>
         )}

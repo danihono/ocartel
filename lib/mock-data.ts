@@ -4,6 +4,7 @@ import type {
   BlocoAgenda,
   Cliente,
   DesempenhoBarbeiro,
+  Plano,
   ProximoAgendamento,
   Servico,
   Tenant,
@@ -20,6 +21,13 @@ export const servicos: Servico[] = [
   { id: "corte-barba", nome: "Corte + Barba", duracaoMin: 60, preco: 140 },
   { id: "luzes", nome: "Luzes", duracaoMin: 90, preco: 120 },
   { id: "raspar", nome: "Raspar", duracaoMin: 30, preco: 50 },
+];
+
+// Planos de assinatura do CLIENTE (mensalidade). Os nomes batem com o rótulo
+// `plano` usado nos clientes de exemplo, então o vínculo por nome já funciona.
+export const planosCliente: Plano[] = [
+  { id: "mensal-corte", nome: "Mensal Corte", valor: 99, diaVencimento: 5, ativo: true },
+  { id: "mensal-cb", nome: "Mensal C+B", valor: 149, diaVencimento: 5, ativo: true },
 ];
 
 // ---- Dashboard ----

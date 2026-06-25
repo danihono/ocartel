@@ -16,6 +16,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
   writeBatch,
   type DocumentData,
   type QuerySnapshot,
@@ -28,6 +29,7 @@ import type {
   Cliente,
   ConfigBarbearia,
   FormaPagamento,
+  Plano,
   PlanoTier,
   Servico,
   Tenant,
@@ -109,13 +111,29 @@ export const transacoes = {
   add(tenantId: string, t: Transacao) {
     return addDoc(col(tenantId, "transacoes"), { ...semId(t), createdAt: serverTimestamp() });
   },
-  /** Confirma o pagamento de uma cobrança (manual, pela dona/admin). Auditável via `confirmedBy`. */
+  /**
+   * Confirma o pagamento de uma cobrança (manual, pela dona/admin). Auditável via
+   * `confirmedBy` + `confirmedAt` (timestamp do servidor). Se `clienteId` for
+   * informado, incrementa `totalGasto` do cliente no MESMO batch — mantendo a
+   * ficha do cliente em sincronia com o que foi recebido (avulso pago aqui).
+   */
   registrarPagamento(
     tenantId: string,
     id: string,
-    patch: { paidAt: string; forma: FormaPagamento; amountReceived: number; confirmedBy?: string },
+    patch: { paidAt: string; forma: FormaPagamento; amountReceived: number; confirmedBy?: string; clienteId?: string },
   ) {
-    return updateDoc(sub(tenantId, "transacoes/" + id), { status: "pago", source: "manual", ...patch });
+    const { clienteId, ...campos } = patch;
+    const batch = writeBatch(db);
+    batch.update(sub(tenantId, "transacoes/" + id), {
+      status: "pago",
+      source: "manual",
+      confirmedAt: serverTimestamp(),
+      ...campos,
+    });
+    if (clienteId) {
+      batch.update(sub(tenantId, "clientes/" + clienteId), { totalGasto: increment(campos.amountReceived) });
+    }
+    return batch.commit();
   },
   /** Cria N cobranças pendentes de uma vez (a deduplicação por ciclo é feita na UI). */
   gerarMensalidades(tenantId: string, novas: Transacao[]) {
@@ -129,8 +147,12 @@ export const transacoes = {
 
 // ---- Agendamentos ----
 export const agendamentos = {
-  subscribe(tenantId: string, cb: (rows: Agendamento[]) => void) {
-    return onSnapshot(col(tenantId, "agendamentos"), (s) => cb(rows<Agendamento>(s)));
+  // Escopo por data: só assina agendamentos com date >= cutoffISO (ex.: últimos
+  // ~6 meses + futuro), em vez de toda a coleção de todos os tempos. `date` é
+  // string "YYYY-MM-DD" — comparação lexicográfica = cronológica. Índice de
+  // campo único em `date` é criado automaticamente pelo Firestore.
+  subscribe(tenantId: string, cutoffISO: string, cb: (rows: Agendamento[]) => void) {
+    return onSnapshot(query(col(tenantId, "agendamentos"), where("date", ">=", cutoffISO)), (s) => cb(rows<Agendamento>(s)));
   },
   add(tenantId: string, a: Agendamento) {
     return addDoc(col(tenantId, "agendamentos"), { ...semId(a), createdAt: serverTimestamp() });
@@ -184,13 +206,29 @@ export const config = {
   },
 };
 
-// ---- Planos de assinatura (tiers) ----
+// ---- Planos de assinatura (tiers SaaS da própria barbearia) ----
 export const planosTiers = {
   subscribe(tenantId: string, cb: (rows: PlanoTier[]) => void) {
     return onSnapshot(col(tenantId, "planosTiers"), (s) => cb(rows<PlanoTier>(s)));
   },
   update(tenantId: string, tier: PlanoTier) {
     return setDoc(sub(tenantId, "planosTiers/" + tier.id), tier, { merge: true });
+  },
+};
+
+// ---- Planos de assinatura do CLIENTE (mensalidade: valor/diaVencimento) ----
+export const planos = {
+  subscribe(tenantId: string, cb: (rows: Plano[]) => void) {
+    return onSnapshot(col(tenantId, "planos"), (s) => cb(rows<Plano>(s)));
+  },
+  add(tenantId: string, p: Plano) {
+    return addDoc(col(tenantId, "planos"), { ...semId(p), createdAt: serverTimestamp() });
+  },
+  update(tenantId: string, p: Plano) {
+    return updateDoc(sub(tenantId, "planos/" + p.id), semId(p) as DocumentData);
+  },
+  remove(tenantId: string, id: string) {
+    return deleteDoc(sub(tenantId, "planos/" + id));
   },
 };
 
