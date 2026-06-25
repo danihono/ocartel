@@ -4,7 +4,7 @@
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, connectAuthEmulator, type Auth } from "firebase/auth";
-import { getFirestore, connectFirestoreEmulator, type Firestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore, connectFirestoreEmulator, type Firestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -17,7 +17,21 @@ const firebaseConfig = {
 
 export const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth: Auth = getAuth(app);
-export const db: Firestore = getFirestore(app);
+
+// Firestore com auto-detecção de long-polling: em produção (atrás de CDN/HTTP3 ou
+// redes/proxies que cortam o streaming WebChannel) o `onSnapshot` falha com
+// [unavailable] e os listeners — inclusive o de users/{uid} — nunca resolvem,
+// derrubando o usuário de volta pro /login. O auto-detect cai pra long-polling
+// quando o WebChannel não vinga. O try/catch torna idempotente sob HMR
+// (initializeFirestore só pode rodar uma vez por app).
+function criarDb(): Firestore {
+  try {
+    return initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+  } catch {
+    return getFirestore(app);
+  }
+}
+export const db: Firestore = criarDb();
 
 // Liga os emuladores uma única vez, só no cliente. A conexão precisa acontecer
 // antes de qualquer chamada ao Firestore — por isso roda no carregamento do módulo.
