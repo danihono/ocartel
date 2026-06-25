@@ -44,6 +44,19 @@ export default function AuthGuard({ need, children }: { need: "tenant" | "superA
     return () => clearTimeout(id);
   }, [tenantPendente]);
 
+  // Acesso liberado: auth resolvida + usuário + permissão pro tipo de rota.
+  const liberado = !loading && !!user && (need === "superAdmin" ? role === "superAdmin" : !!tenantId);
+
+  // "Sticky": uma vez liberado nesta sessão, nunca mais voltamos a mostrar a
+  // splash. Em produção as rotas são pré-renderizadas com loading=true (= splash),
+  // e sem isso cada troca de aba pisca o logo por um instante. O guard vive no
+  // layout (admin) (persiste entre abas), então depois do 1º load isto mantém o
+  // conteúdo na tela direto. A splash fica só pro carregamento inicial real.
+  const [jaLiberou, setJaLiberou] = useState(false);
+  useEffect(() => {
+    if (liberado) setJaLiberou(true);
+  }, [liberado]);
+
   useEffect(() => {
     if (semLogin) router.replace("/login");
     else if (semPermissao) router.replace("/dashboard");
@@ -51,6 +64,9 @@ export default function AuthGuard({ need, children }: { need: "tenant" | "superA
     else if (tenantPendente && carenciaVencida) router.replace("/login");
   }, [semLogin, semPermissao, superSemTenant, tenantPendente, carenciaVencida, router]);
 
+  // Logado e liberado (ou já liberado antes) → conteúdo direto, sem splash. O
+  // `!!user` garante que logout (user=null) cai pros redirects abaixo.
+  if (!!user && (jaLiberou || liberado)) return <>{children}</>;
   if (loading || semLogin || semPermissao || superSemTenant || tenantPendente) return <Splash />;
   return <>{children}</>;
 }
