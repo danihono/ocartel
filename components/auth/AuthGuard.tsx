@@ -21,6 +21,13 @@ function Splash() {
   );
 }
 
+// "Liberado nesta sessão" persistido fora do estado do React: sobrevive a
+// remontagens do guard durante a navegação (o useState zera ao remontar). Só é
+// escrito dentro de efeitos no cliente — nunca no servidor —, então o SSR
+// continua determinístico (sempre splash) e o flag não vaza entre requests.
+const SESSAO_KEY = "oc_sessao_liberada";
+let sessaoLiberada = false;
+
 export default function AuthGuard({ need, children }: { need: "tenant" | "superAdmin"; children: ReactNode }) {
   const { user, role, tenantId, loading } = useAuth();
   const router = useRouter();
@@ -50,12 +57,46 @@ export default function AuthGuard({ need, children }: { need: "tenant" | "superA
   // "Sticky": uma vez liberado nesta sessão, nunca mais voltamos a mostrar a
   // splash. Em produção as rotas são pré-renderizadas com loading=true (= splash),
   // e sem isso cada troca de aba pisca o logo por um instante. O guard vive no
-  // layout (admin) (persiste entre abas), então depois do 1º load isto mantém o
-  // conteúdo na tela direto. A splash fica só pro carregamento inicial real.
+  // layout (admin) (persiste entre abas), mas o `sessaoLiberada` de módulo cobre
+  // também o caso de o guard remontar — aí o latch continua de pé.
   const [jaLiberou, setJaLiberou] = useState(false);
+
+  // Restaura o latch de uma sessão já autenticada (reload duro / F5): um frame
+  // após o paint determinístico, sem quebrar a hidratação.
   useEffect(() => {
-    if (liberado) setJaLiberou(true);
+    try {
+      if (sessionStorage.getItem(SESSAO_KEY) === "1") {
+        sessaoLiberada = true;
+        setJaLiberou(true);
+      }
+    } catch {
+      /* sem sessionStorage — ignora */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (liberado) {
+      sessaoLiberada = true;
+      setJaLiberou(true);
+      try {
+        sessionStorage.setItem(SESSAO_KEY, "1");
+      } catch {
+        /* ignora */
+      }
+    }
   }, [liberado]);
+
+  // Logout limpa o latch — senão o próximo usuário pularia a verificação.
+  useEffect(() => {
+    if (!loading && !user) {
+      sessaoLiberada = false;
+      try {
+        sessionStorage.removeItem(SESSAO_KEY);
+      } catch {
+        /* ignora */
+      }
+    }
+  }, [loading, user]);
 
   useEffect(() => {
     if (semLogin) router.replace("/login");
@@ -64,9 +105,10 @@ export default function AuthGuard({ need, children }: { need: "tenant" | "superA
     else if (tenantPendente && carenciaVencida) router.replace("/login");
   }, [semLogin, semPermissao, superSemTenant, tenantPendente, carenciaVencida, router]);
 
-  // Logado e liberado (ou já liberado antes) → conteúdo direto, sem splash. O
-  // `!!user` garante que logout (user=null) cai pros redirects abaixo.
-  if (!!user && (jaLiberou || liberado)) return <>{children}</>;
+  // Logado e liberado (ou já liberado antes, inclusive via latch de módulo) →
+  // conteúdo direto, sem splash. O `!!user` garante que logout (user=null) cai
+  // pros redirects abaixo.
+  if (!!user && (sessaoLiberada || jaLiberou || liberado)) return <>{children}</>;
   if (loading || semLogin || semPermissao || superSemTenant || tenantPendente) return <Splash />;
   return <>{children}</>;
 }
