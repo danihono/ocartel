@@ -51,15 +51,17 @@ export default function AuthGuard({ need, children }: { need: "tenant" | "superA
     return () => clearTimeout(id);
   }, [tenantPendente]);
 
-  // Acesso liberado: auth resolvida + usuário + permissão pro tipo de rota.
-  const liberado = !loading && !!user && (need === "superAdmin" ? role === "superAdmin" : !!tenantId);
+  // O latch pode ignorar `loading` durante remontagens/navegações internas,
+  // mas nunca deve ignorar permissão/tenant.
+  const autorizado = !!user && (need === "superAdmin" ? role === "superAdmin" : !!tenantId);
+  const liberado = !loading && autorizado;
 
   // "Sticky": uma vez liberado nesta sessão, nunca mais voltamos a mostrar a
   // splash. Em produção as rotas são pré-renderizadas com loading=true (= splash),
   // e sem isso cada troca de aba pisca o logo por um instante. O guard vive no
   // layout (admin) (persiste entre abas), mas o `sessaoLiberada` de módulo cobre
   // também o caso de o guard remontar — aí o latch continua de pé.
-  const [jaLiberou, setJaLiberou] = useState(false);
+  const [jaLiberou, setJaLiberou] = useState(() => sessaoLiberada);
 
   // Restaura o latch de uma sessão já autenticada (reload duro / F5): um frame
   // após o paint determinístico, sem quebrar a hidratação.
@@ -105,10 +107,9 @@ export default function AuthGuard({ need, children }: { need: "tenant" | "superA
     else if (tenantPendente && carenciaVencida) router.replace("/login");
   }, [semLogin, semPermissao, superSemTenant, tenantPendente, carenciaVencida, router]);
 
-  // Logado e liberado (ou já liberado antes, inclusive via latch de módulo) →
-  // conteúdo direto, sem splash. O `!!user` garante que logout (user=null) cai
-  // pros redirects abaixo.
-  if (!!user && (sessaoLiberada || jaLiberou || liberado)) return <>{children}</>;
+  // Logado e autorizado (ou já liberado antes, inclusive via latch de módulo)
+  // recebe conteúdo direto, sem splash nas trocas internas de aba.
+  if (autorizado && (sessaoLiberada || jaLiberou || liberado)) return <>{children}</>;
   if (loading || semLogin || semPermissao || superSemTenant || tenantPendente) return <Splash />;
   return <>{children}</>;
 }

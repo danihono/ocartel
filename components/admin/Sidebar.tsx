@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { c, font } from "@/lib/theme";
@@ -25,6 +25,10 @@ export default function Sidebar({ active }: { active: string }) {
   const toast = useToast();
   const router = useRouter();
   const [menu, setMenu] = useState(false);
+
+  useEffect(() => {
+    items.forEach((it) => router.prefetch(it.href));
+  }, [router]);
 
   async function sair() {
     await signOutApp();

@@ -13,7 +13,7 @@
 # (ADC) do backend do App Hosting — não precisa de service account em produção.
 
 runConfig:
-  minInstances: 0
+  minInstances: 1
   maxInstances: 2
 
 env:
