@@ -132,6 +132,9 @@ export default function BookingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ocupados, horarios, servicoId, catalog, dia, hojeISO, agoraMin]);
 
+  // Dia sem nenhum horário ofertável (lotado ou já passou): avisa e trava o "Continuar".
+  const temSlotLivre = horarios.some(slotDisponivel);
+
   async function confirmar() {
     if (!nome.trim()) {
       toast("Informe seu nome.", "error");
@@ -279,7 +282,12 @@ export default function BookingPage() {
 
                     {/* Horário */}
                     <div style={sectionTitle}>Horário</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
+                    {!temSlotLivre ? (
+                      <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 12, padding: "16px 14px", textAlign: "center", fontSize: 13, color: c.ink2 }}>
+                        Sem horários disponíveis neste dia. Escolha outra data.
+                      </div>
+                    ) : null}
+                    <div style={{ display: temSlotLivre ? "grid" : "none", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
                       {horarios.map((h) => {
                         const on = h === hora;
                         const livre = slotDisponivel(h);
@@ -337,7 +345,7 @@ export default function BookingPage() {
                   <div style={{ fontFamily: font.serif, fontSize: 20, fontWeight: 600, color: c.inkTitle }}>{svc ? formatBRL(svc.preco) : ""}</div>
                 </div>
                 {step === "selecao" ? (
-                  <button onClick={() => setStep("dados")} style={{ border: "none", cursor: "pointer", background: c.primaryBtnBg, color: c.primaryBtnText, padding: "14px 22px", borderRadius: 12, fontSize: 14.5, fontWeight: 700 }}>Continuar</button>
+                  <button onClick={() => hora && setStep("dados")} disabled={!hora} style={{ border: "none", cursor: hora ? "pointer" : "not-allowed", opacity: hora ? 1 : 0.5, background: c.primaryBtnBg, color: c.primaryBtnText, padding: "14px 22px", borderRadius: 12, fontSize: 14.5, fontWeight: 700 }}>Continuar</button>
                 ) : (
                   <button onClick={confirmar} disabled={enviando} style={{ border: "none", cursor: enviando ? "default" : "pointer", opacity: enviando ? 0.7 : 1, background: c.primaryBtnBg, color: c.primaryBtnText, padding: "14px 22px", borderRadius: 12, fontSize: 14.5, fontWeight: 700 }}>{enviando ? "Enviando…" : "Confirmar"}</button>
                 )}
