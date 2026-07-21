@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Testes
+        run: npm test
+
+      - name: Build
+        run: npm run build
+        env:
+          # Chaves do app Web do Firebase não são segredas (vão pro bundle do
+          # cliente de qualquer forma). Necessárias no build porque o SDK do
+          # cliente é inicializado durante a geração estática de algumas rotas.
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.NEXT_PUBLIC_FIREBASE_API_KEY || 'AIzaSyD3kuQ1tQ7ZP0Rt1RDhicJWXzKetszTME8' }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ocartel-497f8.firebaseapp.com
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ocartel-497f8
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ocartel-497f8.firebasestorage.app
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "604756121837"
+          NEXT_PUBLIC_FIREBASE_APP_ID: "1:604756121837:web:467e5c00fef4a0ca7694e4"

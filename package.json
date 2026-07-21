@@ -10,7 +10,9 @@
     "emulators": "firebase emulators:start --import=./.seed --export-on-exit",
     "emulators:export": "firebase emulators:export ./.seed",
     "provision:super-admin": "tsx scripts/provision-super-admin.ts",
-    "limpar:tenants": "tsx scripts/limpar-tenants.ts"
+    "limpar:tenants": "tsx scripts/limpar-tenants.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "firebase": "^11.3.0",
@@ -28,6 +30,7 @@
     "eslint-config-next": "15.1.9",
     "firebase-tools": "^13.29.1",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.9"
   }
 }

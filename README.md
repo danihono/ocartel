@@ -20,6 +20,19 @@ npm run dev         # app em http://localhost:3000
 Abra http://localhost:3000 → **Criar barbearia** faz o onboarding (cria o tenant e o catálogo inicial).
 Para promover um usuário a `superAdmin`: `npm run provision:super-admin -- voce@dominio.com` (com as variáveis do emulador exportadas).
 
+## Qualidade (lint / tipos / testes)
+
+```bash
+npm run lint      # ESLint (next lint)
+npx tsc --noEmit  # checagem de tipos
+npm test          # testes unitários (vitest) da lógica pura
+npm run build     # build de produção
+```
+
+Os testes cobrem os módulos puros (`lib/date`, `lib/agenda`, `lib/selectors`,
+`lib/clientes-import`) em `tests/`. O CI (`.github/workflows/ci.yml`) roda lint +
+tipos + testes + build a cada push/PR.
+
 ## Telas / rotas
 
 | Rota | Tela |
