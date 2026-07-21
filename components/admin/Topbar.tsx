@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { c, font, shadow } from "@/lib/theme";
-import { isoParaLabel, HOJE_ISO } from "@/lib/date";
+import { isoParaLabel } from "@/lib/date";
+import { useHoje } from "@/lib/useRelogio";
 import { NovoAgendamentoModal } from "@/components/admin/NovoAgendamentoModal";
 
 export default function Topbar({ eyebrow, title }: { eyebrow: string; title: string }) {
   const router = useRouter();
   const pathname = usePathname();
+  const hoje = useHoje();
   const [q, setQ] = useState("");
   const [novo, setNovo] = useState(false);
 
@@ -68,7 +70,7 @@ export default function Topbar({ eyebrow, title }: { eyebrow: string; title: str
       </form>
 
       <div style={{ fontSize: 13, color: c.inkLabel, fontWeight: 600, background: c.surfaceWarm, border: `1px solid ${c.border}`, borderRadius: 10, padding: "10px 13px", whiteSpace: "nowrap" }}>
-        {isoParaLabel(HOJE_ISO)}
+        {isoParaLabel(hoje)}
       </div>
 
       <button

@@ -7,7 +7,8 @@ import { FinalizarAtendimentoModal } from "./FinalizarAtendimentoModal";
 import { useStore } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { barbeiroNomePorId, fmtDur, formatBRL, precoServico, tagDerivadaCliente } from "@/lib/selectors";
-import { HOJE_ISO, isoParaLabelLongo } from "@/lib/date";
+import { isoParaLabelLongo } from "@/lib/date";
+import { useHoje } from "@/lib/useRelogio";
 import { c, font } from "@/lib/theme";
 import { blocoMeta, tagMeta } from "@/lib/status";
 import type { AgendamentoStatus } from "@/lib/types";
@@ -26,6 +27,7 @@ const STATUS_LABEL: Record<AgendamentoStatus, string> = {
 export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boolean; onClose: () => void; agendamentoId: string | null }) {
   const { state, actions } = useStore();
   const toast = useToast();
+  const hoje = useHoje();
 
   const ag = state.agendamentos.find((a) => a.id === agendamentoId) ?? null;
 
@@ -50,7 +52,7 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
   const meta = blocoMeta[ag.status];
   // Cliente do cadastro (telefone + selo), por id quando houver, senão pelo nome.
   const cliente = state.clientes.find((cl) => (ag.clienteId && cl.id === ag.clienteId) || cl.nome === ag.clienteNome) ?? null;
-  const seloTag = cliente ? tagDerivadaCliente(state, cliente, HOJE_ISO) : "";
+  const seloTag = cliente ? tagDerivadaCliente(state, cliente, hoje) : "";
   const selo = tagMeta(seloTag);
   const preco = precoServico(state, ag.servico);
   const obsAlterada = obs.trim() !== (ag.observacoes ?? "").trim();

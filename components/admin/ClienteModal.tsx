@@ -6,7 +6,7 @@ import { Field, Select, Textarea, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { useStore, makeId } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
-import { mesAnoCurto, HOJE_ISO } from "@/lib/date";
+import { mesAnoCurto, hojeLocalISO } from "@/lib/date";
 import { EMAIL_RE, iniciaisDe, maskCpf, maskTelefone, normalizarCpf, normalizarTelefone, validarCpf } from "@/lib/clientes-import";
 import type { Cliente, ClienteTag } from "@/lib/types";
 
@@ -99,7 +99,7 @@ export function ClienteModal({
           ultimoAtendimento: "—",
           totalGasto: 0,
           atendimentos: 0,
-          desde: mesAnoCurto(HOJE_ISO),
+          desde: mesAnoCurto(hojeLocalISO()),
           iniciais: iniciaisDe(nome),
         };
         const ref = await actions.clientes.add(novo);
