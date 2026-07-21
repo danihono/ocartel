@@ -80,14 +80,6 @@ export async function criarAgendamentoPublico(slug: string, payload: BookingPayl
       }
     }
 
-    // Guarda autoritativa: recusa o agendamento se o intervalo sobrepuser
-    // qualquer agendamento/bloqueio ativo do barbeiro naquele dia. É isto que
-    // faz o bloqueio do barbeiro "valer" (a tela do cliente é só conveniência).
-    const ocupados = await intervalosOcupados(tenantRef, payload.barbeiroId, payload.date);
-    if (!horarioLivre(ocupados, payload.inicio, duracaoMin)) {
-      return { ok: false, error: "Esse horário não está mais disponível." };
-    }
-
     // Vincula/cria o cliente por telefone (id determinístico = evita duplicar a
     // cada agendamento). Só cria com defaults se ainda não existir.
     let clienteId: string | undefined;
@@ -116,25 +108,51 @@ export async function criarAgendamentoPublico(slug: string, payload: BookingPayl
       }
     }
 
-    await tenantRef.collection("agendamentos").add({
-      date: payload.date,
-      barbeiroId: payload.barbeiroId,
-      clienteNome: nome,
-      ...(clienteId ? { clienteId } : {}),
-      clienteTelefone: (payload.clienteTelefone ?? "").trim(),
-      servico: servico.nome ?? "",
-      servicoId: payload.servicoId,
-      inicio: payload.inicio,
-      duracaoMin,
-      status: "agendado",
-      origem: "booking",
-      createdAt: FieldValue.serverTimestamp(),
+    // Guarda autoritativa ATÔMICA: lê os ocupados e cria o agendamento na mesma
+    // transação. Sem isto, dois bookings simultâneos no mesmo horário passariam
+    // os dois na checagem (TOCTOU) e gerariam agendamento duplo. A transação
+    // serializa: se outra escrita entrar no intervalo lido, o Firestore
+    // reexecuta o callback — que então vê o slot ocupado e recusa. É isto que
+    // faz o bloqueio do barbeiro "valer" (a tela do cliente é só conveniência).
+    const agendamentosCol = tenantRef.collection("agendamentos");
+    const conflito = await adminDb.runTransaction(async (tx) => {
+      const snap = await tx.get(queryDoDia(tenantRef, payload.barbeiroId, payload.date));
+      if (!horarioLivre(intervalosDeDocs(snap.docs), payload.inicio, duracaoMin)) return true;
+      tx.set(agendamentosCol.doc(), {
+        date: payload.date,
+        barbeiroId: payload.barbeiroId,
+        clienteNome: nome,
+        ...(clienteId ? { clienteId } : {}),
+        clienteTelefone: (payload.clienteTelefone ?? "").trim(),
+        servico: servico.nome ?? "",
+        servicoId: payload.servicoId,
+        inicio: payload.inicio,
+        duracaoMin,
+        status: "agendado",
+        origem: "booking",
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return false;
     });
+    if (conflito) return { ok: false, error: "Esse horário não está mais disponível." };
 
     return { ok: true };
   } catch {
     return { ok: false, error: "Não foi possível concluir o agendamento." };
   }
+}
+
+/** Mapeia docs de agendamento em intervalos ativos (ocupados/bloqueados). */
+function intervalosDeDocs(docs: FirebaseFirestore.QueryDocumentSnapshot[]): IntervaloOcupado[] {
+  return docs
+    .map((d) => d.data())
+    .filter((a) => ocupaHorario(a.status))
+    .map((a) => ({ inicio: String(a.inicio), duracaoMin: typeof a.duracaoMin === "number" ? a.duracaoMin : 30 }));
+}
+
+/** Query dos agendamentos de um barbeiro num dia (equality-only: sem índice composto). */
+function queryDoDia(tenantRef: FirebaseFirestore.DocumentReference, barbeiroId: string, date: string) {
+  return tenantRef.collection("agendamentos").where("barbeiroId", "==", barbeiroId).where("date", "==", date);
 }
 
 /** Intervalos ativos (ocupados/bloqueados) de um barbeiro num dia. */
@@ -143,15 +161,8 @@ async function intervalosOcupados(
   barbeiroId: string,
   date: string,
 ): Promise<IntervaloOcupado[]> {
-  const snap = await tenantRef
-    .collection("agendamentos")
-    .where("barbeiroId", "==", barbeiroId)
-    .where("date", "==", date)
-    .get();
-  return snap.docs
-    .map((d) => d.data())
-    .filter((a) => ocupaHorario(a.status))
-    .map((a) => ({ inicio: String(a.inicio), duracaoMin: typeof a.duracaoMin === "number" ? a.duracaoMin : 30 }));
+  const snap = await queryDoDia(tenantRef, barbeiroId, date).get();
+  return intervalosDeDocs(snap.docs);
 }
 
 /**
