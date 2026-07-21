@@ -19,7 +19,8 @@ import {
   formatBRL,
   type FiltroCliente,
 } from "@/lib/selectors";
-import { HOJE_ISO, isoParaLabel, tempoRelativo } from "@/lib/date";
+import { isoParaLabel, tempoRelativo } from "@/lib/date";
+import { useHoje } from "@/lib/useRelogio";
 import { ClienteModal } from "@/components/admin/ClienteModal";
 import { ImportarClientesModal } from "@/components/admin/ImportarClientesModal";
 import { NovoAgendamentoModal } from "@/components/admin/NovoAgendamentoModal";
@@ -31,6 +32,7 @@ const HIST_INICIAL = 8;
 export default function ClientesPage() {
   const { state, actions } = useStore();
   const toast = useToast();
+  const hoje = useHoje();
 
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<FiltroCliente>("Todos");
@@ -51,16 +53,16 @@ export default function ClientesPage() {
     }
   }, []);
 
-  const lista = selectClientesFiltrados(state, filtro, busca);
-  const contagens = selectContagensCliente(state);
+  const lista = selectClientesFiltrados(state, filtro, busca, hoje);
+  const contagens = selectContagensCliente(state, hoje);
   // Seleção restrita à lista filtrada; cai no 1º item, ou null (estado vazio).
   const sel = lista.find((x) => x.id === selId) ?? lista[0] ?? null;
   // Marcador exibido = derivado das cobranças (Inadimplente) com fallback ao tag manual (VIP/Novo).
-  const selTagValue = sel ? tagDerivadaCliente(state, sel, HOJE_ISO) : "";
+  const selTagValue = sel ? tagDerivadaCliente(state, sel, hoje) : "";
   const selTag = tagMeta(selTagValue);
 
   const historico = sel ? selectHistoricoCliente(state, sel) : [];
-  const proximo = sel ? selectProximoAgendamentoCliente(state, sel, HOJE_ISO) : null;
+  const proximo = sel ? selectProximoAgendamentoCliente(state, sel, hoje) : null;
   const formaPreferida = sel ? selectFormaPreferidaCliente(state, sel) : null;
   const histVisivel = verTudo ? historico : historico.slice(0, HIST_INICIAL);
 
@@ -68,7 +70,7 @@ export default function ClientesPage() {
     if (!sel) return;
     const ativos: string[] = ["agendado", "confirmado", "atendimento"];
     const futuros = state.agendamentos.filter(
-      (a) => (a.clienteId ? a.clienteId === sel.id : a.clienteNome === sel.nome) && a.date >= HOJE_ISO && ativos.includes(a.status),
+      (a) => (a.clienteId ? a.clienteId === sel.id : a.clienteNome === sel.nome) && a.date >= hoje && ativos.includes(a.status),
     ).length;
     const aviso = futuros > 0 ? `\n\nAtenção: ${futuros} agendamento(s) futuro(s) deste cliente continuarão na agenda.` : "";
     if (!window.confirm(`Excluir ${sel.nome}? Esta ação não pode ser desfeita.${aviso}`)) return;
@@ -137,9 +139,9 @@ export default function ClientesPage() {
           ) : null}
           {lista.map((cl) => {
             const active = sel?.id === cl.id;
-            const clTag = tagDerivadaCliente(state, cl, HOJE_ISO);
+            const clTag = tagDerivadaCliente(state, cl, hoje);
             const t = tagMeta(clTag);
-            const ultimo = cl.ultimoAtendimentoISO ? tempoRelativo(cl.ultimoAtendimentoISO) : cl.ultimoAtendimento;
+            const ultimo = cl.ultimoAtendimentoISO ? tempoRelativo(cl.ultimoAtendimentoISO, hoje) : cl.ultimoAtendimento;
             return (
               <button
                 key={cl.id}
