@@ -35,6 +35,8 @@ import type {
   Servico,
   Tenant,
   Transacao,
+  WaProposta,
+  WhatsAppIntegration,
 } from "@/lib/types";
 
 // ---- helpers ----
@@ -274,6 +276,51 @@ export const planos = {
   },
   remove(tenantId: string, id: string) {
     return deleteDoc(sub(tenantId, "planos/" + id));
+  },
+};
+
+// ---- Integração WhatsApp (status/QR + comando connect/disconnect) ----
+// A ponte com o worker Baileys é o doc `integrations/whatsapp`: o worker escreve
+// status/QR; a UI escreve `command` (consumido pelo worker) e `desiredState`.
+export const whatsapp = {
+  subscribeStatus(tenantId: string, cb: (wa: WhatsAppIntegration | null) => void) {
+    return onSnapshot(sub(tenantId, "integrations/whatsapp"), (s) =>
+      cb(s.exists() ? (s.data() as WhatsAppIntegration) : null),
+    );
+  },
+  enviarComando(tenantId: string, action: "connect" | "disconnect") {
+    return setDoc(
+      sub(tenantId, "integrations/whatsapp"),
+      {
+        command: { action, ts: Date.now() },
+        desiredState: action === "connect" ? "connected" : "disconnected",
+      },
+      { merge: true },
+    );
+  },
+};
+
+// ---- Propostas de agendamento da IA (fila de aprovação) ----
+export const propostas = {
+  /** Só as pendentes (a aprovação/recusa muda o status e some da lista). */
+  subscribe(tenantId: string, cb: (rows: WaProposta[]) => void) {
+    return onSnapshot(query(col(tenantId, "waPropostas"), where("status", "==", "pendente")), (s) =>
+      cb(rows<WaProposta>(s)),
+    );
+  },
+  recusar(tenantId: string, id: string) {
+    return updateDoc(sub(tenantId, "waPropostas/" + id), { status: "recusada" });
+  },
+  /**
+   * Marca a proposta como aprovada e liga ao agendamento gerado. `confirmacaoPendente`
+   * sinaliza o worker para enviar a confirmação ao cliente no WhatsApp.
+   */
+  aprovar(tenantId: string, id: string, agendamentoId: string) {
+    return updateDoc(sub(tenantId, "waPropostas/" + id), {
+      status: "aprovada",
+      agendamentoId,
+      confirmacaoPendente: true,
+    });
   },
 };
 

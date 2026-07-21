@@ -194,6 +194,55 @@ export interface ConfigBarbearia {
   };
 }
 
+// ---- Integração WhatsApp + IA de agendamento ----
+
+export type WhatsAppStatus = "desconectado" | "connecting" | "qr" | "connected" | "loggedOut";
+
+/** Doc `tenants/{t}/integrations/whatsapp` — ponte entre a UI e o worker Baileys. */
+export interface WhatsAppIntegration {
+  /** Estado atual da conexão (escrito pelo worker). */
+  status: WhatsAppStatus;
+  /** QR como data-URL (`<img src>`); presente só quando status === "qr". */
+  qr?: string | null;
+  /** Número conectado (só dígitos), quando disponível. */
+  phone?: string | null;
+  /** ISO de quando conectou (última vez). */
+  connectedAt?: string | null;
+  /** Intenção do dono: o worker reidrata sessões `connected` no boot. */
+  desiredState?: "connected" | "disconnected";
+  /** Comando pendente escrito pela UI e consumido pelo worker. */
+  command?: { action: "connect" | "disconnect"; ts: number } | null;
+}
+
+export type WaPropostaStatus = "pendente" | "aprovada" | "recusada";
+
+/**
+ * Proposta de agendamento montada pela IA a partir da conversa no WhatsApp.
+ * NÃO é um agendamento — só vira um quando a dona/admin aprova (server action),
+ * que aí grava em `agendamentos` via lib/booking-core.ts.
+ */
+export interface WaProposta {
+  id: string;
+  status: WaPropostaStatus;
+  /** JID do WhatsApp do cliente (ex.: "5511999999999@s.whatsapp.net"). */
+  jid: string;
+  clienteNome: string;
+  clienteTelefone?: string;
+  barbeiroId: string;
+  barbeiroNome?: string;
+  servicoId: string;
+  servicoNome?: string;
+  date: string; // "YYYY-MM-DD"
+  inicio: string; // "HH:MM"
+  duracaoMin?: number;
+  observacoes?: string;
+  /** Preenchido na aprovação: id do agendamento gerado + sinal p/ o worker confirmar. */
+  agendamentoId?: string;
+  /** O worker observa isto p/ enviar a confirmação no WhatsApp e limpa depois. */
+  confirmacaoPendente?: boolean;
+  criadoEm?: string; // ISO
+}
+
 export interface PlanoTier {
   id: "basico" | "pro";
   nome: string;

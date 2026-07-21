@@ -1,0 +1,155 @@
+// Núcleo de agendamento validado no SERVIDOR (Admin SDK). Compartilhado entre o
+// booking público (app/book/[slug]/actions.ts) e a aprovação de propostas da IA
+// do WhatsApp (app/(admin)/whatsapp/actions.ts). Concentra num só lugar as
+// guardas autoritativas: data futura, dia/expediente aberto, sem sobreposição de
+// horário e vínculo/criação de cliente por telefone.
+//
+// Só use isto no servidor — importa firebase-admin. Não importe de componentes
+// do cliente.
+
+import { FieldValue } from "firebase-admin/firestore";
+import { horaParaMin, horarioLivre, ocupaHorario, type IntervaloOcupado } from "@/lib/agenda";
+import { indiceSegDom, mesAnoCurto } from "@/lib/date";
+
+export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+export const HORA = /^\d{2}:\d{2}$/;
+
+export function iniciaisDe(nome: string): string {
+  const p = nome.trim().split(/\s+/);
+  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
+}
+
+/** Intervalos ativos (ocupados/bloqueados) de um barbeiro num dia. */
+export async function intervalosOcupados(
+  tenantRef: FirebaseFirestore.DocumentReference,
+  barbeiroId: string,
+  date: string,
+): Promise<IntervaloOcupado[]> {
+  const snap = await tenantRef
+    .collection("agendamentos")
+    .where("barbeiroId", "==", barbeiroId)
+    .where("date", "==", date)
+    .get();
+  return snap.docs
+    .map((d) => d.data())
+    .filter((a) => ocupaHorario(a.status))
+    .map((a) => ({ inicio: String(a.inicio), duracaoMin: typeof a.duracaoMin === "number" ? a.duracaoMin : 30 }));
+}
+
+export interface CriarAgendamentoInput {
+  barbeiroId: string;
+  servicoId: string;
+  date: string; // YYYY-MM-DD
+  inicio: string; // HH:MM
+  clienteNome: string;
+  clienteTelefone?: string;
+  observacoes?: string;
+  origem?: "booking" | "whatsapp-ia" | "admin";
+}
+
+export interface CriarAgendamentoResult {
+  ok: boolean;
+  error?: string;
+  agendamentoId?: string;
+}
+
+/**
+ * Valida e grava um agendamento no tenant informado, de forma autoritativa (lado
+ * servidor). Lê barbeiro/serviço/config do próprio Firestore — não confia no
+ * payload para preço/duração/expediente. Devolve `{ ok }` ou `{ ok:false, error }`.
+ */
+export async function criarAgendamentoValidado(
+  tenantRef: FirebaseFirestore.DocumentReference,
+  input: CriarAgendamentoInput,
+): Promise<CriarAgendamentoResult> {
+  const nome = (input.clienteNome ?? "").trim();
+  if (!nome || nome.length > 80) return { ok: false, error: "Informe um nome válido." };
+  if (!ISO_DATE.test(input.date) || !HORA.test(input.inicio)) return { ok: false, error: "Data ou horário inválidos." };
+
+  const [barbeiroSnap, servicoSnap, configSnap] = await Promise.all([
+    tenantRef.collection("barbeiros").doc(input.barbeiroId).get(),
+    tenantRef.collection("servicos").doc(input.servicoId).get(),
+    tenantRef.collection("config").doc("main").get(),
+  ]);
+  if (!barbeiroSnap.exists) return { ok: false, error: "Profissional indisponível." };
+  if (!servicoSnap.exists) return { ok: false, error: "Serviço indisponível." };
+
+  const servico = servicoSnap.data()!;
+  const duracaoMin = typeof servico.duracaoMin === "number" ? servico.duracaoMin : 30;
+
+  const horario = (configSnap.exists ? configSnap.data()?.horario : null) as
+    | { abre?: string; fecha?: string; diasAtivos?: boolean[] }
+    | null;
+
+  // Não permite data passada (nível de dia — evita ambiguidade de fuso).
+  const agora = new Date();
+  const hojeISO = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, "0")}-${String(agora.getDate()).padStart(2, "0")}`;
+  if (input.date < hojeISO) return { ok: false, error: "Escolha uma data futura." };
+
+  // Dia fechado (config.horario.diasAtivos, Seg..Dom).
+  if (Array.isArray(horario?.diasAtivos) && horario!.diasAtivos.length === 7 && horario!.diasAtivos[indiceSegDom(input.date)] === false) {
+    return { ok: false, error: "A barbearia não atende nesse dia." };
+  }
+
+  // Dentro do expediente (cabe entre abertura e fechamento).
+  if (horario?.abre || horario?.fecha) {
+    const abreMin = horario.abre ? horaParaMin(horario.abre) : 0;
+    const fechaMin = horario.fecha ? horaParaMin(horario.fecha) : 24 * 60;
+    const iniMin = horaParaMin(input.inicio);
+    if (iniMin < abreMin || iniMin + duracaoMin > fechaMin) {
+      return { ok: false, error: "Horário fora do expediente." };
+    }
+  }
+
+  // Guarda autoritativa: recusa se sobrepuser qualquer agendamento/bloqueio ativo
+  // do barbeiro naquele dia.
+  const ocupados = await intervalosOcupados(tenantRef, input.barbeiroId, input.date);
+  if (!horarioLivre(ocupados, input.inicio, duracaoMin)) {
+    return { ok: false, error: "Esse horário não está mais disponível." };
+  }
+
+  // Vincula/cria o cliente por telefone (id determinístico = evita duplicar).
+  let clienteId: string | undefined;
+  const telDigits = (input.clienteTelefone ?? "").replace(/\D/g, "");
+  if (telDigits.length >= 10) {
+    clienteId = `tel-${telDigits}`;
+    const cliRef = tenantRef.collection("clientes").doc(clienteId);
+    const cliSnap = await cliRef.get();
+    if (!cliSnap.exists) {
+      await cliRef.set({
+        nome,
+        telefone: (input.clienteTelefone ?? "").trim(),
+        telefoneNorm: telDigits,
+        email: "",
+        plano: "Avulso",
+        planId: "",
+        tag: "",
+        ultimoAtendimento: "—",
+        totalGasto: 0,
+        atendimentos: 0,
+        desde: mesAnoCurto(hojeISO),
+        iniciais: iniciaisDe(nome),
+        origem: input.origem ?? "booking",
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
+  }
+
+  const ref = await tenantRef.collection("agendamentos").add({
+    date: input.date,
+    barbeiroId: input.barbeiroId,
+    clienteNome: nome,
+    ...(clienteId ? { clienteId } : {}),
+    clienteTelefone: (input.clienteTelefone ?? "").trim(),
+    servico: servico.nome ?? "",
+    servicoId: input.servicoId,
+    inicio: input.inicio,
+    duracaoMin,
+    status: "agendado",
+    origem: input.origem ?? "booking",
+    ...(input.observacoes ? { observacoes: input.observacoes } : {}),
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  return { ok: true, agendamentoId: ref.id };
+}

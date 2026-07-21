@@ -99,6 +99,21 @@ service cloud.firestore {
         allow read, delete: if canManage(tenantId);
         allow create, update: if canManage(tenantId) && request.resource.data.valor is number;
       }
+
+      // ---- Integração WhatsApp + IA (privado do tenant) ----
+      // A UI lê o status/QR e escreve o comando connect/disconnect; aprova/recusa
+      // propostas. O worker acessa tudo isto pelo Admin SDK (ignora estas regras).
+      match /integrations/{doc} {
+        allow read, write: if canManage(tenantId);
+      }
+      match /waPropostas/{id} {
+        allow read, write: if canManage(tenantId);
+      }
+      match /waConversas/{jid} {
+        allow read, write: if canManage(tenantId);
+      }
+      // `waAuth/**` (sessão do Baileys: creds + chaves do Signal) NÃO tem match:
+      // cai no default-deny. Só o worker (Admin SDK) pode tocar nesses docs.
     }
   }
 }

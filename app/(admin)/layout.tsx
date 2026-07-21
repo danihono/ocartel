@@ -14,6 +14,7 @@ const titles: Record<string, [string, string]> = {
   "/clientes": ["Relacionamento", "Clientes"],
   "/planos": ["Catálogo", "Planos & Serviços"],
   "/pagamentos": ["Financeiro", "Pagamentos"],
+  "/whatsapp": ["Atendimento", "WhatsApp & IA"],
   "/configuracoes": ["Conta", "Configurações"],
 };
 

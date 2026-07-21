@@ -16,6 +16,7 @@ const items: { label: string; href: string }[] = [
   { label: "Clientes", href: "/clientes" },
   { label: "Planos", href: "/planos" },
   { label: "Pagamentos", href: "/pagamentos" },
+  { label: "WhatsApp & IA", href: "/whatsapp" },
   { label: "Configurações", href: "/configuracoes" },
 ];
 

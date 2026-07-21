@@ -1,0 +1,27 @@
+{
+  "name": "ocartel-whatsapp-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": "20" },
+  "description": "Worker sempre-ligado: conecta o WhatsApp da barbearia (Baileys) e roda a IA de agendamento. Roda FORA do Next.js/App Hosting (ver README).",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "7.0.0-rc13",
+    "firebase-admin": "^13.0.2",
+    "openai": "^4.77.0",
+    "pino": "^9.6.0",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@types/qrcode": "^1.5.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
