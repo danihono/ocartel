@@ -4,11 +4,15 @@
 // servidor e no cliente) enquanto o estado de auth resolve — assim os dados
 // assíncronos do Firestore nunca dirigem o 1º paint (evita mismatch de hidratação).
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { c, font } from "@/lib/theme";
 import { Seal } from "@/components/ui/Seal";
 import { useAuth } from "@/lib/firebase/auth";
+
+// useLayoutEffect roda ANTES do paint (mata o flash do splash ao restaurar o
+// latch), mas avisa no SSR — no servidor cai para useEffect (no-op visual).
+const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 function Splash() {
   return (
@@ -21,10 +25,11 @@ function Splash() {
   );
 }
 
-// "Liberado nesta sessão" persistido fora do estado do React: sobrevive a
-// remontagens do guard durante a navegação (o useState zera ao remontar). Só é
-// escrito dentro de efeitos no cliente — nunca no servidor —, então o SSR
-// continua determinístico (sempre splash) e o flag não vaza entre requests.
+// "Já logou neste navegador" persistido em localStorage (sobrevive a reload, nova
+// aba e nova janela) + um latch de módulo (sobrevive a remontagens do guard na
+// navegação). Só é lido/escrito no cliente — nunca no SSR —, então o 1º paint
+// continua determinístico e o flag não vaza entre requests. É restaurado num
+// layout-effect (antes do paint) → nenhum frame de splash em reload.
 const SESSAO_KEY = "oc_sessao_liberada";
 let sessaoLiberada = false;
 
@@ -63,16 +68,17 @@ export default function AuthGuard({ need, children }: { need: "tenant" | "superA
   // também o caso de o guard remontar — aí o latch continua de pé.
   const [jaLiberou, setJaLiberou] = useState(() => sessaoLiberada);
 
-  // Restaura o latch de uma sessão já autenticada (reload duro / F5): um frame
-  // após o paint determinístico, sem quebrar a hidratação.
-  useEffect(() => {
+  // Restaura o latch de uma sessão já autenticada (reload / F5 / nova aba) ANTES
+  // do paint (useLayoutEffect) → sem nenhum frame de splash. O 1º render (SSR +
+  // 1ª hidratação) ainda é determinístico (splash), então não há mismatch.
+  useIsoLayoutEffect(() => {
     try {
-      if (sessionStorage.getItem(SESSAO_KEY) === "1") {
+      if (localStorage.getItem(SESSAO_KEY) === "1") {
         sessaoLiberada = true;
         setJaLiberou(true);
       }
     } catch {
-      /* sem sessionStorage — ignora */
+      /* sem localStorage — ignora */
     }
   }, []);
 
@@ -81,7 +87,7 @@ export default function AuthGuard({ need, children }: { need: "tenant" | "superA
       sessaoLiberada = true;
       setJaLiberou(true);
       try {
-        sessionStorage.setItem(SESSAO_KEY, "1");
+        localStorage.setItem(SESSAO_KEY, "1");
       } catch {
         /* ignora */
       }
@@ -92,8 +98,9 @@ export default function AuthGuard({ need, children }: { need: "tenant" | "superA
   useEffect(() => {
     if (!loading && !user) {
       sessaoLiberada = false;
+      setJaLiberou(false);
       try {
-        sessionStorage.removeItem(SESSAO_KEY);
+        localStorage.removeItem(SESSAO_KEY);
       } catch {
         /* ignora */
       }
@@ -107,9 +114,14 @@ export default function AuthGuard({ need, children }: { need: "tenant" | "superA
     else if (tenantPendente && carenciaVencida) router.replace("/login");
   }, [semLogin, semPermissao, superSemTenant, tenantPendente, carenciaVencida, router]);
 
-  // Logado e autorizado (ou já liberado antes, inclusive via latch de módulo)
-  // recebe conteúdo direto, sem splash nas trocas internas de aba.
-  if (autorizado && (sessaoLiberada || jaLiberou || liberado)) return <>{children}</>;
+  // Precisa redirecionar? (estado JÁ resolvido — não durante `loading`.)
+  const precisaRedirecionar = semLogin || semPermissao || superSemTenant || (tenantPendente && carenciaVencida);
+
+  // Já logou neste navegador (latch/hint) OU autorizado agora → conteúdo direto,
+  // sem splash — inclusive durante o `loading` de um reload (render otimista).
+  // Se a auth real falhar, `precisaRedirecionar` bloqueia isto e os efeitos acima
+  // já mandam para /login.
+  if (!precisaRedirecionar && (sessaoLiberada || jaLiberou || liberado)) return <>{children}</>;
   if (loading || semLogin || semPermissao || superSemTenant || tenantPendente) return <Splash />;
   return <>{children}</>;
 }

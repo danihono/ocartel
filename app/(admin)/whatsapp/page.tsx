@@ -91,6 +91,15 @@ function ConexaoCard() {
         <div style={{ marginTop: 16, fontSize: 13, color: c.ink3 }}>Abrindo a sessão com o WhatsApp…</div>
       ) : null}
 
+      {/* Comando de conectar enviado, mas o worker ainda não respondeu com status/QR. */}
+      {wa?.desiredState === "connected" && (status === "desconectado" || status === "loggedOut") ? (
+        <div style={{ marginTop: 16, padding: "12px 14px", background: c.amberBg, borderRadius: 10, fontSize: 12.5, color: c.amberText, lineHeight: 1.5 }}>
+          <b>Aguardando o serviço de WhatsApp iniciar…</b> Se o QR não aparecer em alguns segundos,
+          o serviço de conexão (worker) provavelmente não está no ar. É ele que gera o QR — o painel
+          sozinho não conecta. Confira se o worker foi publicado (Cloud Run).
+        </div>
+      ) : null}
+
       {conectado ? (
         <div style={{ marginTop: 16, fontSize: 13, color: c.ink2, lineHeight: 1.5 }}>
           O número está conectado. A IA responde as mensagens, sugere horários livres e monta propostas de
