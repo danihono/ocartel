@@ -8,7 +8,7 @@ import { useStore, makeId } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { duracaoServico } from "@/lib/selectors";
 import { horarioLivre, ocupaHorario } from "@/lib/agenda";
-import { HOJE_ISO } from "@/lib/date";
+import { HOJE_ISO, hojeLocalISO } from "@/lib/date";
 
 export interface NovoAgendamentoDefaults {
   dateISO?: string;
@@ -43,7 +43,7 @@ export function NovoAgendamentoModal({
     setCliente(defaults?.clienteNome ?? "");
     setServico(defaults?.servico ?? state.servicos[0]?.nome ?? "");
     setBarbeiroId(defaults?.barbeiroId ?? state.barbeiros[0]?.id ?? "");
-    setDate(defaults?.dateISO ?? HOJE_ISO);
+    setDate(defaults?.dateISO ?? hojeLocalISO());
     setInicio(defaults?.inicio ?? "09:00");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);

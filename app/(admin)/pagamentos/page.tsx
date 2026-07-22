@@ -22,7 +22,8 @@ import {
   type FiltroTipoCobranca,
   type FiltroTransacao,
 } from "@/lib/selectors";
-import { HOJE_ISO, isoParaDiaMes } from "@/lib/date";
+import { isoParaDiaMes } from "@/lib/date";
+import { useHoje } from "@/lib/useRelogio";
 import { RegistrarPagamentoModal } from "@/components/admin/RegistrarPagamentoModal";
 import { NovaCobrancaModal } from "@/components/admin/NovaCobrancaModal";
 import type { Transacao, TransacaoStatus } from "@/lib/types";
@@ -55,8 +56,8 @@ function useIsNarrow(maxWidth = 759): boolean {
 }
 
 /** Data exibida: pagamento (se pago) ou vencimento (se em aberto). */
-function dataExibida(t: Transacao): string {
-  if (statusCobranca(t) === "pago") return t.paidAt ? isoParaDiaMes(t.paidAt) : t.data;
+function dataExibida(t: Transacao, hojeISO: string): string {
+  if (statusCobranca(t, hojeISO) === "pago") return t.paidAt ? isoParaDiaMes(t.paidAt) : t.data;
   return t.dueDate ? isoParaDiaMes(t.dueDate) : t.data;
 }
 
@@ -65,6 +66,7 @@ export default function PagamentosPage() {
   const { profile } = useAuth();
   const toast = useToast();
   const narrow = useIsNarrow();
+  const hoje = useHoje();
 
   const [filtro, setFiltro] = useState<FiltroTransacao>("Todas");
   const [tipo, setTipo] = useState<FiltroTipoCobranca>("todos");
@@ -72,19 +74,19 @@ export default function PagamentosPage() {
   const [novaOpen, setNovaOpen] = useState(false);
   const [pagar, setPagar] = useState<Transacao | null>(null);
 
-  const resumo = selectResumoFinanceiro(state);
-  const contagens = selectContagensTransacao(state, tipo);
+  const resumo = selectResumoFinanceiro(state, hoje);
+  const contagens = selectContagensTransacao(state, tipo, hoje);
   const transacoes = useMemo(() => {
-    const lista = selectTransacoes(state, filtro, busca, tipo);
+    const lista = selectTransacoes(state, filtro, busca, tipo, hoje);
     return [...lista].sort((a, b) => {
-      const pa = PRIORIDADE[statusCobranca(a)];
-      const pb = PRIORIDADE[statusCobranca(b)];
+      const pa = PRIORIDADE[statusCobranca(a, hoje)];
+      const pb = PRIORIDADE[statusCobranca(b, hoje)];
       if (pa !== pb) return pa - pb;
       const da = a.dueDate ?? a.paidAt ?? "";
       const db = b.dueDate ?? b.paidAt ?? "";
       return db.localeCompare(da);
     });
-  }, [state, filtro, busca, tipo]);
+  }, [state, filtro, busca, tipo, hoje]);
 
   const kpis = [
     { l: "Recebido este mês", v: formatBRL(resumo.recebidoMes), dot: c.green, sub: "" },
@@ -93,7 +95,7 @@ export default function PagamentosPage() {
   ];
 
   function gerarMensalidades() {
-    const cicloMes = HOJE_ISO.slice(0, 7); // "YYYY-MM"
+    const cicloMes = hoje.slice(0, 7); // "YYYY-MM"
 
     // Plano vigente do cliente: por planId (preferido) ou casando o rótulo legado pelo nome.
     const planoDoCliente = (cl: (typeof state.clientes)[number]) => {
@@ -238,7 +240,7 @@ export default function PagamentosPage() {
         ) : null}
 
         {transacoes.map((t) => {
-          const st = statusCobranca(t);
+          const st = statusCobranca(t, hoje);
           const sm = statusMeta[st];
           const cobrado = valorCobrado(t);
           const recebido = valorRecebido(t);
@@ -253,7 +255,7 @@ export default function PagamentosPage() {
                   <span style={{ fontSize: 14, fontWeight: 700, color: c.inkTitle, flex: 1 }}>{t.clienteNome}</span>
                   <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: sm.bg, color: sm.fg }}>{sm.label}</span>
                 </div>
-                <div style={{ fontSize: 13, color: c.ink2 }}>{t.servico} · {dataExibida(t)}</div>
+                <div style={{ fontSize: 13, color: c.ink2 }}>{t.servico} · {dataExibida(t, hoje)}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 15, fontWeight: 700, color: c.inkTitle }}>{formatBRL(valorMostrado)}</span>
                   {divergente ? <span style={{ fontSize: 11.5, color: c.ink3 }}>cobrado {formatBRL(cobrado)}</span> : null}
@@ -275,7 +277,7 @@ export default function PagamentosPage() {
             <div key={t.id} style={{ display: "grid", gridTemplateColumns: COLS, alignItems: "center", padding: "13px 20px", borderBottom: `1px solid ${c.borderSoft}` }}>
               <span style={{ fontSize: 13.5, color: c.inkTitle, fontWeight: 600 }}>{t.clienteNome}</span>
               <span style={{ fontSize: 13, color: c.ink2 }}>{t.servico}</span>
-              <span style={{ fontSize: 12.5, color: st === "atrasado" ? c.redText : c.ink2, fontWeight: 600 }}>{dataExibida(t)}</span>
+              <span style={{ fontSize: 12.5, color: st === "atrasado" ? c.redText : c.ink2, fontWeight: 600 }}>{dataExibida(t, hoje)}</span>
               <span>
                 <span style={{ fontSize: 13.5, color: c.inkTitle, fontWeight: 700 }}>{formatBRL(valorMostrado)}</span>
                 {divergente ? <div style={{ fontSize: 11, color: c.ink3 }}>cobrado {formatBRL(cobrado)}</div> : null}

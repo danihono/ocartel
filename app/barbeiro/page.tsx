@@ -8,7 +8,7 @@
 // Acesso: usuário com papel `barbeiro` cai aqui no login; o admin abre em modo
 // preview pelo link "Tela do barbeiro ↗" (com ?b=<barbeiroId>).
 
-import { Suspense, useMemo, useState, type CSSProperties } from "react";
+import { Suspense, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useSearchParams } from "next/navigation";
 import { c, font } from "@/lib/theme";
 import AuthGuard from "@/components/auth/AuthGuard";
@@ -21,7 +21,8 @@ import { useToast } from "@/components/ui/Toast";
 import { blocoMeta, tagMeta } from "@/lib/status";
 import { horarioLivre, ocupaHorario } from "@/lib/agenda";
 import { slug as slugify, selectClientesFiltrados, precoServico, formatBRL, fmtDur } from "@/lib/selectors";
-import { HOJE_ISO, addDias, isoParaLabelLongo, comparaHora } from "@/lib/date";
+import { HOJE_ISO, addDias, hojeLocalISO, isoParaLabelLongo, comparaHora } from "@/lib/date";
+import { useHoje } from "@/lib/useRelogio";
 import type { Agendamento } from "@/lib/types";
 
 type Tab = "agenda" | "clientes" | "resumo";
@@ -53,8 +54,13 @@ function BarbeiroMobile() {
   const searchParams = useSearchParams();
   const bParam = searchParams.get("b");
 
+  const hoje = useHoje();
   const [tab, setTab] = useState<Tab>("agenda");
+  // Semente determinística no 1º render (SSR-safe); salta para a data real pós-mount.
   const [date, setDate] = useState(HOJE_ISO);
+  useEffect(() => {
+    setDate(hojeLocalISO());
+  }, []);
   const [busca, setBusca] = useState("");
   const [bloquearOpen, setBloquearOpen] = useState(false);
   const [detalhe, setDetalhe] = useState<Agendamento | null>(null);
@@ -101,8 +107,8 @@ function BarbeiroMobile() {
               <button style={btnNav} onClick={() => setDate((d) => addDias(d, -1))} aria-label="Dia anterior">‹</button>
               <div style={{ flex: 1, textAlign: "center" }}>
                 <div style={{ fontFamily: font.serif, fontSize: 15, fontWeight: 700, color: c.inkTitle }}>{isoParaLabelLongo(date)}</div>
-                {date !== HOJE_ISO ? (
-                  <button onClick={() => setDate(HOJE_ISO)} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 11.5, fontWeight: 700, color: c.brassDeep }}>
+                {date !== hoje ? (
+                  <button onClick={() => setDate(hoje)} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 11.5, fontWeight: 700, color: c.brassDeep }}>
                     Voltar para hoje
                   </button>
                 ) : (

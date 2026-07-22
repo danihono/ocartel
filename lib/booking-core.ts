@@ -19,21 +19,27 @@ export function iniciaisDe(nome: string): string {
   return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
+/** Query dos agendamentos de um barbeiro num dia (equality-only: sem índice composto). */
+export function queryDoDia(tenantRef: FirebaseFirestore.DocumentReference, barbeiroId: string, date: string) {
+  return tenantRef.collection("agendamentos").where("barbeiroId", "==", barbeiroId).where("date", "==", date);
+}
+
+/** Mapeia docs de agendamento em intervalos ativos (ocupados/bloqueados). */
+export function intervalosDeDocs(docs: FirebaseFirestore.QueryDocumentSnapshot[]): IntervaloOcupado[] {
+  return docs
+    .map((d) => d.data())
+    .filter((a) => ocupaHorario(a.status))
+    .map((a) => ({ inicio: String(a.inicio), duracaoMin: typeof a.duracaoMin === "number" ? a.duracaoMin : 30 }));
+}
+
 /** Intervalos ativos (ocupados/bloqueados) de um barbeiro num dia. */
 export async function intervalosOcupados(
   tenantRef: FirebaseFirestore.DocumentReference,
   barbeiroId: string,
   date: string,
 ): Promise<IntervaloOcupado[]> {
-  const snap = await tenantRef
-    .collection("agendamentos")
-    .where("barbeiroId", "==", barbeiroId)
-    .where("date", "==", date)
-    .get();
-  return snap.docs
-    .map((d) => d.data())
-    .filter((a) => ocupaHorario(a.status))
-    .map((a) => ({ inicio: String(a.inicio), duracaoMin: typeof a.duracaoMin === "number" ? a.duracaoMin : 30 }));
+  const snap = await queryDoDia(tenantRef, barbeiroId, date).get();
+  return intervalosDeDocs(snap.docs);
 }
 
 export interface CriarAgendamentoInput {
@@ -101,14 +107,8 @@ export async function criarAgendamentoValidado(
     }
   }
 
-  // Guarda autoritativa: recusa se sobrepuser qualquer agendamento/bloqueio ativo
-  // do barbeiro naquele dia.
-  const ocupados = await intervalosOcupados(tenantRef, input.barbeiroId, input.date);
-  if (!horarioLivre(ocupados, input.inicio, duracaoMin)) {
-    return { ok: false, error: "Esse horário não está mais disponível." };
-  }
-
   // Vincula/cria o cliente por telefone (id determinístico = evita duplicar).
+  // Fica FORA da transação de agenda: não é a parte sensível a corrida.
   let clienteId: string | undefined;
   const telDigits = (input.clienteTelefone ?? "").replace(/\D/g, "");
   if (telDigits.length >= 10) {
@@ -135,21 +135,35 @@ export async function criarAgendamentoValidado(
     }
   }
 
-  const ref = await tenantRef.collection("agendamentos").add({
-    date: input.date,
-    barbeiroId: input.barbeiroId,
-    clienteNome: nome,
-    ...(clienteId ? { clienteId } : {}),
-    clienteTelefone: (input.clienteTelefone ?? "").trim(),
-    servico: servico.nome ?? "",
-    servicoId: input.servicoId,
-    inicio: input.inicio,
-    duracaoMin,
-    status: "agendado",
-    origem: input.origem ?? "booking",
-    ...(input.observacoes ? { observacoes: input.observacoes } : {}),
-    createdAt: FieldValue.serverTimestamp(),
+  // Guarda autoritativa ATÔMICA: lê os ocupados e cria o agendamento na MESMA
+  // transação. Sem isto, dois bookings simultâneos no mesmo horário passariam os
+  // dois na checagem (TOCTOU) e gerariam agendamento duplo. A transação serializa:
+  // se outra escrita entrar no intervalo lido, o Firestore reexecuta o callback —
+  // que então vê o slot ocupado e recusa. É o que faz o bloqueio do barbeiro
+  // "valer" (a tela do cliente é só conveniência).
+  const agendamentosCol = tenantRef.collection("agendamentos");
+  const agendamentoId = await tenantRef.firestore.runTransaction(async (tx) => {
+    const snap = await tx.get(queryDoDia(tenantRef, input.barbeiroId, input.date));
+    if (!horarioLivre(intervalosDeDocs(snap.docs), input.inicio, duracaoMin)) return null;
+    const ref = agendamentosCol.doc();
+    tx.set(ref, {
+      date: input.date,
+      barbeiroId: input.barbeiroId,
+      clienteNome: nome,
+      ...(clienteId ? { clienteId } : {}),
+      clienteTelefone: (input.clienteTelefone ?? "").trim(),
+      servico: servico.nome ?? "",
+      servicoId: input.servicoId,
+      inicio: input.inicio,
+      duracaoMin,
+      status: "agendado",
+      origem: input.origem ?? "booking",
+      ...(input.observacoes ? { observacoes: input.observacoes } : {}),
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return ref.id;
   });
 
-  return { ok: true, agendamentoId: ref.id };
+  if (!agendamentoId) return { ok: false, error: "Esse horário não está mais disponível." };
+  return { ok: true, agendamentoId };
 }

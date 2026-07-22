@@ -64,7 +64,7 @@ export function AgendamentoRecorrenteModal({
 
   useEffect(() => {
     if (!open) return;
-    const inicial = defaults?.dateISO ?? HOJE_ISO;
+    const inicial = defaults?.dateISO ?? hojeLocalISO();
     setCliente("");
     setServico(state.servicos[0]?.nome ?? "");
     setBarbeiroId(defaults?.barbeiroId ?? state.barbeiros[0]?.id ?? "");

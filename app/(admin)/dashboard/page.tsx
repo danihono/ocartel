@@ -21,7 +21,8 @@ import {
   selectResumoFinanceiro,
   selectServicosMaisVendidos,
 } from "@/lib/selectors";
-import { HOJE_ISO, isoParaDiaMes, mesLabel } from "@/lib/date";
+import { isoParaDiaMes, mesLabel } from "@/lib/date";
+import { useHoje } from "@/lib/useRelogio";
 import { AgendamentoModal } from "@/components/admin/AgendamentoModal";
 
 const eyebrow = { fontSize: 11, letterSpacing: 0.7, textTransform: "uppercase" as const, color: c.ink3, fontWeight: 600 };
@@ -33,18 +34,19 @@ const subPeriodo: Record<Periodo, string> = { "7d": "Últimos 7 dias", "30d": "�
 
 export default function DashboardPage() {
   const { state } = useStore();
+  const hoje = useHoje();
   const [periodo, setPeriodo] = useState<Periodo>("30d");
   const [agSel, setAgSel] = useState<string | null>(null);
 
-  const kpiHoje = selectKpiAgendamentosHoje(state, HOJE_ISO);
-  const proximos = selectProximos(state, HOJE_ISO);
-  const dk = selectDashboardKpis(state, HOJE_ISO);
-  const resumo = selectResumoFinanceiro(state, HOJE_ISO);
-  const contagens = selectContagensTransacao(state);
-  const assinaturas = selectAssinaturas(state, HOJE_ISO);
-  const desempenho = selectDesempenhoBarbeiros(state, HOJE_ISO);
-  const topServicos = selectServicosMaisVendidos(state, HOJE_ISO);
-  const fatSerie = selectFaturamentoSerie(state, diasPeriodo[periodo], HOJE_ISO);
+  const kpiHoje = selectKpiAgendamentosHoje(state, hoje);
+  const proximos = selectProximos(state, hoje);
+  const dk = selectDashboardKpis(state, hoje);
+  const resumo = selectResumoFinanceiro(state, hoje);
+  const contagens = selectContagensTransacao(state, "todos", hoje);
+  const assinaturas = selectAssinaturas(state, hoje);
+  const desempenho = selectDesempenhoBarbeiros(state, hoje);
+  const topServicos = selectServicosMaisVendidos(state, hoje);
+  const fatSerie = selectFaturamentoSerie(state, diasPeriodo[periodo], hoje);
 
   const totalFin = resumo.recebidoMes + resumo.aReceber + resumo.emAtraso || 1;
   const kpiCards: { label: string; value: string; delta?: string; bar?: number }[] = [
@@ -139,7 +141,7 @@ export default function DashboardPage() {
           <div style={{ display: "flex", alignItems: "center", marginBottom: 6 }}>
             <div style={{ flex: 1 }}>
               <span style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.inkTitle }}>Próximos na agenda</span>
-              <span style={{ fontSize: 12, color: c.ink3, marginLeft: 10 }}>Hoje · {isoParaDiaMes(HOJE_ISO)}</span>
+              <span style={{ fontSize: 12, color: c.ink3, marginLeft: 10 }}>Hoje · {isoParaDiaMes(hoje)}</span>
             </div>
             <Link href="/agenda">
               <span style={{ fontSize: 12.5, fontWeight: 700, color: c.brassDeep, cursor: "pointer" }}>Ver agenda →</span>
@@ -208,7 +210,7 @@ export default function DashboardPage() {
           <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
             <CardTitle>Financeiro do mês</CardTitle>
             <div style={{ flex: 1 }} />
-            <span style={{ fontSize: 12, color: c.ink3, fontWeight: 600, textTransform: "capitalize" }}>{mesLabel(HOJE_ISO)}</span>
+            <span style={{ fontSize: 12, color: c.ink3, fontWeight: 600, textTransform: "capitalize" }}>{mesLabel(hoje)}</span>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
             {[

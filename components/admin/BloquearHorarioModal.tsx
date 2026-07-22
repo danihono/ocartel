@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { useStore, makeId } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { horarioLivre, ocupaHorario } from "@/lib/agenda";
-import { HOJE_ISO } from "@/lib/date";
+import { HOJE_ISO, hojeLocalISO } from "@/lib/date";
 
 export function BloquearHorarioModal({
   open,
@@ -31,7 +31,7 @@ export function BloquearHorarioModal({
   useEffect(() => {
     if (!open) return;
     setBarbeiroId(defaults?.barbeiroId ?? state.barbeiros[0]?.id ?? "");
-    setDate(defaults?.dateISO ?? HOJE_ISO);
+    setDate(defaults?.dateISO ?? hojeLocalISO());
     setInicio(defaults?.inicio ?? "12:00");
     setDuracaoMin(60);
     setMotivo("Almoço");
