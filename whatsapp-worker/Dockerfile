@@ -18,5 +18,7 @@ ENV NODE_ENV=production
 ENV PORT=8080
 EXPOSE 8080
 
-# tsx roda TypeScript direto (sem passo de build).
-CMD ["npx", "tsx", "src/index.ts"]
+# tsx roda TypeScript direto (sem passo de build). Chama o binário LOCAL
+# (node_modules/.bin/tsx) — nunca baixa nada em runtime (o FS do Cloud Run é
+# somente-leitura; baixar via npx faria o container reiniciar em loop).
+CMD ["node_modules/.bin/tsx", "src/index.ts"]
