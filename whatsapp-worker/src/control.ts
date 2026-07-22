@@ -1,125 +1,118 @@
-// Orquestra as sessões a partir do Firestore. Para cada tenant (barbearia) escuta:
-//  1. integrations/whatsapp  → comando connect/disconnect + reidratação no boot.
-//  2. waPropostas (confirmacaoPendente==true) → envia a confirmação ao cliente.
+// Orquestra as sessões a partir do Firestore — por POLLING, não por listeners.
 //
-// Usa listeners POR TENANT (não collectionGroup) de propósito: consultas de campo
-// único dentro de UMA coleção são auto-indexadas pelo Firestore — sem precisar
-// criar índice de collection-group manualmente.
+// Os listeners em tempo real (onSnapshot) do Firestore Admin SDK são um stream
+// gRPC de longa duração que, no Cloud Run, morre de tempos em tempos com
+// "Exceeded maximum number of retries allowed" — deixando o worker surdo. Aqui a
+// gente troca por leituras pontuais (.get()) num loop: chamada curta, robusta, sem
+// stream pra cair. Latência de alguns segundos é irrelevante para o caso (conectar,
+// reidratar, confirmar).
 //
-// TODOS os listeners são RESILIENTES: o Firestore em tempo real pode cair com
-// "Exceeded maximum number of retries allowed" (stream gRPC expira). Quando cai, a
-// gente reassina sozinho com backoff — senão o worker fica "surdo" e nunca vê o
-// comando de conectar.
+// A cada ciclo, para cada tenant (barbearia):
+//  1. lê integrations/whatsapp → comando connect/disconnect (dedupe por ts) +
+//     reidratação (desiredState connected e sem socket vivo).
+//  2. lê waPropostas (confirmacaoPendente==true) → envia a confirmação ao cliente.
 
 import { db } from "./firebase.js";
 import { startSession, logoutSession, endSession, isLive, getSock, log } from "./session.js";
 
-const attached = new Set<string>(); // tenants já com listeners
+const POLL_MS = 4000; // intervalo do ciclo
+const REFRESH_TENANTS_MS = 60_000; // recarrega a lista de tenants a cada 1 min
+
 const ultimoComando = new Map<string, number>(); // dedupe de command.ts por tenant
+let tenantIds: string[] = [];
+let ultimaListagem = 0;
+let rodando = false;
 
 function tenantRef(tenantId: string) {
   return db.collection("tenants").doc(tenantId);
 }
 
-/**
- * Assina um listener e o reassina automaticamente se ele cair. `criar` recebe um
- * callback `onErro` que deve ser passado ao error-handler do onSnapshot; ao ser
- * chamado, reassina depois de um backoff (cap 30s).
- */
-function assinarComReconexao(nome: string, criar: (onErro: (err: unknown) => void) => void) {
-  let tentativa = 0;
-  const iniciar = () => {
-    const onErro = (err: unknown) => {
-      tentativa += 1;
-      const delay = Math.min(2000 * tentativa, 30_000);
-      log.error({ err, nome, delay }, "listener caiu — reassinando");
-      setTimeout(iniciar, delay);
-    };
-    try {
-      criar(onErro);
-      tentativa = 0; // assinou de novo com sucesso
-    } catch (err) {
-      onErro(err);
+async function tenantIdsAtuais(): Promise<string[]> {
+  const agora = Date.now();
+  if (tenantIds.length === 0 || agora - ultimaListagem > REFRESH_TENANTS_MS) {
+    const snap = await db.collection("tenants").get();
+    tenantIds = snap.docs.map((d) => d.id);
+    ultimaListagem = agora;
+  }
+  return tenantIds;
+}
+
+async function processarTenant(tenantId: string) {
+  const ref = tenantRef(tenantId);
+
+  // 1. comando / reidratação
+  const waSnap = await ref.collection("integrations").doc("whatsapp").get();
+  if (waSnap.exists) {
+    const data = waSnap.data() ?? {};
+    const cmd = data.command as { action?: string; ts?: number } | undefined;
+
+    if (cmd?.action && typeof cmd.ts === "number" && cmd.ts !== ultimoComando.get(tenantId)) {
+      ultimoComando.set(tenantId, cmd.ts);
+      log.info({ tenantId, action: cmd.action }, "comando recebido");
+      if (cmd.action === "connect") {
+        startSession(tenantId).catch((err) => log.error({ err, tenantId }, "connect falhou"));
+      } else if (cmd.action === "disconnect") {
+        logoutSession(tenantId).catch((err) => log.error({ err, tenantId }, "disconnect falhou"));
+      }
+    } else if (data.desiredState === "connected" && data.status !== "loggedOut" && !isLive(tenantId)) {
+      // Reidratação / auto-recuperação: quer estar conectado mas não há socket vivo.
+      log.info({ tenantId }, "reidratando sessão");
+      startSession(tenantId).catch((err) => log.error({ err, tenantId }, "reidratação falhou"));
     }
-  };
-  iniciar();
+  }
+
+  // 2. confirmações pendentes de propostas aprovadas
+  const props = await ref.collection("waPropostas").where("confirmacaoPendente", "==", true).get();
+  for (const doc of props.docs) {
+    const p = doc.data();
+    const sock = getSock(tenantId);
+    if (!sock) continue; // sem sessão viva agora; tenta no próximo ciclo
+    const jid = String(p.jid ?? "");
+    if (!jid) {
+      await doc.ref.update({ confirmacaoPendente: false });
+      continue;
+    }
+    const texto =
+      `✅ Agendamento confirmado!\n` +
+      `${p.servicoNome ?? "Serviço"} com ${p.barbeiroNome ?? "nosso profissional"}\n` +
+      `${p.date} às ${p.inicio}.\n` +
+      `Qualquer coisa, é só chamar por aqui.`;
+    try {
+      await sock.sendMessage(jid, { text: texto });
+      await doc.ref.update({ confirmacaoPendente: false });
+      log.info({ tenantId, jid }, "confirmação enviada");
+    } catch (err) {
+      log.error({ err, tenantId, jid }, "falha ao enviar confirmação");
+    }
+  }
 }
 
-function attachTenant(tenantId: string) {
-  if (attached.has(tenantId)) return;
-  attached.add(tenantId);
-
-  // (1) status/comando do WhatsApp
-  assinarComReconexao(`integrations:${tenantId}`, (onErro) =>
-    tenantRef(tenantId)
-      .collection("integrations")
-      .doc("whatsapp")
-      .onSnapshot((snap) => {
-        if (!snap.exists) return;
-        const data = snap.data() ?? {};
-
-        // Comando explícito da UI (connect/disconnect), deduplicado por ts.
-        const cmd = data.command as { action?: string; ts?: number } | undefined;
-        if (cmd?.action && typeof cmd.ts === "number" && cmd.ts !== ultimoComando.get(tenantId)) {
-          ultimoComando.set(tenantId, cmd.ts);
-          if (cmd.action === "connect") {
-            startSession(tenantId).catch((err) => log.error({ err, tenantId }, "connect falhou"));
-          } else if (cmd.action === "disconnect") {
-            logoutSession(tenantId).catch((err) => log.error({ err, tenantId }, "disconnect falhou"));
-          }
-          return;
-        }
-
-        // Reidratação: sessão marcada como conectada mas sem socket vivo → recria
-        // sem QR (após restart/deploy). Stagger para evitar thundering-herd.
-        if (data.desiredState === "connected" && data.status !== "loggedOut" && !isLive(tenantId)) {
-          setTimeout(
-            () => startSession(tenantId).catch((err) => log.error({ err, tenantId }, "reidratação falhou")),
-            Math.random() * 800,
-          );
-        }
-      }, onErro),
-  );
-
-  // (2) confirmações pendentes de propostas aprovadas
-  assinarComReconexao(`propostas:${tenantId}`, (onErro) =>
-    tenantRef(tenantId)
-      .collection("waPropostas")
-      .where("confirmacaoPendente", "==", true)
-      .onSnapshot(async (snap) => {
-        for (const doc of snap.docs) {
-          const p = doc.data();
-          const sock = getSock(tenantId);
-          if (!sock) continue; // sem sessão viva agora; tenta de novo no próximo snapshot
-          const jid = String(p.jid ?? "");
-          if (!jid) {
-            await doc.ref.update({ confirmacaoPendente: false });
-            continue;
-          }
-          const texto =
-            `✅ Agendamento confirmado!\n` +
-            `${p.servicoNome ?? "Serviço"} com ${p.barbeiroNome ?? "nosso profissional"}\n` +
-            `${p.date} às ${p.inicio}.\n` +
-            `Qualquer coisa, é só chamar por aqui.`;
-          try {
-            await sock.sendMessage(jid, { text: texto });
-            await doc.ref.update({ confirmacaoPendente: false });
-            log.info({ tenantId, jid }, "confirmação enviada");
-          } catch (err) {
-            log.error({ err, tenantId, jid }, "falha ao enviar confirmação");
-          }
-        }
-      }, onErro),
-  );
+async function tick() {
+  if (rodando) return; // não sobrepõe ciclos
+  rodando = true;
+  try {
+    const ids = await tenantIdsAtuais();
+    for (const id of ids) {
+      try {
+        await processarTenant(id);
+      } catch (err) {
+        log.error({ err, tenantId: id }, "erro ao processar tenant");
+      }
+    }
+  } catch (err) {
+    log.error({ err }, "erro no ciclo de polling (tenants)");
+  } finally {
+    rodando = false;
+  }
 }
 
-/** Escuta a coleção de tenants e liga os listeners de cada barbearia (inclui novas). */
+/** Inicia o controle por polling. Substitui os antigos listeners onSnapshot. */
 export function watchTenants() {
-  assinarComReconexao("tenants", (onErro) =>
-    db.collection("tenants").onSnapshot((snap) => {
-      for (const doc of snap.docs) attachTenant(doc.id);
-    }, onErro),
-  );
+  log.info({ pollMs: POLL_MS }, "controle por polling iniciado");
+  setInterval(() => {
+    tick().catch((err) => log.error({ err }, "tick falhou"));
+  }, POLL_MS);
+  tick().catch((err) => log.error({ err }, "tick inicial falhou"));
 }
 
 export { endSession };
