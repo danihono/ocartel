@@ -5,6 +5,11 @@
 // Usa listeners POR TENANT (não collectionGroup) de propósito: consultas de campo
 // único dentro de UMA coleção são auto-indexadas pelo Firestore — sem precisar
 // criar índice de collection-group manualmente.
+//
+// TODOS os listeners são RESILIENTES: o Firestore em tempo real pode cair com
+// "Exceeded maximum number of retries allowed" (stream gRPC expira). Quando cai, a
+// gente reassina sozinho com backoff — senão o worker fica "surdo" e nunca vê o
+// comando de conectar.
 
 import { db } from "./firebase.js";
 import { startSession, logoutSession, endSession, isLive, getSock, log } from "./session.js";
@@ -16,16 +21,40 @@ function tenantRef(tenantId: string) {
   return db.collection("tenants").doc(tenantId);
 }
 
+/**
+ * Assina um listener e o reassina automaticamente se ele cair. `criar` recebe um
+ * callback `onErro` que deve ser passado ao error-handler do onSnapshot; ao ser
+ * chamado, reassina depois de um backoff (cap 30s).
+ */
+function assinarComReconexao(nome: string, criar: (onErro: (err: unknown) => void) => void) {
+  let tentativa = 0;
+  const iniciar = () => {
+    const onErro = (err: unknown) => {
+      tentativa += 1;
+      const delay = Math.min(2000 * tentativa, 30_000);
+      log.error({ err, nome, delay }, "listener caiu — reassinando");
+      setTimeout(iniciar, delay);
+    };
+    try {
+      criar(onErro);
+      tentativa = 0; // assinou de novo com sucesso
+    } catch (err) {
+      onErro(err);
+    }
+  };
+  iniciar();
+}
+
 function attachTenant(tenantId: string) {
   if (attached.has(tenantId)) return;
   attached.add(tenantId);
 
   // (1) status/comando do WhatsApp
-  tenantRef(tenantId)
-    .collection("integrations")
-    .doc("whatsapp")
-    .onSnapshot(
-      (snap) => {
+  assinarComReconexao(`integrations:${tenantId}`, (onErro) =>
+    tenantRef(tenantId)
+      .collection("integrations")
+      .doc("whatsapp")
+      .onSnapshot((snap) => {
         if (!snap.exists) return;
         const data = snap.data() ?? {};
 
@@ -49,16 +78,15 @@ function attachTenant(tenantId: string) {
             Math.random() * 800,
           );
         }
-      },
-      (err) => log.error({ err, tenantId }, "listener de status caiu"),
-    );
+      }, onErro),
+  );
 
   // (2) confirmações pendentes de propostas aprovadas
-  tenantRef(tenantId)
-    .collection("waPropostas")
-    .where("confirmacaoPendente", "==", true)
-    .onSnapshot(
-      async (snap) => {
+  assinarComReconexao(`propostas:${tenantId}`, (onErro) =>
+    tenantRef(tenantId)
+      .collection("waPropostas")
+      .where("confirmacaoPendente", "==", true)
+      .onSnapshot(async (snap) => {
         for (const doc of snap.docs) {
           const p = doc.data();
           const sock = getSock(tenantId);
@@ -81,18 +109,16 @@ function attachTenant(tenantId: string) {
             log.error({ err, tenantId, jid }, "falha ao enviar confirmação");
           }
         }
-      },
-      (err) => log.error({ err, tenantId }, "listener de propostas caiu"),
-    );
+      }, onErro),
+  );
 }
 
 /** Escuta a coleção de tenants e liga os listeners de cada barbearia (inclui novas). */
 export function watchTenants() {
-  db.collection("tenants").onSnapshot(
-    (snap) => {
+  assinarComReconexao("tenants", (onErro) =>
+    db.collection("tenants").onSnapshot((snap) => {
       for (const doc of snap.docs) attachTenant(doc.id);
-    },
-    (err) => log.error({ err }, "listener de tenants caiu"),
+    }, onErro),
   );
 }
 
