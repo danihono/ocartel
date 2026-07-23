@@ -19,3 +19,10 @@ function app() {
 }
 
 export const db: Firestore = getFirestore(app());
+
+// REST em vez de gRPC. No Cloud Run o transporte gRPC do Firestore trava/derruba
+// (streams de listener morrem com "Exceeded maximum number of retries" e leituras
+// unárias chegam a pendurar). Como o worker só faz chamadas unárias (polling com
+// .get()/.set(), sem onSnapshot), forçar REST/HTTP torna tudo confiável. Precisa
+// rodar ANTES de qualquer operação — por isso aqui, no carregamento do módulo.
+db.settings({ preferRest: true });

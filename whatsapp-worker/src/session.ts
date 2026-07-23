@@ -47,18 +47,25 @@ export function getSock(tenantId: string): WASocket | undefined {
   return sessions.get(tenantId)?.sock;
 }
 
+/** Corre `p` com um teto de tempo; se estourar, resolve `fallback` (não trava). */
+function comTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([p, new Promise<T>((res) => setTimeout(() => res(fallback), ms))]);
+}
+
 export async function startSession(tenantId: string): Promise<void> {
   // Um holder por sessão: se já existe, não abre outra (evita duplo-logout).
   if (sessions.has(tenantId)) return;
 
+  log.info({ tenantId }, "startSession: carregando auth do Firestore");
   const { state, saveCreds, clearAuth } = await useFirestoreAuthState(db, tenantId);
 
+  // fetchLatestBaileysVersion é OPCIONAL e pode PENDURAR (rede) — com teto de 5s
+  // caímos na versão embutida do Baileys em vez de travar o startSession.
   let version: [number, number, number] | undefined;
-  try {
-    ({ version } = await fetchLatestBaileysVersion());
-  } catch {
-    /* usa a default embutida */
-  }
+  const v = await comTimeout(fetchLatestBaileysVersion().catch(() => null), 5000, null);
+  if (v?.version) version = v.version;
+
+  log.info({ tenantId, version }, "startSession: abrindo socket Baileys");
 
   const sock = makeWASocket({
     version,
@@ -82,15 +89,23 @@ export async function startSession(tenantId: string): Promise<void> {
 
   sock.ev.on("connection.update", async (u) => {
     const { connection, lastDisconnect, qr } = u;
+    log.info({ tenantId, connection, temQr: !!qr }, "connection.update");
 
     if (qr) {
-      const dataUrl = await QRCode.toDataURL(qr);
-      await saveStatus(tenantId, { status: "qr" satisfies WhatsAppStatus, qr: dataUrl });
+      try {
+        const dataUrl = await QRCode.toDataURL(qr);
+        await saveStatus(tenantId, { status: "qr" satisfies WhatsAppStatus, qr: dataUrl });
+        log.info({ tenantId }, "QR gerado e salvo no Firestore");
+      } catch (err) {
+        log.error({ err, tenantId }, "falha ao gerar/salvar o QR");
+      }
       return;
     }
 
     if (connection === "connecting") {
-      await saveStatus(tenantId, { status: "connecting" satisfies WhatsAppStatus });
+      await saveStatus(tenantId, { status: "connecting" satisfies WhatsAppStatus }).catch((err) =>
+        log.error({ err, tenantId }, "falha ao salvar status connecting"),
+      );
       return;
     }
 
