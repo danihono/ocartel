@@ -63,27 +63,28 @@ gcloud run deploy ocartel-whatsapp \
 Alternativa (Railway/Fly.io): mesma imagem; configure uma service account do
 Firebase via `GOOGLE_APPLICATION_CREDENTIALS` e mantenha **1 réplica**.
 
-## Pausar pra economizar (e religar)
+## Liga / desliga (economizar)
 
 Este worker roda **CPU sempre alocada, 24/7** — é o maior custo do projeto no
 Cloud Run. Como o Baileys exige um socket sempre vivo, **não há** modo "ligado e
-barato": ou está no ar (cobrando) ou pausado. Pausar **não perde nada** — a
-sessão do WhatsApp fica salva no Firestore (`waAuth`) e volta sem pedir QR.
+barato": ou está no ar (cobrando) ou desligado. Nenhum flag no código para a
+cobrança — o custo é o *container de pé*, então desligar = **deletar o serviço**.
 
-**Pausar (para de cobrar):**
+Desligar assim é seguro e definitivo: fica **off até você religar** (não volta
+sozinho, nem quando chega mensagem) e **não perde nada** — a sessão do WhatsApp
+fica salva no Firestore (`waAuth`) e reconecta sem QR quando religar.
 
 ```bash
-gcloud run services delete ocartel-whatsapp --region southamerica-east1
+cd whatsapp-worker
+
+./desligar.sh   # DELETA o serviço no Cloud Run → para de cobrar. Fica off.
+./ligar.sh      # Recria com a config do Baileys → reconecta o WhatsApp sozinho.
 ```
 
-**Religar:** rode de novo o `gcloud run deploy ...` da seção de deploy acima. Na
-subida o worker reidrata a sessão a partir de `desiredState: connected` e
-reconecta o WhatsApp automaticamente.
-
-> Alternativa sem deletar: `gcloud run services update ocartel-whatsapp
-> --region southamerica-east1 --min-instances 0`. Escala a zero quando ocioso,
-> mas o WhatsApp cai junto (o socket precisa de instância viva), então na
-> prática o efeito é o mesmo de pausar — porém mantém o serviço/URL criado.
+Os scripts aceitam overrides por variável de ambiente
+(`SERVICE`, `REGION`, `PROJECT`, `OPENAI_MODEL`), com os padrões deste projeto.
+`ligar.sh` nada mais é que o `gcloud run deploy ...` da seção acima, e
+pressupõe o secret `OPENAI_API_KEY` já criado no projeto.
 
 ## Restrições (do guia Baileys) já implementadas
 
