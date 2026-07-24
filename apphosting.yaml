@@ -12,8 +12,12 @@
 # O Admin SDK (server action de booking) usa as credenciais padrão do ambiente
 # (ADC) do backend do App Hosting — não precisa de service account em produção.
 
+# minInstances: 0 → o backend escala pra ZERO quando ocioso (não cobra instância
+# parada). Custa um cold-start de alguns segundos na primeira visita após um
+# período sem tráfego — trade-off proposital pra cortar o gasto fixo do Cloud Run.
+# Se precisar de resposta instantânea sempre, suba pra 1 (volta a cobrar 24/7).
 runConfig:
-  minInstances: 1
+  minInstances: 0
   maxInstances: 2
 
 env:

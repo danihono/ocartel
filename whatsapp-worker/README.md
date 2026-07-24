@@ -63,6 +63,28 @@ gcloud run deploy ocartel-whatsapp \
 Alternativa (Railway/Fly.io): mesma imagem; configure uma service account do
 Firebase via `GOOGLE_APPLICATION_CREDENTIALS` e mantenha **1 réplica**.
 
+## Pausar pra economizar (e religar)
+
+Este worker roda **CPU sempre alocada, 24/7** — é o maior custo do projeto no
+Cloud Run. Como o Baileys exige um socket sempre vivo, **não há** modo "ligado e
+barato": ou está no ar (cobrando) ou pausado. Pausar **não perde nada** — a
+sessão do WhatsApp fica salva no Firestore (`waAuth`) e volta sem pedir QR.
+
+**Pausar (para de cobrar):**
+
+```bash
+gcloud run services delete ocartel-whatsapp --region southamerica-east1
+```
+
+**Religar:** rode de novo o `gcloud run deploy ...` da seção de deploy acima. Na
+subida o worker reidrata a sessão a partir de `desiredState: connected` e
+reconecta o WhatsApp automaticamente.
+
+> Alternativa sem deletar: `gcloud run services update ocartel-whatsapp
+> --region southamerica-east1 --min-instances 0`. Escala a zero quando ocioso,
+> mas o WhatsApp cai junto (o socket precisa de instância viva), então na
+> prática o efeito é o mesmo de pausar — porém mantém o serviço/URL criado.
+
 ## Restrições (do guia Baileys) já implementadas
 
 - Auth no Firestore com `BufferJSON`, `creds` separado das chaves, leitura em lote,
