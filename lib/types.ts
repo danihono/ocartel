@@ -178,8 +178,8 @@ export interface Transacao {
   amount?: number;
   /** Valor efetivamente recebido (pode divergir de `amount`). Ausente ⇒ usar `valor`. */
   amountReceived?: number;
-  /** Origem da cobrança. Aberto p/ gateway futuro (ex.: "gateway" via webhook). */
-  source?: "manual" | "gateway";
+  /** Origem da cobrança. "cron" = job mensal. Aberto p/ gateway futuro (webhook). */
+  source?: "manual" | "gateway" | "cron";
   /** Nome do admin que confirmou o pagamento (auditoria). */
   confirmedBy?: string;
   /**

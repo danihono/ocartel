@@ -47,3 +47,12 @@ env:
     availability:
       - BUILD
       - RUNTIME
+
+  # Segredo do job mensal de cobrança (/api/cron/mensalidades). Só RUNTIME: nunca
+  # pode entrar no bundle do cliente. Sem ele o endpoint responde 401 a tudo.
+  #
+  # Crie com:  firebase apphosting:secrets:set CRON_SECRET
+  - variable: CRON_SECRET
+    secret: CRON_SECRET
+    availability:
+      - RUNTIME

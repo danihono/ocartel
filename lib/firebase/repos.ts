@@ -156,10 +156,16 @@ export const transacoes = {
     return batch.commit();
   },
   /** Cria N cobranças pendentes de uma vez (a deduplicação por ciclo é feita na UI). */
+  /**
+   * Grava as mensalidades do ciclo usando o id determinístico que vem em `t.id`
+   * (ver lib/mensalidades.ts). Com id fixo, repetir a geração sobrescreve o
+   * mesmo doc em vez de criar cobrança duplicada — o que torna clique duplo e
+   * corrida com o job mensal inofensivos.
+   */
   gerarMensalidades(tenantId: string, novas: Transacao[]) {
     const batch = writeBatch(db);
     for (const t of novas) {
-      batch.set(doc(col(tenantId, "transacoes")), { ...semId(t), createdAt: serverTimestamp() });
+      batch.set(doc(col(tenantId, "transacoes"), t.id), { ...semId(t), createdAt: serverTimestamp() });
     }
     return batch.commit();
   },

@@ -140,6 +140,18 @@ export function hojeLocalISO(): string {
   return `${y}-${m}-${d}`;
 }
 
+/**
+ * Data "YYYY-MM-DD" num fuso explícito. O app roda com o relógio do navegador,
+ * mas o job mensal roda no servidor (UTC): sem isto, um disparo à meia-noite e
+ * pouco UTC do dia 1º geraria as cobranças ainda no ciclo do mês anterior.
+ */
+export function hojeISONoFuso(timeZone = "America/Sao_Paulo"): string {
+  // "en-CA" formata como YYYY-MM-DD.
+  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(
+    new Date(),
+  );
+}
+
 /** "jun/26" — usado em "Cliente desde". */
 export function mesAnoCurto(iso: string): string {
   const { y, m } = parse(iso);

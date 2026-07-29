@@ -4,25 +4,23 @@ import { useEffect, useMemo, useState } from "react";
 import { c, font } from "@/lib/theme";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { useStore, makeId } from "@/lib/store";
+import { useStore } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/lib/firebase/auth";
 import {
-  clientePossuiPlanoAtivo,
-  ehDoCliente,
   formaPagamentoLabel,
   formatBRL,
   selectContagensTransacao,
   selectResumoFinanceiro,
   selectTransacoes,
   statusCobranca,
-  tipoCobranca,
   valorCobrado,
   valorRecebido,
   type FiltroTipoCobranca,
   type FiltroTransacao,
 } from "@/lib/selectors";
 import { isoParaDiaMes } from "@/lib/date";
+import { cicloDe, montarMensalidadesDoCiclo } from "@/lib/mensalidades";
 import { useHoje } from "@/lib/useRelogio";
 import { RegistrarPagamentoModal } from "@/components/admin/RegistrarPagamentoModal";
 import { NovaCobrancaModal } from "@/components/admin/NovaCobrancaModal";
@@ -95,47 +93,14 @@ export default function PagamentosPage() {
   ];
 
   function gerarMensalidades() {
-    const cicloMes = hoje.slice(0, 7); // "YYYY-MM"
-
-    // Plano vigente do cliente: por planId (preferido) ou casando o rótulo legado pelo nome.
-    const planoDoCliente = (cl: (typeof state.clientes)[number]) => {
-      const p = cl.planId
-        ? state.planos.find((pl) => pl.id === cl.planId)
-        : state.planos.find((pl) => pl.nome === cl.plano);
-      return p && (p.ativo ?? true) ? p : null;
-    };
-
-    const novas: Transacao[] = [];
-    let semPlano = 0; // assinante (rótulo) sem plano cadastrado correspondente
-    for (const cl of state.clientes) {
-      const plano = planoDoCliente(cl);
-      if (!plano) {
-        if (clientePossuiPlanoAtivo(cl)) semPlano += 1;
-        continue;
-      }
-      const jaTem = state.transacoes.some(
-        (t) => tipoCobranca(t) === "mensalidade" && ehDoCliente(t, cl) && (t.dueDate ?? "").slice(0, 7) === cicloMes,
-      );
-      if (jaTem) continue;
-      const dia = String(Math.min(28, Math.max(1, plano.diaVencimento ?? 5))).padStart(2, "0");
-      const venc = `${cicloMes}-${dia}`;
-      novas.push({
-        id: makeId("tx"),
-        data: isoParaDiaMes(venc),
-        clienteNome: cl.nome,
-        clienteId: cl.id,
-        servico: plano.nome,
-        barbeiroNome: "",
-        valor: plano.valor,
-        status: "pendente",
-        forma: "pix",
-        type: "mensalidade",
-        planId: plano.id,
-        dueDate: venc,
-        amount: plano.valor,
-        source: "manual",
-      });
-    }
+    // A regra mora em lib/mensalidades.ts — a mesma que o job mensal executa
+    // (app/api/cron/mensalidades). Este botão é só o disparo manual dela.
+    const { novas, semPlano } = montarMensalidadesDoCiclo({
+      clientes: state.clientes,
+      planos: state.planos,
+      transacoes: state.transacoes,
+      cicloMes: cicloDe(hoje),
+    });
 
     if (novas.length === 0) {
       toast(
