@@ -26,6 +26,10 @@ export interface Barbeiro {
   especialidade?: string;
   /** Derivado por seletor a partir dos agendamentos do dia (não persistido). */
   atendimentosHoje?: number;
+  /** E-mail da conta de acesso, quando o barbeiro já tem login próprio. */
+  acessoEmail?: string;
+  /** uid no Firebase Auth da conta de acesso. Gravado pelo Admin SDK. */
+  acessoUid?: string;
 }
 
 export interface Servico {

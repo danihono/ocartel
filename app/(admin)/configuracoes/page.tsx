@@ -6,8 +6,11 @@ import { c } from "@/lib/theme";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Field, Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
 import { useStore, makeId } from "@/lib/store";
 import { signOutApp, useAuth } from "@/lib/firebase/auth";
+import { auth } from "@/lib/firebase/config";
+import { criarAcessoBarbeiro, redefinirSenhaBarbeiro, revogarAcessoBarbeiro } from "@/app/actions/equipe";
 import { useToast } from "@/components/ui/Toast";
 import type { Barbeiro, Role } from "@/lib/types";
 
@@ -23,7 +26,7 @@ function iniciaisDe(nome: string): string {
 
 export default function ConfiguracoesPage() {
   const { state, actions } = useStore();
-  const { profile } = useAuth();
+  const { profile, role, tenantId } = useAuth();
   const toast = useToast();
   const router = useRouter();
 
@@ -35,6 +38,77 @@ export default function ConfiguracoesPage() {
   const [diasAtivos, setDiasAtivos] = useState<boolean[]>(state.config.horario.diasAtivos);
 
   const [novoBarbeiro, setNovoBarbeiro] = useState("");
+
+  // Acesso do barbeiro (login próprio na tela /barbeiro).
+  const [acessoAlvo, setAcessoAlvo] = useState<Barbeiro | null>(null);
+  const [acessoEmail, setAcessoEmail] = useState("");
+  const [acessoSenha, setAcessoSenha] = useState("");
+  const [salvandoAcesso, setSalvandoAcesso] = useState(false);
+  const redefinindo = !!acessoAlvo?.acessoUid;
+
+  function abrirAcesso(b: Barbeiro) {
+    setAcessoAlvo(b);
+    setAcessoEmail(b.acessoEmail ?? "");
+    setAcessoSenha("");
+  }
+
+  async function removerBarbeiro(b: Barbeiro) {
+    // Tirar o barbeiro do cadastro sem derrubar o login deixaria a conta viva,
+    // ainda com claims desta barbearia — e portanto ainda lendo os clientes.
+    if (b.acessoUid) {
+      if (!confirm(`Remover ${b.nome} também encerra o acesso ${b.acessoEmail ?? ""}. Continuar?`)) return;
+      try {
+        const idToken = await auth.currentUser?.getIdToken();
+        const res = idToken
+          ? await revogarAcessoBarbeiro({ idToken, barbeiroId: b.id, ...(role === "superAdmin" ? { tenantId: tenantId ?? "" } : {}) })
+          : { ok: false, erro: "Sessão expirada. Entre novamente." };
+        if (!res.ok) {
+          toast(res.erro ?? "Não foi possível encerrar o acesso.", "error");
+          return;
+        }
+      } catch {
+        toast("Não foi possível encerrar o acesso.", "error");
+        return;
+      }
+    }
+    try {
+      await actions.barbeiros.remove(b.id);
+      toast("Barbeiro removido.");
+    } catch {
+      toast("Não foi possível remover.", "error");
+    }
+  }
+
+  async function salvarAcesso() {
+    if (!acessoAlvo) return;
+    setSalvandoAcesso(true);
+    try {
+      // O servidor confirma quem está pedindo por este token e deriva dele a
+      // barbearia — nada de confiar num tenantId vindo do formulário.
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) {
+        toast("Sessão expirada. Entre novamente.", "error");
+        return;
+      }
+      // superAdmin não tem barbearia própria: informa qual está administrando.
+      const doSuper = role === "superAdmin" ? { tenantId: tenantId ?? "" } : {};
+
+      const res = redefinindo
+        ? await redefinirSenhaBarbeiro({ idToken, barbeiroId: acessoAlvo.id, senha: acessoSenha, ...doSuper })
+        : await criarAcessoBarbeiro({ idToken, barbeiroId: acessoAlvo.id, email: acessoEmail.trim(), senha: acessoSenha, ...doSuper });
+
+      if (!res.ok) {
+        toast(res.erro ?? "Não foi possível concluir.", "error");
+        return;
+      }
+      toast(redefinindo ? "Senha redefinida." : `Acesso criado para ${acessoAlvo.nome}.`);
+      setAcessoAlvo(null);
+    } catch {
+      toast("Não foi possível concluir.", "error");
+    } finally {
+      setSalvandoAcesso(false);
+    }
+  }
 
   // Sincroniza o formulário sempre que a config do store mudar
   // (a config chega via listener onSnapshot do Firestore — ver lib/store.tsx).
@@ -155,7 +229,14 @@ export default function ConfiguracoesPage() {
               <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 11 }}>
                 <div style={{ width: 36, height: 36, borderRadius: "50%", background: b.cor, color: c.darkText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flex: "none" }}>{b.iniciais}</div>
                 <TextInput value={b.nome} onChange={(e) => setBarb(b, { nome: e.target.value, iniciais: iniciaisDe(e.target.value) })} />
-                <button onClick={() => { void actions.barbeiros.remove(b.id).then(() => toast("Barbeiro removido.")).catch(() => toast("Não foi possível remover.", "error")); }} aria-label="Remover" style={{ flex: "none", border: `1px solid ${c.borderInput}`, background: c.surface, borderRadius: 9, width: 38, height: 38, cursor: "pointer", color: c.red, fontSize: 15 }}>
+                <button
+                  onClick={() => abrirAcesso(b)}
+                  title={b.acessoEmail ? `Acesso: ${b.acessoEmail}` : "Criar login para este barbeiro"}
+                  style={{ flex: "none", border: `1px solid ${b.acessoUid ? c.green : c.borderInput}`, background: c.surface, borderRadius: 9, height: 38, padding: "0 12px", cursor: "pointer", color: b.acessoUid ? c.green : c.ink2, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" }}
+                >
+                  {b.acessoUid ? "Acesso ativo" : "Criar acesso"}
+                </button>
+                <button onClick={() => void removerBarbeiro(b)} aria-label="Remover" style={{ flex: "none", border: `1px solid ${c.borderInput}`, background: c.surface, borderRadius: 9, width: 38, height: 38, cursor: "pointer", color: c.red, fontSize: 15 }}>
                   ✕
                 </button>
               </div>
@@ -184,6 +265,36 @@ export default function ConfiguracoesPage() {
           </button>
         </Card>
       </div>
+
+      <Modal
+        open={!!acessoAlvo}
+        onClose={() => setAcessoAlvo(null)}
+        title={redefinindo ? `Redefinir senha · ${acessoAlvo?.nome ?? ""}` : `Criar acesso · ${acessoAlvo?.nome ?? ""}`}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setAcessoAlvo(null)}>Cancelar</Button>
+            <Button onClick={() => void salvarAcesso()} loading={salvandoAcesso}>
+              {redefinindo ? "Redefinir" : "Criar acesso"}
+            </Button>
+          </>
+        }
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <p style={{ fontSize: 13, color: c.ink2, lineHeight: 1.5, margin: 0 }}>
+            {redefinindo
+              ? `A conta ${acessoAlvo?.acessoEmail ?? ""} continua a mesma — só a senha muda.`
+              : "O barbeiro entra pelo /login com esses dados e cai direto na agenda dele. Combine a senha pessoalmente: ela não é enviada por e-mail."}
+          </p>
+          {!redefinindo ? (
+            <Field label="E-mail do barbeiro">
+              <TextInput type="email" value={acessoEmail} onChange={(e) => setAcessoEmail(e.target.value)} placeholder="barbeiro@exemplo.com" />
+            </Field>
+          ) : null}
+          <Field label={redefinindo ? "Nova senha" : "Senha temporária"}>
+            <TextInput type="password" value={acessoSenha} onChange={(e) => setAcessoSenha(e.target.value)} placeholder="mínimo 6 caracteres" />
+          </Field>
+        </div>
+      </Modal>
     </div>
   );
 }
