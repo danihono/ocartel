@@ -6,12 +6,22 @@
 // Só use isto no servidor — importa firebase-admin. Não importe de componentes
 // do cliente.
 
+import { randomBytes } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import { horaParaMin, horarioLivre, ocupaHorario, type IntervaloOcupado } from "@/lib/agenda";
 import { indiceSegDom, mesAnoCurto } from "@/lib/date";
 
 export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 export const HORA = /^\d{2}:\d{2}$/;
+
+/**
+ * Segredo que dá ao cliente o direito de mexer no próprio agendamento sem ter
+ * conta. Fica só neste doc e no link entregue a ele — 16 bytes é espaço demais
+ * para chute, e a busca é por igualdade exata.
+ */
+export function gerarGestaoToken(): string {
+  return randomBytes(16).toString("hex");
+}
 
 export function iniciaisDe(nome: string): string {
   const p = nome.trim().split(/\s+/);
@@ -50,12 +60,16 @@ export interface CriarAgendamentoInput {
   clienteTelefone?: string;
   observacoes?: string;
   origem?: "booking" | "admin";
+  /** Preserva o token do agendamento original numa remarcação. */
+  gestaoToken?: string;
 }
 
 export interface CriarAgendamentoResult {
   ok: boolean;
   error?: string;
   agendamentoId?: string;
+  /** Segredo do link de gestão (cancelar/remarcar) — devolvido só na criação. */
+  gestaoToken?: string;
 }
 
 /**
@@ -141,6 +155,9 @@ export async function criarAgendamentoValidado(
   // que então vê o slot ocupado e recusa. É o que faz o bloqueio do barbeiro
   // "valer" (a tela do cliente é só conveniência).
   const agendamentosCol = tenantRef.collection("agendamentos");
+  // Remarcar reaproveita o token do agendamento antigo: o link que o cliente já
+  // tem em mãos precisa continuar valendo depois da remarcação.
+  const gestaoToken = input.gestaoToken ?? gerarGestaoToken();
   const agendamentoId = await tenantRef.firestore.runTransaction(async (tx) => {
     const snap = await tx.get(queryDoDia(tenantRef, input.barbeiroId, input.date));
     if (!horarioLivre(intervalosDeDocs(snap.docs), input.inicio, duracaoMin)) return null;
@@ -157,6 +174,7 @@ export async function criarAgendamentoValidado(
       duracaoMin,
       status: "agendado",
       origem: input.origem ?? "booking",
+      gestaoToken,
       ...(input.observacoes ? { observacoes: input.observacoes } : {}),
       createdAt: FieldValue.serverTimestamp(),
     });
@@ -164,5 +182,5 @@ export async function criarAgendamentoValidado(
   });
 
   if (!agendamentoId) return { ok: false, error: "Esse horário não está mais disponível." };
-  return { ok: true, agendamentoId };
+  return { ok: true, agendamentoId, gestaoToken };
 }

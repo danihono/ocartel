@@ -139,6 +139,11 @@ export interface Agendamento {
   cobertoPorPlano?: boolean;
   /** Liga este agendamento a uma série criada em massa. Ausente nos individuais. */
   recorrenciaId?: string;
+  /**
+   * Segredo do link público de gestão (cancelar/remarcar sem conta). Só existe
+   * em agendamentos criados pelo booking — nunca exibir no painel.
+   */
+  gestaoToken?: string;
 }
 
 export type FormaPagamento = "pix" | "cartao" | "cartao_debito" | "dinheiro";

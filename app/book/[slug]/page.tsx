@@ -9,23 +9,12 @@ import { useToast } from "@/components/ui/Toast";
 import { formatBRL, fmtDur } from "@/lib/selectors";
 import { addDias, agoraHHMM, diaSemanaCurtoLabel, hojeLocalISO, indiceSegDom, isoParaDiaMes } from "@/lib/date";
 import { carregarCatalogoPorSlug, type BookingCatalog } from "@/lib/firebase/booking";
-import { horaParaMin, horarioLivre, type IntervaloOcupado } from "@/lib/agenda";
+import { gerarHorarios, horaParaMin, horarioLivre, type IntervaloOcupado } from "@/lib/agenda";
 import { criarAgendamentoPublico, disponibilidadePublica } from "./actions";
 
 const sectionTitle: React.CSSProperties = { fontFamily: font.serif, fontSize: 16, fontWeight: 600, color: c.inkTitle, margin: "20px 0 10px" };
 
 type Step = "selecao" | "dados" | "sucesso";
-
-function gerarHorarios(abre: string, fecha: string): string[] {
-  const min = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
-  const ini = min(abre);
-  const fim = min(fecha);
-  const out: string[] = [];
-  for (let t = ini; t < fim; t += 15) {
-    out.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
-  }
-  return out;
-}
 
 export default function BookingPage() {
   const params = useParams<{ slug: string }>();
@@ -49,6 +38,23 @@ export default function BookingPage() {
   // automático completa, e quanto tempo a tela ficou aberta.
   const [honeypot, setHoneypot] = useState("");
   const abertoEm = useRef(Date.now());
+  // Link de gestão do agendamento recém-criado. Sem canal de envio (e-mail/
+  // WhatsApp ainda não existem), esta tela é a única chance do cliente guardá-lo.
+  const [gestaoToken, setGestaoToken] = useState("");
+  const [copiado, setCopiado] = useState(false);
+
+  async function copiarLink() {
+    const url = `${window.location.origin}/book/${slug}/agendamento/${gestaoToken}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2500);
+    } catch {
+      // Navegador sem permissão de área de transferência: mostra o link para
+      // copiar à mão, em vez de falhar em silêncio.
+      window.prompt("Copie o link do seu agendamento:", url);
+    }
+  }
   const [enviando, setEnviando] = useState(false);
   const [ocupados, setOcupados] = useState<IntervaloOcupado[]>([]);
   const [hojeISO, setHojeISO] = useState("");
@@ -156,8 +162,10 @@ export default function BookingPage() {
       duracaoPreenchimentoMs: Date.now() - abertoEm.current,
     });
     setEnviando(false);
-    if (res.ok) setStep("sucesso");
-    else toast(res.error ?? "Não foi possível agendar.", "error");
+    if (res.ok) {
+      setGestaoToken(res.gestaoToken ?? "");
+      setStep("sucesso");
+    } else toast(res.error ?? "Não foi possível agendar.", "error");
   }
 
   function reset() {
@@ -203,7 +211,7 @@ export default function BookingPage() {
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px 26px", textAlign: "center" }}>
               <div style={{ width: 66, height: 66, borderRadius: "50%", background: c.brass, color: c.espressoDeep, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, fontWeight: 800 }}>✓</div>
               <div style={{ fontFamily: font.serif, fontSize: 23, fontWeight: 600, color: c.inkTitle, marginTop: 18 }}>Agendamento confirmado</div>
-              <p style={{ fontSize: 13.5, color: c.ink2, marginTop: 6, lineHeight: 1.5 }}>Enviamos os detalhes por mensagem. Até logo, {nome.split(" ")[0]}!</p>
+              <p style={{ fontSize: 13.5, color: c.ink2, marginTop: 6, lineHeight: 1.5 }}>Até logo, {nome.split(" ")[0]}!</p>
               <div style={{ width: "100%", background: c.surface, border: `1px solid ${c.border}`, borderRadius: 14, padding: 16, marginTop: 22, textAlign: "left" }}>
                 <Resumo l="Serviço" v={svc?.nome ?? ""} />
                 <Resumo l="Profissional" v={barb?.nome ?? ""} />
@@ -213,7 +221,19 @@ export default function BookingPage() {
                   <span style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.inkTitle }}>{svc ? formatBRL(svc.preco) : ""}</span>
                 </div>
               </div>
-              <button onClick={reset} style={{ marginTop: 20, width: "100%", border: "none", cursor: "pointer", background: c.primaryBtnBg, color: c.primaryBtnText, padding: 14, borderRadius: 12, fontSize: 14.5, fontWeight: 700 }}>Fazer novo agendamento</button>
+              {gestaoToken ? (
+                <div style={{ width: "100%", marginTop: 16, padding: 14, borderRadius: 12, background: c.brassTint, border: `1px solid ${c.brass}`, textAlign: "left" }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: c.inkTitle }}>Guarde este link</div>
+                  <p style={{ fontSize: 12, color: c.ink2, margin: "4px 0 10px", lineHeight: 1.45 }}>
+                    É por ele que você cancela ou remarca sozinho. Só quem tem o link consegue — por isso ele aparece
+                    aqui e em nenhum outro lugar.
+                  </p>
+                  <button onClick={copiarLink} style={{ width: "100%", border: `1px solid ${c.brass}`, background: c.surface, color: c.inkTitle, padding: 11, borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                    {copiado ? "Link copiado ✓" : "Copiar link do agendamento"}
+                  </button>
+                </div>
+              ) : null}
+              <button onClick={reset} style={{ marginTop: 14, width: "100%", border: "none", cursor: "pointer", background: c.primaryBtnBg, color: c.primaryBtnText, padding: 14, borderRadius: 12, fontSize: 14.5, fontWeight: 700 }}>Fazer novo agendamento</button>
             </div>
           ) : (
             <>

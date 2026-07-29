@@ -5,6 +5,21 @@
 
 import type { Agendamento } from "./types";
 
+/**
+ * Grade de horários ofertáveis entre abertura e fechamento, de 15 em 15 min.
+ * Usada pelo booking público e pela tela de remarcação — as duas precisam
+ * oferecer exatamente a mesma grade.
+ */
+export function gerarHorarios(abre: string, fecha: string, passoMin = 15): string[] {
+  const ini = horaParaMin(abre);
+  const fim = horaParaMin(fecha);
+  const out: string[] = [];
+  for (let t = ini; t < fim; t += passoMin) {
+    out.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
+  }
+  return out;
+}
+
 /** "HH:MM" -> minutos desde 00:00. */
 export function horaParaMin(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
