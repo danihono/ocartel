@@ -28,6 +28,8 @@ export interface Barbeiro {
   especialidade?: string;
   /** Derivado por seletor a partir dos agendamentos do dia (não persistido). */
   atendimentosHoje?: number;
+  /** Foto do barbeiro (Storage). Sem ela, o Avatar cai nas iniciais. */
+  fotoUrl?: string;
   /** E-mail da conta de acesso, quando o barbeiro já tem login próprio. */
   acessoEmail?: string;
   /** uid no Firebase Auth da conta de acesso. Gravado pelo Admin SDK. */
@@ -103,6 +105,8 @@ export interface Tenant {
   status: TenantStatus;
   mrr: string;
   agendamentosMes: string;
+  /** Logo da barbearia (Storage). Exibida na vitrine pública. */
+  logoUrl?: string;
 }
 
 /** O que aconteceu na carteira de barbearias — alimenta o feed do console. */

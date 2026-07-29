@@ -7,6 +7,8 @@ import { Card, CardTitle } from "@/components/ui/Card";
 import { Field, Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { Avatar } from "@/components/ui/Seal";
+import { TIPOS_ACEITOS, uploadFotoBarbeiro, uploadLogoTenant, validarImagem } from "@/lib/firebase/uploads";
 import { useStore, makeId } from "@/lib/store";
 import { signOutApp, useAuth } from "@/lib/firebase/auth";
 import { auth } from "@/lib/firebase/config";
@@ -50,6 +52,49 @@ export default function ConfiguracoesPage() {
     setAcessoAlvo(b);
     setAcessoEmail(b.acessoEmail ?? "");
     setAcessoSenha("");
+  }
+
+  // Upload de imagens. `enviando` guarda o id do alvo para o botão certo
+  // mostrar o progresso ("logo" para a barbearia, o id do barbeiro para a foto).
+  const [enviandoImagem, setEnviandoImagem] = useState("");
+  const logoAtual = state.tenants.find((t) => t.id === tenantId)?.logoUrl ?? "";
+
+  async function enviarFoto(b: Barbeiro, arquivo: File | undefined) {
+    if (!arquivo || !tenantId) return;
+    const erro = validarImagem(arquivo);
+    if (erro) {
+      toast(erro, "error");
+      return;
+    }
+    setEnviandoImagem(b.id);
+    try {
+      const fotoUrl = await uploadFotoBarbeiro(tenantId, b.id, arquivo);
+      await actions.barbeiros.update({ ...b, fotoUrl });
+      toast("Foto atualizada.");
+    } catch {
+      toast("Não foi possível enviar a foto.", "error");
+    } finally {
+      setEnviandoImagem("");
+    }
+  }
+
+  async function enviarLogo(arquivo: File | undefined) {
+    if (!arquivo || !tenantId) return;
+    const erro = validarImagem(arquivo);
+    if (erro) {
+      toast(erro, "error");
+      return;
+    }
+    setEnviandoImagem("logo");
+    try {
+      const logoUrl = await uploadLogoTenant(tenantId, arquivo);
+      await actions.tenants.update(tenantId, { logoUrl });
+      toast("Logo atualizada.");
+    } catch {
+      toast("Não foi possível enviar a logo.", "error");
+    } finally {
+      setEnviandoImagem("");
+    }
   }
 
   async function removerBarbeiro(b: Barbeiro) {
@@ -171,6 +216,34 @@ export default function ConfiguracoesPage() {
         {/* Dados da barbearia */}
         <Card>
           <CardTitle>Dados da barbearia</CardTitle>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 16 }}>
+            {logoAtual ? (
+              // URL do Storage com token na query; configurar remotePatterns do
+              // next/image para um thumbnail de 56px não paga o risco de quebrar
+              // a imagem em produção.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoAtual} alt="Logo da barbearia" style={{ width: 56, height: 56, borderRadius: 12, objectFit: "cover", border: `1px solid ${c.borderInput}`, flex: "none" }} />
+            ) : (
+              <div style={{ width: 56, height: 56, borderRadius: 12, border: `1px dashed ${c.borderInput}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: c.ink3, flex: "none", textAlign: "center" }}>
+                sem logo
+              </div>
+            )}
+            <div>
+              <label style={{ display: "inline-block", padding: "9px 14px", borderRadius: 10, border: `1px solid ${c.borderInput}`, background: c.surface, fontSize: 13, fontWeight: 700, color: c.ink2, cursor: enviandoImagem === "logo" ? "wait" : "pointer" }}>
+                {enviandoImagem === "logo" ? "Enviando…" : logoAtual ? "Trocar logo" : "Enviar logo"}
+                <input
+                  type="file"
+                  accept={TIPOS_ACEITOS.join(",")}
+                  onChange={(e) => {
+                    void enviarLogo(e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
+                  style={{ display: "none" }}
+                />
+              </label>
+              <div style={{ fontSize: 12, color: c.ink3, marginTop: 6 }}>JPG, PNG, WEBP ou GIF · até 2 MB</div>
+            </div>
+          </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 16 }}>
             <Field label="Nome">
               <TextInput value={nome} onChange={(e) => setNome(e.target.value)} />
@@ -224,10 +297,27 @@ export default function ConfiguracoesPage() {
         {/* Barbeiros */}
         <Card>
           <CardTitle sub="Cada barbeiro vira uma coluna na agenda">Equipe</CardTitle>
+          <p style={{ fontSize: 12.5, color: c.ink3, margin: "10px 0 0", lineHeight: 1.5 }}>
+            Clique no círculo para enviar a foto do barbeiro — ela aparece na página pública de agendamento.
+          </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
             {state.barbeiros.map((b) => (
               <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 11 }}>
-                <div style={{ width: 36, height: 36, borderRadius: "50%", background: b.cor, color: c.darkText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flex: "none" }}>{b.iniciais}</div>
+                <label
+                  title="Trocar foto"
+                  style={{ position: "relative", cursor: enviandoImagem === b.id ? "wait" : "pointer", flex: "none" }}
+                >
+                  <Avatar initials={b.iniciais} src={b.fotoUrl} size={36} bg={b.cor} color={c.darkText} />
+                  <input
+                    type="file"
+                    accept={TIPOS_ACEITOS.join(",")}
+                    onChange={(e) => {
+                      void enviarFoto(b, e.target.files?.[0]);
+                      e.target.value = ""; // permite reenviar o mesmo arquivo
+                    }}
+                    style={{ display: "none" }}
+                  />
+                </label>
                 <TextInput value={b.nome} onChange={(e) => setBarb(b, { nome: e.target.value, iniciais: iniciaisDe(e.target.value) })} />
                 <button
                   onClick={() => abrirAcesso(b)}

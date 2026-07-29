@@ -5,6 +5,7 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, connectAuthEmulator, type Auth } from "firebase/auth";
 import { getFirestore, initializeFirestore, connectFirestoreEmulator, type Firestore } from "firebase/firestore";
+import { getStorage, connectStorageEmulator, type FirebaseStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -32,6 +33,7 @@ function criarDb(): Firestore {
   }
 }
 export const db: Firestore = criarDb();
+export const storage: FirebaseStorage = getStorage(app);
 
 // ---- App Check (não ligado) ----
 // O booking público já tem freio no servidor (lib/rate-limit.ts). O App Check
@@ -57,5 +59,6 @@ const emuGlobal = globalThis as typeof globalThis & { __OCARTEL_EMU__?: boolean 
 if (process.env.NEXT_PUBLIC_USE_EMULATORS === "true" && typeof window !== "undefined" && !emuGlobal.__OCARTEL_EMU__) {
   connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
   connectFirestoreEmulator(db, "127.0.0.1", 8080);
+  connectStorageEmulator(storage, "127.0.0.1", 9199);
   emuGlobal.__OCARTEL_EMU__ = true;
 }

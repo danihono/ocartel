@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { c, font, shadow } from "@/lib/theme";
-import { Seal } from "@/components/ui/Seal";
+import { Avatar, Seal } from "@/components/ui/Seal";
 import { fieldInput, fieldLabel } from "@/components/ui/Field";
 import { useToast } from "@/components/ui/Toast";
 import { formatBRL, fmtDur } from "@/lib/selectors";
@@ -278,7 +278,9 @@ export default function BookingPage() {
                             onClick={() => setBarbeiroId(b.id)}
                             style={{ flex: "1 1 30%", minWidth: 88, background: on ? c.brassTint : c.surface, border: `1.5px solid ${on ? c.brass : c.border}`, borderRadius: 12, padding: "13px 8px", textAlign: "center", cursor: "pointer" }}
                           >
-                            <div style={{ width: 38, height: 38, borderRadius: "50%", background: c.leather, color: c.darkText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, margin: "0 auto 7px" }}>{b.iniciais}</div>
+                            <div style={{ display: "flex", justifyContent: "center", marginBottom: 7 }}>
+                              <Avatar initials={b.iniciais} src={b.fotoUrl} size={38} bg={c.leather} color={c.darkText} />
+                            </div>
                             <div style={{ fontSize: 12.5, fontWeight: 600, color: c.inkTitle }}>{b.nome}</div>
                             {b.rating || b.especialidade ? (
                               <div style={{ fontSize: 10.5, color: c.ink2, marginTop: 1 }}>{b.rating ? `★ ${b.rating}` : ""}{b.rating && b.especialidade ? " · " : ""}{b.especialidade ?? ""}</div>

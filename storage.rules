@@ -1,9 +1,42 @@
 rules_version = '2';
 
-// Storage adiado por enquanto: nega tudo. Quando formos implementar uploads
-// (foto de barbeiro, logo da barbearia), trocamos por regras escopadas por tenant.
+// Uploads escopados por barbearia: logo da barbearia e foto dos barbeiros.
+//
+// Regras do Storage NÃO conseguem ler o Firestore — não existe get() aqui. Por
+// isso o escopo por barbearia só é possível através dos custom claims do token
+// (ver lib/claims.ts): é o token que diz de qual tenant a pessoa é, e com qual
+// papel. Sem os claims, o melhor que daria para fazer seria "qualquer usuário
+// logado escreve em qualquer caminho".
 service firebase.storage {
   match /b/{bucket}/o {
+
+    function papel() {
+      return request.auth != null && 'role' in request.auth.token ? request.auth.token.role : '';
+    }
+    function doTenant(tenantId) {
+      return request.auth != null && request.auth.token.tenantId == tenantId;
+    }
+    /** Administra esta barbearia: a dona dela, ou o suporte. */
+    function podeEscrever(tenantId) {
+      return papel() == 'superAdmin' || (papel() == 'admin' && doTenant(tenantId));
+    }
+    /** Imagem de verdade e de tamanho sensato — não um arquivo qualquer renomeado. */
+    function imagemValida() {
+      return request.resource.contentType.matches('image/(jpeg|png|webp|gif)')
+        && request.resource.size < 2 * 1024 * 1024;
+    }
+
+    // Leitura pública: a vitrine /book/[slug] é anônima e mostra a logo da
+    // barbearia e as fotos da equipe.
+    match /tenants/{tenantId}/{allPaths=**} {
+      allow read: if true;
+      // create/update separados de delete: `imagemValida()` inspeciona
+      // request.resource, que não existe numa exclusão.
+      allow create, update: if podeEscrever(tenantId) && imagemValida();
+      allow delete: if podeEscrever(tenantId);
+    }
+
+    // Qualquer outro caminho continua fechado.
     match /{allPaths=**} {
       allow read, write: if false;
     }
