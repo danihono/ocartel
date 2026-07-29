@@ -6,8 +6,18 @@
 //
 // A validação/gravação autoritativa mora em lib/booking-core.ts.
 
+import { headers } from "next/headers";
 import { adminDb } from "@/lib/firebase/admin";
 import { criarAgendamentoValidado, intervalosOcupados, ISO_DATE } from "@/lib/booking-core";
+import {
+  chaveIp,
+  chaveTelefone,
+  consumirLimite,
+  ipDeHeaders,
+  LIMITE_IP,
+  LIMITE_TELEFONE,
+  pareceRobo,
+} from "@/lib/rate-limit";
 import type { IntervaloOcupado } from "@/lib/agenda";
 
 export interface BookingPayload {
@@ -17,6 +27,10 @@ export interface BookingPayload {
   inicio: string; // HH:MM
   clienteNome: string;
   clienteTelefone?: string;
+  /** Campo oculto do formulário — se vier preenchido, não foi gente. */
+  honeypot?: string;
+  /** Tempo que o formulário ficou aberto, em ms. */
+  duracaoPreenchimentoMs?: number;
 }
 
 export interface BookingResult {
@@ -40,7 +54,28 @@ export async function criarAgendamentoPublico(slug: string, payload: BookingPayl
       return { ok: false, error: "Esta barbearia está temporariamente indisponível para agendamentos." };
     }
 
-    const { ok, error } = await criarAgendamentoValidado(adminDb.collection("tenants").doc(tenantId), {
+    const tenantRef = adminDb.collection("tenants").doc(tenantId);
+
+    // Recusa genérica de propósito, aqui e nos limites abaixo: uma mensagem
+    // específica ("esse telefone já agendou 3 vezes hoje") transformaria o
+    // formulário num oráculo sobre a clientela da barbearia.
+    const RECUSA = "Não foi possível concluir o agendamento. Tente novamente mais tarde.";
+
+    if (pareceRobo({ honeypot: payload.honeypot, duracaoPreenchimentoMs: payload.duracaoPreenchimentoMs })) {
+      return { ok: false, error: RECUSA };
+    }
+
+    const ip = ipDeHeaders(await headers());
+    if (ip && !(await consumirLimite(tenantRef, chaveIp(ip), LIMITE_IP))) {
+      return { ok: false, error: RECUSA };
+    }
+
+    const telDigits = (payload.clienteTelefone ?? "").replace(/\D/g, "");
+    if (telDigits.length >= 10 && !(await consumirLimite(tenantRef, chaveTelefone(telDigits), LIMITE_TELEFONE))) {
+      return { ok: false, error: RECUSA };
+    }
+
+    const { ok, error } = await criarAgendamentoValidado(tenantRef, {
       barbeiroId: payload.barbeiroId,
       servicoId: payload.servicoId,
       date: payload.date,

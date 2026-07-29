@@ -33,6 +33,24 @@ function criarDb(): Firestore {
 }
 export const db: Firestore = criarDb();
 
+// ---- App Check (não ligado) ----
+// O booking público já tem freio no servidor (lib/rate-limit.ts). O App Check
+// atacaria o problema um passo antes, atestando que a chamada veio do site de
+// verdade e não de um script, mas exige registrar o site no reCAPTCHA
+// Enterprise e cadastrar a chave no console do Firebase — configuração de
+// infraestrutura, não de código. Quando isso for feito, o plug é aqui:
+//
+//   import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
+//   if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY) {
+//     initializeAppCheck(app, {
+//       provider: new ReCaptchaEnterpriseProvider(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY),
+//       isTokenAutoRefreshEnabled: true,
+//     });
+//   }
+//
+// Ligar sem cadastrar a chave quebra TODAS as chamadas do cliente — por isso
+// fica desligado até a configuração existir.
+
 // Liga os emuladores uma única vez, só no cliente. A conexão precisa acontecer
 // antes de qualquer chamada ao Firestore — por isso roda no carregamento do módulo.
 const emuGlobal = globalThis as typeof globalThis & { __OCARTEL_EMU__?: boolean };

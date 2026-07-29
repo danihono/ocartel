@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { c, font, shadow } from "@/lib/theme";
 import { Seal } from "@/components/ui/Seal";
@@ -45,6 +45,10 @@ export default function BookingPage() {
   const [hora, setHora] = useState("");
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
+  // Anti-abuso (ver lib/rate-limit.ts): campo isca que só um preenchedor
+  // automático completa, e quanto tempo a tela ficou aberta.
+  const [honeypot, setHoneypot] = useState("");
+  const abertoEm = useRef(Date.now());
   const [enviando, setEnviando] = useState(false);
   const [ocupados, setOcupados] = useState<IntervaloOcupado[]>([]);
   const [hojeISO, setHojeISO] = useState("");
@@ -148,6 +152,8 @@ export default function BookingPage() {
       inicio: hora,
       clienteNome: nome.trim(),
       clienteTelefone: telefone.trim(),
+      honeypot,
+      duracaoPreenchimentoMs: Date.now() - abertoEm.current,
     });
     setEnviando(false);
     if (res.ok) setStep("sucesso");
@@ -328,6 +334,20 @@ export default function BookingPage() {
                     <div style={{ marginBottom: 18 }}>
                       <label style={fieldLabel}>Telefone (WhatsApp)</label>
                       <input style={fieldInput} value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(11) 90000-0000" />
+                    </div>
+                    {/* Isca: fora da tela e fora da ordem de tabulação, mas
+                        preenchível por quem completa todo campo do formulário.
+                        aria-hidden para leitor de tela não anunciar. */}
+                    <div aria-hidden style={{ position: "absolute", left: -9999, width: 1, height: 1, overflow: "hidden" }}>
+                      <label>
+                        Não preencha este campo
+                        <input
+                          tabIndex={-1}
+                          autoComplete="off"
+                          value={honeypot}
+                          onChange={(e) => setHoneypot(e.target.value)}
+                        />
+                      </label>
                     </div>
                     <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 12, padding: 14 }}>
                       <Resumo l="Serviço" v={svc?.nome ?? ""} />
