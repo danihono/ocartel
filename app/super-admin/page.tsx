@@ -33,6 +33,7 @@ const filtrosStatus: { label: string; status: TenantStatus | "todas" }[] = [
   { label: "Ativas", status: "ativo" },
   { label: "Trial", status: "trial" },
   { label: "Atrasadas", status: "atrasado" },
+  { label: "Suspensas", status: "suspenso" },
 ];
 
 export default function SuperAdminPage() {

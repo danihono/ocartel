@@ -32,6 +32,14 @@ export async function criarAgendamentoPublico(slug: string, payload: BookingPayl
     if (!slugSnap.exists) return { ok: false, error: "Barbearia não encontrada." };
     const tenantId = slugSnap.data()!.tenantId as string;
 
+    // O Admin SDK ignora as regras do Firestore, então a suspensão precisa ser
+    // checada explicitamente aqui — senão o booking público continuaria
+    // entrando numa barbearia que está fora do ar.
+    const tenantSnap = await adminDb.collection("tenants").doc(tenantId).get();
+    if (tenantSnap.data()?.status === "suspenso") {
+      return { ok: false, error: "Esta barbearia está temporariamente indisponível para agendamentos." };
+    }
+
     const { ok, error } = await criarAgendamentoValidado(adminDb.collection("tenants").doc(tenantId), {
       barbeiroId: payload.barbeiroId,
       servicoId: payload.servicoId,

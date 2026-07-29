@@ -39,6 +39,7 @@ export const tenantStatusMeta: Record<TenantStatus, { label: string; fg: string;
   ativo: { label: "Ativo", fg: c.darkGreen, bg: "rgba(52,214,166,.18)" },
   trial: { label: "Trial", fg: c.darkAmber, bg: "rgba(231,192,120,.18)" },
   atrasado: { label: "Atrasado", fg: c.darkRed, bg: "rgba(240,151,138,.20)" },
+  suspenso: { label: "Suspenso", fg: c.darkRed, bg: "rgba(240,151,138,.34)" },
 };
 
 // 30min = 44px na grade da agenda.

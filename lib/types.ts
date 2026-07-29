@@ -15,7 +15,9 @@ export type AgendamentoStatus =
 export type ClienteTag = "VIP" | "Novo" | "Inadimplente" | "";
 
 export type PlanoSaaS = "Básico" | "Pro";
-export type TenantStatus = "ativo" | "trial" | "atrasado";
+// "atrasado" é estado de COBRANÇA: a barbearia continua funcionando normalmente.
+// "suspenso" é o único que bloqueia — vira somente leitura (ver firestore.rules).
+export type TenantStatus = "ativo" | "trial" | "atrasado" | "suspenso";
 
 export interface Barbeiro {
   id: string;

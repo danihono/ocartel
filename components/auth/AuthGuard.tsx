@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { c, font } from "@/lib/theme";
 import { Seal } from "@/components/ui/Seal";
 import { useAuth } from "@/lib/firebase/auth";
+import { useStore } from "@/lib/store";
 
 // useLayoutEffect roda ANTES do paint (mata o flash do splash ao restaurar o
 // latch), mas avisa no SSR — no servidor cai para useEffect (no-op visual).
@@ -33,9 +34,62 @@ function Splash() {
 const SESSAO_KEY = "oc_sessao_liberada";
 let sessaoLiberada = false;
 
+/**
+ * Faixa fixa para a barbearia suspensa. É um aviso, e não um bloqueio de tela,
+ * de propósito: as regras deixam a suspensão em SOMENTE LEITURA justamente para
+ * a dona continuar consultando a agenda e o financeiro enquanto regulariza. Uma
+ * parede aqui tornaria essa permissão de leitura inútil — e o que ela veria no
+ * lugar seria uma sequência de escritas falhando sem explicação.
+ */
+function FaixaSuspensa() {
+  // Fixa no rodapé: o layout do painel é uma caixa de 100vh, então uma faixa no
+  // fluxo normal empurraria tudo e criaria barra de rolagem na página inteira.
+  return (
+    <div
+      role="status"
+      style={{
+        position: "fixed",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 60,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 10,
+        padding: "10px 18px",
+        background: c.redBg,
+        borderTop: `1px solid ${c.red}`,
+        fontSize: 13,
+        color: c.redText,
+        fontWeight: 600,
+        textAlign: "center",
+      }}
+    >
+      <span style={{ width: 8, height: 8, borderRadius: "50%", background: c.red, flex: "none" }} />
+      <span>
+        Barbearia suspensa — o painel está em modo somente leitura. Nenhum agendamento, cobrança ou alteração pode ser
+        salvo até a assinatura ser regularizada.
+      </span>
+    </div>
+  );
+}
+
 export default function AuthGuard({ need, children }: { need: "tenant" | "superAdmin"; children: ReactNode }) {
   const { user, role, tenantId, loading } = useAuth();
+  const { state } = useStore();
   const router = useRouter();
+
+  // O superAdmin não leva a faixa: é ele quem suspende e quem precisa conseguir
+  // mexer na barbearia suspensa para arrumá-la.
+  const suspensa =
+    role !== "superAdmin" && !!tenantId && state.tenants.some((t) => t.id === tenantId && t.status === "suspenso");
+  const comAviso = (conteudo: ReactNode) => (
+    <>
+      {suspensa ? <FaixaSuspensa /> : null}
+      {conteudo}
+    </>
+  );
 
   const semLogin = !loading && !user;
   const semPermissao = !loading && !!user && need === "superAdmin" && role !== "superAdmin";
@@ -121,7 +175,7 @@ export default function AuthGuard({ need, children }: { need: "tenant" | "superA
   // sem splash — inclusive durante o `loading` de um reload (render otimista).
   // Se a auth real falhar, `precisaRedirecionar` bloqueia isto e os efeitos acima
   // já mandam para /login.
-  if (!precisaRedirecionar && (sessaoLiberada || jaLiberou || liberado)) return <>{children}</>;
+  if (!precisaRedirecionar && (sessaoLiberada || jaLiberou || liberado)) return comAviso(children);
   if (loading || semLogin || semPermissao || superSemTenant || tenantPendente) return <Splash />;
-  return <>{children}</>;
+  return comAviso(children);
 }

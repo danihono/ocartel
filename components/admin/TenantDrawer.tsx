@@ -25,15 +25,18 @@ export function TenantDrawer({ open, onClose, tenant }: { open: boolean; onClose
 
   if (!open || !tenant) return null;
   const sm = tenantStatusMeta[tenant.status];
-  const ativo = tenant.status === "ativo";
+  const suspenso = tenant.status === "suspenso";
   const pro = tenant.plano === "Pro";
 
   async function alternarStatus() {
     if (!tenant?.id) return;
-    const novo = ativo ? "atrasado" : "ativo";
+    // Suspender é o estado que BLOQUEIA (somente leitura para a barbearia — ver
+    // firestore.rules). "atrasado" segue existindo como sinalização de cobrança
+    // e não tira ninguém do ar.
+    const novo = suspenso ? "ativo" : "suspenso";
     try {
       await actions.tenants.update(tenant.id, { status: novo });
-      toast(ativo ? "Barbearia suspensa." : "Barbearia reativada.");
+      toast(suspenso ? "Barbearia reativada." : "Barbearia suspensa — o painel dela fica somente leitura.");
     } catch {
       toast("Não foi possível atualizar a barbearia.", "error");
     }
@@ -87,8 +90,8 @@ export function TenantDrawer({ open, onClose, tenant }: { open: boolean; onClose
       <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
         <Button variant="dark" onClick={alternarPlano}>{pro ? "Mudar para Básico" : "Mudar para Pro"}</Button>
         <div style={{ flex: 1 }} />
-        <Button onClick={alternarStatus} style={ativo ? { background: c.red } : undefined}>
-          {ativo ? "Suspender" : "Reativar"}
+        <Button onClick={alternarStatus} style={suspenso ? undefined : { background: c.red }}>
+          {suspenso ? "Reativar" : "Suspender"}
         </Button>
       </div>
     </Modal>
