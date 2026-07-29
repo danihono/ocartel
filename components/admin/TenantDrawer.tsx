@@ -8,7 +8,8 @@ import { useAuth } from "@/lib/firebase/auth";
 import { useToast } from "@/components/ui/Toast";
 import { c, font } from "@/lib/theme";
 import { tenantStatusMeta } from "@/lib/status";
-import type { Tenant } from "@/lib/types";
+import * as repo from "@/lib/firebase/repos";
+import type { SaaSEvento, Tenant } from "@/lib/types";
 
 export function TenantDrawer({ open, onClose, tenant }: { open: boolean; onClose: () => void; tenant: Tenant | null }) {
   const { actions } = useStore();
@@ -21,6 +22,16 @@ export function TenantDrawer({ open, onClose, tenant }: { open: boolean; onClose
     enterTenant(tenant.id);
     toast(`Entrando no painel de ${tenant.nome}…`);
     router.push("/dashboard");
+  }
+
+  // Feed do console. É telemetria: se falhar, a mudança no tenant continua
+  // valendo — por isso nunca entra no try/catch que decide o toast.
+  async function registrarEvento(evento: Omit<SaaSEvento, "id" | "em">) {
+    try {
+      await repo.saasEventos.registrar(evento);
+    } catch {
+      /* ignora */
+    }
   }
 
   if (!open || !tenant) return null;
@@ -36,6 +47,11 @@ export function TenantDrawer({ open, onClose, tenant }: { open: boolean; onClose
     const novo = suspenso ? "ativo" : "suspenso";
     try {
       await actions.tenants.update(tenant.id, { status: novo });
+      void registrarEvento({
+        tipo: suspenso ? "reativada" : "suspensa",
+        tenantId: tenant.id,
+        tenantNome: tenant.nome,
+      });
       toast(suspenso ? "Barbearia reativada." : "Barbearia suspensa — o painel dela fica somente leitura.");
     } catch {
       toast("Não foi possível atualizar a barbearia.", "error");
@@ -48,6 +64,12 @@ export function TenantDrawer({ open, onClose, tenant }: { open: boolean; onClose
     const novoMrr = pro ? "R$ 129" : "R$ 249";
     try {
       await actions.tenants.update(tenant.id, { plano: novoPlano, mrr: tenant.status === "trial" ? "—" : novoMrr });
+      void registrarEvento({
+        tipo: "plano",
+        tenantId: tenant.id,
+        tenantNome: tenant.nome,
+        detalhe: `${tenant.plano} → ${novoPlano}`,
+      });
       toast(`Plano alterado para ${novoPlano}.`);
     } catch {
       toast("Não foi possível atualizar a barbearia.", "error");

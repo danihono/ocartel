@@ -35,10 +35,12 @@ import type {
   Plano,
   PlanoTier,
   Role,
+  SaaSEvento,
   Servico,
   Tenant,
   Transacao,
 } from "./types";
+import type { SnapshotSaaS } from "./saas-metrics";
 
 export interface AppState {
   auth: { logado: boolean; nome: string; barbeariaNome: string };
@@ -49,6 +51,10 @@ export interface AppState {
   transacoes: Transacao[];
   config: ConfigBarbearia;
   tenants: Tenant[];
+  /** Retratos mensais do SaaS (só superAdmin) — série histórica do console. */
+  saasMetrics: SnapshotSaaS[];
+  /** Linha do tempo da carteira (só superAdmin). */
+  saasEventos: SaaSEvento[];
   planosTiers: PlanoTier[];
   planos: Plano[];
   ui: { hidratado: boolean; visao: Role; barbeiroVisaoId: string | null };
@@ -131,6 +137,8 @@ export function buildSeedState(): AppState {
     transacoes,
     config,
     tenants: seedTenants.map((t) => ({ ...t })),
+    saasMetrics: [],
+    saasEventos: [],
     planosTiers,
     planos: seedPlanos.map((p) => ({ ...p })),
     ui: { hidratado: false, visao: "admin", barbeiroVisaoId: barbeiros[0]?.id ?? null },
@@ -319,7 +327,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
 
     if (isSuper) {
-      unsubs.push(repo.tenants.subscribeAll((rows) => dispatch({ type: "SET_DATA", patch: { tenants: rows } })));
+      unsubs.push(
+        repo.tenants.subscribeAll((rows) => dispatch({ type: "SET_DATA", patch: { tenants: rows } })),
+        repo.saasMetrics.subscribe((rows) => dispatch({ type: "SET_DATA", patch: { saasMetrics: rows } })),
+        repo.saasEventos.subscribe((rows) => dispatch({ type: "SET_DATA", patch: { saasEventos: rows } })),
+      );
     } else if (tenantId) {
       unsubs.push(repo.tenants.subscribeOne(tenantId, (t) => dispatch({ type: "SET_DATA", patch: { tenants: t ? [t] : [] } })));
     }

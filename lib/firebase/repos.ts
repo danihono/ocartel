@@ -23,6 +23,7 @@ import {
   type QuerySnapshot,
 } from "firebase/firestore";
 import { db } from "./config";
+import type { SnapshotSaaS } from "../saas-metrics";
 import type {
   Agendamento,
   AgendamentoStatus,
@@ -32,6 +33,7 @@ import type {
   FormaPagamento,
   Plano,
   PlanoTier,
+  SaaSEvento,
   Servico,
   Tenant,
   Transacao,
@@ -302,5 +304,32 @@ export const tenants = {
   },
   update(tenantId: string, patch: Partial<Tenant>) {
     return updateDoc(doc(db, "tenants", tenantId), patch as DocumentData);
+  },
+};
+
+// ---- Console do SaaS (só superAdmin) ----
+
+/**
+ * Retratos mensais gravados pelo job (app/api/cron/mensalidades). É a única
+ * fonte de série histórica que existe — o doc do tenant guarda só o estado
+ * atual, e não dá para reconstruir o passado a partir dele.
+ */
+export const saasMetrics = {
+  subscribe(cb: (rows: SnapshotSaaS[]) => void) {
+    return onSnapshot(query(collection(db, "saasMetrics"), orderBy("mes")), (s) =>
+      cb(s.docs.map((d) => ({ ...(d.data() as object), mes: d.id }) as SnapshotSaaS)),
+    );
+  },
+};
+
+/** Linha do tempo do SaaS: nova barbearia, mudança de plano, suspensão. */
+export const saasEventos = {
+  subscribe(cb: (rows: SaaSEvento[]) => void, limite = 30) {
+    return onSnapshot(query(collection(db, "saasEventos"), orderBy("em", "desc"), limit(limite)), (s) =>
+      cb(rows<SaaSEvento>(s)),
+    );
+  },
+  registrar(evento: Omit<SaaSEvento, "id" | "em">) {
+    return addDoc(collection(db, "saasEventos"), { ...evento, em: serverTimestamp() });
   },
 };

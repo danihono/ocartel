@@ -105,10 +105,18 @@ export interface Tenant {
   agendamentosMes: string;
 }
 
-export interface AtividadeSaaS {
-  cor: string;
-  texto: string;
-  quando: string;
+/** O que aconteceu na carteira de barbearias — alimenta o feed do console. */
+export type TipoEventoSaaS = "nova" | "plano" | "suspensa" | "reativada";
+
+export interface SaaSEvento {
+  id: string;
+  tipo: TipoEventoSaaS;
+  tenantId: string;
+  tenantNome: string;
+  /** Detalhe curto, ex.: "Básico → Pro". */
+  detalhe?: string;
+  /** Timestamp do Firestore (serverTimestamp) — convertido na exibição. */
+  em?: { seconds: number } | null;
 }
 
 export interface DesempenhoBarbeiro {

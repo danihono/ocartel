@@ -2,7 +2,7 @@
 // slug público, cria o perfil do usuário (role "admin") e semeia o catálogo
 // inicial (serviços, barbeiros, config, planos) — tudo num writeBatch atômico.
 
-import { collection, doc, runTransaction, serverTimestamp, setDoc, writeBatch } from "firebase/firestore";
+import { addDoc, collection, doc, runTransaction, serverTimestamp, setDoc, writeBatch } from "firebase/firestore";
 import { db } from "./config";
 import { slug as slugify } from "@/lib/selectors";
 import { HOJE_ISO } from "@/lib/date";
@@ -122,6 +122,21 @@ export async function bootstrapTenant(params: BootstrapParams): Promise<{ tenant
   });
 
   await catalogo.commit();
+
+  // Alimenta o feed do console do superAdmin. Falhar aqui não pode derrubar o
+  // onboarding — é telemetria, não parte da criação da barbearia.
+  try {
+    await addDoc(collection(db, "saasEventos"), {
+      tipo: "nova",
+      tenantId,
+      tenantNome: params.barbeariaNome,
+      detalhe: params.plano,
+      em: serverTimestamp(),
+    });
+  } catch {
+    /* ignora */
+  }
+
   return { tenantId, slug };
 }
 

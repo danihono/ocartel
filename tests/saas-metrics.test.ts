@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PRECO_PLANO_SAAS, resumirTenants, snapshotDe } from "@/lib/saas-metrics";
+import { PRECO_PLANO_SAAS, resumirTenants, snapshotDe, textoEvento, variacao } from "@/lib/saas-metrics";
 import type { Tenant, TenantStatus, PlanoSaaS } from "@/lib/types";
 
 const tenant = (status: TenantStatus, plano: PlanoSaaS = "Pro", id = "t"): Tenant => ({
@@ -78,5 +78,53 @@ describe("snapshotDe", () => {
     expect(s.mes).toBe("2026-03");
     expect(s.ativas).toBe(1);
     expect(s.mrr).toBe(PRECO_PLANO_SAAS.Pro);
+  });
+});
+
+describe("variacao", () => {
+  const snap = (mes: string, ativas: number, mrr: number) => ({
+    mes,
+    total: ativas,
+    ativas,
+    trial: 0,
+    atrasadas: 0,
+    suspensas: 0,
+    mrr,
+    mrrEmRisco: 0,
+  });
+
+  it("não inventa variação sem histórico suficiente", () => {
+    expect(variacao([], "ativas")).toBeNull();
+    expect(variacao([snap("2026-03", 5, 900)], "ativas")).toBeNull();
+  });
+
+  it("compara os dois últimos meses", () => {
+    const serie = [snap("2026-01", 3, 500), snap("2026-02", 5, 900)];
+    expect(variacao(serie, "ativas")).toBe(2);
+    expect(variacao(serie, "mrr")).toBe(400);
+  });
+
+  it("devolve negativo quando encolhe", () => {
+    expect(variacao([snap("2026-01", 5, 900), snap("2026-02", 4, 700)], "ativas")).toBe(-1);
+  });
+
+  it("devolve zero quando fica estável", () => {
+    expect(variacao([snap("2026-01", 5, 900), snap("2026-02", 5, 900)], "mrr")).toBe(0);
+  });
+});
+
+describe("textoEvento", () => {
+  it("descreve cada tipo de evento", () => {
+    expect(textoEvento({ tipo: "nova", tenantNome: "Cartel" })).toContain("Cartel");
+    expect(textoEvento({ tipo: "suspensa", tenantNome: "Cartel" })).toContain("suspensa");
+    expect(textoEvento({ tipo: "reativada", tenantNome: "Cartel" })).toContain("reativada");
+  });
+
+  it("inclui o detalhe da troca de plano quando existe", () => {
+    expect(textoEvento({ tipo: "plano", tenantNome: "Cartel", detalhe: "Básico → Pro" })).toContain("Básico → Pro");
+  });
+
+  it("não deixa separador solto quando não há detalhe", () => {
+    expect(textoEvento({ tipo: "plano", tenantNome: "Cartel" })).not.toContain("·");
   });
 });

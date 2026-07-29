@@ -152,6 +152,20 @@ export function hojeISONoFuso(timeZone = "America/Sao_Paulo"): string {
   );
 }
 
+/** "agora há pouco", "há 3h", "há 2 dias" — feed de atividade do console. */
+export function haQuantoTempo(quandoMs: number, agoraMs: number = Date.now()): string {
+  const seg = Math.max(0, Math.floor((agoraMs - quandoMs) / 1000));
+  if (seg < 60) return "agora há pouco";
+  const min = Math.floor(seg / 60);
+  if (min < 60) return `há ${min} min`;
+  const horas = Math.floor(min / 60);
+  if (horas < 24) return `há ${horas}h`;
+  const dias = Math.floor(horas / 24);
+  if (dias < 30) return `há ${dias} dia${dias === 1 ? "" : "s"}`;
+  const meses = Math.floor(dias / 30);
+  return `há ${meses} ${meses === 1 ? "mês" : "meses"}`;
+}
+
 /** "jun/26" — usado em "Cliente desde". */
 export function mesAnoCurto(iso: string): string {
   const { y, m } = parse(iso);

@@ -7,6 +7,8 @@ import {
   indiceSegDom,
   inicioDaSemana,
   diasDaSemana,
+  haQuantoTempo,
+  hojeISONoFuso,
   isoParaDiaMes,
   isoParaLabel,
   mesAnoCurto,
@@ -86,5 +88,37 @@ describe("formatação de labels", () => {
     expect(isoParaDiaMes("2026-06-23")).toBe("23 jun");
     expect(isoParaLabel("2026-06-23")).toBe("Ter, 23 jun");
     expect(mesAnoCurto("2026-06-23")).toBe("jun/26");
+  });
+});
+
+describe("haQuantoTempo", () => {
+  const AGORA = 1_800_000_000_000;
+  const atras = (ms: number) => haQuantoTempo(AGORA - ms, AGORA);
+
+  it("trata o que acabou de acontecer", () => {
+    expect(atras(0)).toBe("agora há pouco");
+    expect(atras(59_000)).toBe("agora há pouco");
+  });
+
+  it("conta minutos, horas, dias e meses", () => {
+    expect(atras(5 * 60_000)).toBe("há 5 min");
+    expect(atras(3 * 3_600_000)).toBe("há 3h");
+    expect(atras(2 * 86_400_000)).toBe("há 2 dias");
+    expect(atras(60 * 86_400_000)).toBe("há 2 meses");
+  });
+
+  it("usa singular para um dia e um mês", () => {
+    expect(atras(86_400_000)).toBe("há 1 dia");
+    expect(atras(30 * 86_400_000)).toBe("há 1 mês");
+  });
+
+  it("não devolve tempo negativo com relógio adiantado", () => {
+    expect(haQuantoTempo(AGORA + 60_000, AGORA)).toBe("agora há pouco");
+  });
+});
+
+describe("hojeISONoFuso", () => {
+  it("devolve o formato YYYY-MM-DD", () => {
+    expect(hojeISONoFuso()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });

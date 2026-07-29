@@ -5,14 +5,15 @@ import { useRouter } from "next/navigation";
 import { c, font } from "@/lib/theme";
 import { Seal } from "@/components/ui/Seal";
 import { LineChart } from "@/components/ui/LineChart";
-import { atividadeSaas, mrr12m, saasKpis } from "@/lib/mock-data";
+import { PRECO_PLANO_SAAS, resumirTenants, textoEvento, variacao } from "@/lib/saas-metrics";
+import { haQuantoTempo, mesLabel } from "@/lib/date";
 import { tenantStatusMeta } from "@/lib/status";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/firebase/auth";
 import { seedDemoTenant } from "@/lib/firebase/bootstrap";
 import { useToast } from "@/components/ui/Toast";
 import { TenantDrawer } from "@/components/admin/TenantDrawer";
-import type { Tenant, TenantStatus } from "@/lib/types";
+import type { SaaSEvento, Tenant, TenantStatus, TipoEventoSaaS } from "@/lib/types";
 
 const navTabs = ["Visão geral", "Barbearias", "Billing", "Suporte"] as const;
 type Aba = (typeof navTabs)[number];
@@ -20,8 +21,15 @@ type Aba = (typeof navTabs)[number];
 function brl(n: number): string {
   return "R$ " + n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
-function parseMrr(s: string): number {
-  return Number(s.replace(/[^\d]/g, "")) || 0;
+/**
+ * Rótulo de variação mês a mês. Sem dois retratos no histórico não há variação
+ * para mostrar — e um "▲ 0%" inventado seria pior que espaço em branco.
+ */
+function deltaLabel(delta: number | null, prefixo: string): string {
+  if (delta === null) return "sem histórico ainda";
+  if (delta === 0) return "estável no mês";
+  const sinal = delta > 0 ? "▲" : "▼";
+  return `${sinal} ${prefixo}${Math.abs(delta).toLocaleString("pt-BR")} no mês`;
 }
 function iniciaisDe(nome: string): string {
   const p = nome.trim().split(/\s+/);
@@ -45,7 +53,7 @@ export default function SuperAdminPage() {
   const [filtro, setFiltro] = useState<TenantStatus | "todas">("todas");
   const [drawer, setDrawer] = useState<Tenant | null>(null);
   const [criando, setCriando] = useState(false);
-  const [resolvidos, setResolvidos] = useState<number[]>([]);
+  const [resolvidos, setResolvidos] = useState<string[]>([]);
 
   async function criarDemo() {
     if (!user || criando) return;
@@ -61,10 +69,27 @@ export default function SuperAdminPage() {
     }
   }
 
-  const ativas = state.tenants.filter((t) => t.status === "ativo").length;
-  const trials = state.tenants.filter((t) => t.status === "trial").length;
-  const mrrTotal = state.tenants.reduce((acc, t) => acc + parseMrr(t.mrr), 0);
+  // Tudo derivado das barbearias reais. O campo `mrr` do doc é uma string de
+  // exibição legada ("R$ 249"); o valor de verdade vem do plano.
+  const resumo = resumirTenants(state.tenants);
+  const ativas = resumo.ativas;
+  const trials = resumo.trial;
+  const mrrTotal = resumo.mrr;
   const ticketMedioSaas = ativas ? Math.round(mrrTotal / ativas) : 0;
+
+  // Série histórica: só existe a partir dos retratos que o job mensal grava.
+  const serie = state.saasMetrics.slice(-12);
+  const kpis = [
+    { label: "Barbearias ativas", value: String(ativas), delta: deltaLabel(variacao(serie, "ativas"), "") },
+    { label: "MRR", value: brl(mrrTotal), delta: deltaLabel(variacao(serie, "mrr"), "R$ ") },
+    { label: "Em trial", value: String(trials), delta: `${resumo.total} no total` },
+    {
+      label: "Em atraso",
+      value: String(resumo.atrasadas),
+      delta: resumo.mrrEmRisco > 0 ? `${brl(resumo.mrrEmRisco)} em risco` : "nada em risco",
+      alerta: resumo.atrasadas > 0,
+    },
+  ];
 
   // Distribuição de planos: derivada das barbearias reais (não mock).
   const distribPlanos = (() => {
@@ -72,21 +97,14 @@ export default function SuperAdminPage() {
     const basico = state.tenants.filter((t) => t.plano === "Básico").length;
     const total = pro + basico || 1;
     return [
-      { nome: "Pro · R$ 249", qtd: pro, pct: Math.round((pro / total) * 100), cor: "#34D6A6" },
-      { nome: "Básico · R$ 129", qtd: basico, pct: Math.round((basico / total) * 100), cor: "#7C5CFC" },
+      { nome: `Pro · ${brl(PRECO_PLANO_SAAS.Pro)}`, qtd: pro, pct: Math.round((pro / total) * 100), cor: "#34D6A6" },
+      { nome: `Básico · ${brl(PRECO_PLANO_SAAS["Básico"])}`, qtd: basico, pct: Math.round((basico / total) * 100), cor: "#7C5CFC" },
     ];
   })();
 
   const nomeSuper = profile?.nome || "Super Admin";
 
   const tenantsFiltrados = filtro === "todas" ? state.tenants : state.tenants.filter((t) => t.status === filtro);
-
-  function kpiValor(label: string, original: string): string {
-    if (label === "Barbearias ativas") return String(ativas);
-    if (label === "MRR") return brl(mrrTotal);
-    if (label === "Em trial") return String(trials);
-    return original;
-  }
 
   return (
     <div style={{ height: "100vh", overflow: "auto", background: c.darkBg, color: c.darkText }}>
@@ -134,11 +152,11 @@ export default function SuperAdminPage() {
       <div style={{ padding: "28px 30px", maxWidth: 1600 }}>
         {/* KPIs (sempre visíveis, dinâmicos) */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16 }}>
-          {saasKpis.map((k) => (
+          {kpis.map((k) => (
             <div key={k.label} style={{ background: c.darkSurface, border: `1px solid ${c.darkLine}`, borderRadius: 14, padding: "18px 20px" }}>
               <div style={{ fontSize: 11, letterSpacing: 0.7, textTransform: "uppercase", color: c.darkMuted, fontWeight: 600 }}>{k.label}</div>
-              <div style={{ fontFamily: font.serif, fontSize: 30, fontWeight: 600, marginTop: 8, color: c.darkText }}>{kpiValor(k.label, k.value)}</div>
-              <div style={{ fontSize: 12, marginTop: 5, color: k.tone === "green" ? c.darkGreen : c.darkAmber, fontWeight: 600 }}>{k.delta}</div>
+              <div style={{ fontFamily: font.serif, fontSize: 30, fontWeight: 600, marginTop: 8, color: c.darkText }}>{k.value}</div>
+              <div style={{ fontSize: 12, marginTop: 5, color: k.alerta ? c.darkRed : c.darkMuted, fontWeight: 600 }}>{k.delta}</div>
             </div>
           ))}
         </div>
@@ -148,12 +166,25 @@ export default function SuperAdminPage() {
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16, marginTop: 16 }}>
               <div style={{ background: c.darkSurface, border: `1px solid ${c.darkLine}`, borderRadius: 14, padding: "20px 22px" }}>
                 <div style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.darkText }}>Crescimento de MRR</div>
-                <div style={{ fontSize: 12, color: c.darkMuted, marginTop: 2, marginBottom: 14 }}>Últimos 12 meses</div>
-                <LineChart data={mrr12m} stroke={c.brass} fill="rgba(14,163,122,.16)" gridColor={c.darkLine} gridLines={[60, 120]} height={180} />
+                <div style={{ fontSize: 12, color: c.darkMuted, marginTop: 2, marginBottom: 14 }}>
+                  {serie.length >= 2 ? `${mesLabel(`${serie[0].mes}-01`)} → ${mesLabel(`${serie[serie.length - 1].mes}-01`)}` : "Últimos 12 meses"}
+                </div>
+                {serie.length >= 2 ? (
+                  <LineChart data={serie.map((s) => s.mrr)} stroke={c.brass} fill="rgba(14,163,122,.16)" gridColor={c.darkLine} height={180} />
+                ) : (
+                  // Não existe histórico retroativo: o doc do tenant guarda só o
+                  // estado atual. A série começa a partir do 1º retrato mensal.
+                  <div style={{ height: 180, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, border: `1px dashed ${c.darkLine}`, borderRadius: 12 }}>
+                    <div style={{ fontSize: 13, color: c.darkText, fontWeight: 600 }}>Ainda sem histórico</div>
+                    <div style={{ fontSize: 12, color: c.darkMuted, textAlign: "center", maxWidth: 320, lineHeight: 1.5 }}>
+                      O gráfico começa a se formar a partir do primeiro fechamento mensal. Hoje o MRR está em {brl(mrrTotal)}.
+                    </div>
+                  </div>
+                )}
               </div>
               <PlanosCard distrib={distribPlanos} ticketMedio={ticketMedioSaas} />
             </div>
-            <AtividadeCard />
+            <AtividadeCard eventos={state.saasEventos} />
           </>
         ) : aba === "Barbearias" ? (
           <div style={{ background: c.darkSurface, border: `1px solid ${c.darkLine}`, borderRadius: 14, marginTop: 16, overflow: "hidden" }}>
@@ -230,18 +261,21 @@ export default function SuperAdminPage() {
           /* Suporte */
           <div style={{ background: c.darkSurface, border: `1px solid ${c.darkLine}`, borderRadius: 14, marginTop: 16, padding: "18px 22px" }}>
             <div style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.darkText, marginBottom: 6 }}>Atividade & suporte</div>
-            {atividadeSaas.filter((_, i) => !resolvidos.includes(i)).length === 0 ? (
+            {state.saasEventos.filter((e) => !resolvidos.includes(e.id)).length === 0 ? (
               <div style={{ padding: "16px 0", fontSize: 13, color: c.darkMuted }}>Tudo resolvido. Nenhum item pendente.</div>
             ) : (
-              atividadeSaas.map((a, i) =>
-                resolvidos.includes(i) ? null : (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 0", borderTop: i === 0 ? "none" : `1px solid ${c.darkLine}` }}>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: a.cor, flex: "none" }} />
-                    <span style={{ flex: 1, fontSize: 13.5, color: c.darkText }}>{a.texto}</span>
-                    <span style={{ fontSize: 12, color: c.darkMuted }}>{a.quando}</span>
+              state.saasEventos
+                .filter((e) => !resolvidos.includes(e.id))
+                .map((e, i) => (
+                  <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 0", borderTop: i === 0 ? "none" : `1px solid ${c.darkLine}` }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: COR_EVENTO[e.tipo], flex: "none" }} />
+                    <span style={{ flex: 1, fontSize: 13.5, color: c.darkText }}>{textoEvento(e)}</span>
+                    <span style={{ fontSize: 12, color: c.darkMuted }}>{quandoDoEvento(e)}</span>
                     <button
                       onClick={() => {
-                        setResolvidos((r) => [...r, i]);
+                        // Marcação local: some da lista nesta sessão, sem
+                        // apagar o evento (o feed é histórico, não caixa de entrada).
+                        setResolvidos((r) => [...r, e.id]);
                         toast("Item marcado como resolvido.");
                       }}
                       style={{ border: "none", cursor: "pointer", fontSize: 11.5, fontWeight: 700, color: c.darkGreen, background: "rgba(52,214,166,.16)", borderRadius: 999, padding: "4px 12px" }}
@@ -249,8 +283,7 @@ export default function SuperAdminPage() {
                       Resolver
                     </button>
                   </div>
-                ),
-              )
+                ))
             )}
           </div>
         )}
@@ -295,17 +328,37 @@ function PlanosCard({ distrib, ticketMedio }: { distrib: { nome: string; qtd: nu
   );
 }
 
-function AtividadeCard() {
+/** Cor do marcador por tipo de evento — verde entra, âmbar muda, vermelho sai. */
+const COR_EVENTO: Record<TipoEventoSaaS, string> = {
+  nova: "#34D6A6",
+  plano: "#E7C078",
+  suspensa: "#F0978A",
+  reativada: "#34D6A6",
+};
+
+function quandoDoEvento(e: SaaSEvento): string {
+  // serverTimestamp só existe depois que o servidor confirma a escrita; até lá
+  // o snapshot local traz `em` nulo.
+  return e.em?.seconds ? haQuantoTempo(e.em.seconds * 1000) : "agora há pouco";
+}
+
+function AtividadeCard({ eventos }: { eventos: SaaSEvento[] }) {
   return (
     <div style={{ background: c.darkSurface, border: `1px solid ${c.darkLine}`, borderRadius: 14, marginTop: 16, padding: "18px 22px" }}>
       <div style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.darkText, marginBottom: 6 }}>Atividade recente</div>
-      {atividadeSaas.map((a, i) => (
-        <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 0", borderTop: i === 0 ? "none" : `1px solid ${c.darkLine}` }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: a.cor, flex: "none" }} />
-          <span style={{ flex: 1, fontSize: 13.5, color: c.darkText }}>{a.texto}</span>
-          <span style={{ fontSize: 12, color: c.darkMuted }}>{a.quando}</span>
+      {eventos.length === 0 ? (
+        <div style={{ padding: "16px 0", fontSize: 13, color: c.darkMuted }}>
+          Nada por aqui ainda. Novas barbearias, trocas de plano e suspensões aparecem nesta lista.
         </div>
-      ))}
+      ) : (
+        eventos.slice(0, 8).map((e, i) => (
+          <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 0", borderTop: i === 0 ? "none" : `1px solid ${c.darkLine}` }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: COR_EVENTO[e.tipo], flex: "none" }} />
+            <span style={{ flex: 1, fontSize: 13.5, color: c.darkText }}>{textoEvento(e)}</span>
+            <span style={{ fontSize: 12, color: c.darkMuted }}>{quandoDoEvento(e)}</span>
+          </div>
+        ))
+      )}
     </div>
   );
 }

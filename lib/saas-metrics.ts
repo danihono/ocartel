@@ -3,7 +3,7 @@
 // Puro de propósito: roda tanto no cliente (tela /super-admin) quanto no job
 // mensal, que grava o retrato do mês em saasMetrics/{YYYY-MM}.
 
-import type { PlanoSaaS, Tenant } from "./types";
+import type { PlanoSaaS, SaaSEvento, Tenant } from "./types";
 
 /** Preço de tabela da assinatura do O Cartel, por plano. */
 export const PRECO_PLANO_SAAS: Record<PlanoSaaS, number> = {
@@ -65,4 +65,32 @@ export interface SnapshotSaaS extends ResumoSaaS {
 
 export function snapshotDe(mes: string, tenants: Tenant[]): SnapshotSaaS {
   return { mes, ...resumirTenants(tenants) };
+}
+
+/**
+ * Variação em relação ao mês anterior, para o rótulo do KPI. Devolve `null`
+ * quando ainda não há histórico suficiente — melhor não mostrar variação
+ * nenhuma do que inventar uma.
+ */
+export function variacao(serie: SnapshotSaaS[], campo: keyof ResumoSaaS): number | null {
+  if (serie.length < 2) return null;
+  const atual = serie[serie.length - 1][campo];
+  const anterior = serie[serie.length - 2][campo];
+  return atual - anterior;
+}
+
+/** Texto do feed de atividade. */
+export function textoEvento(e: Pick<SaaSEvento, "tipo" | "tenantNome" | "detalhe">): string {
+  switch (e.tipo) {
+    case "nova":
+      return `${e.tenantNome} entrou no O Cartel`;
+    case "plano":
+      return `${e.tenantNome} mudou de plano${e.detalhe ? ` · ${e.detalhe}` : ""}`;
+    case "suspensa":
+      return `${e.tenantNome} foi suspensa`;
+    case "reativada":
+      return `${e.tenantNome} foi reativada`;
+    default:
+      return e.tenantNome;
+  }
 }

@@ -1,6 +1,5 @@
 import type {
   AtendimentoHistorico,
-  AtividadeSaaS,
   BlocoAgenda,
   Cliente,
   DesempenhoBarbeiro,
@@ -131,20 +130,9 @@ export const historicoCliente: AtendimentoHistorico[] = [
 ];
 
 // ---- Super Admin ----
-export const saasKpis = [
-  { label: "Barbearias ativas", value: "47", delta: "▲ 5 no mês", tone: "green" as const },
-  { label: "MRR", value: "R$ 9.870", delta: "▲ 8% vs. mês anterior", tone: "green" as const },
-  { label: "Em trial", value: "6", delta: "3 convertendo essa semana", tone: "amber" as const },
-  { label: "Churn", value: "2,1%", delta: "▼ 0,4 p.p.", tone: "green" as const },
-];
-
-export const mrr12m = [20, 28, 40, 38, 56, 68, 80, 94, 98, 120, 134, 152];
-
-export const planosSaas = [
-  { nome: "Pro · R$ 249", qtd: 31, pct: 66, cor: "#34D6A6" },
-  { nome: "Básico · R$ 129", qtd: 16, pct: 34, cor: "#7C5CFC" },
-];
-
+// KPIs, série de MRR e distribuição de planos saíram daqui: agora são derivados
+// das barbearias reais (lib/saas-metrics.ts) e dos retratos mensais gravados
+// pelo job em saasMetrics/{YYYY-MM}.
 export const tenants: Tenant[] = [
   { nome: "Barbearia Cartel", cidade: "São Paulo · SP", monograma: "BC", plano: "Pro", status: "ativo", mrr: "R$ 249", agendamentosMes: "412" },
   { nome: "Studio Navalha", cidade: "Campinas · SP", monograma: "SN", plano: "Pro", status: "ativo", mrr: "R$ 249", agendamentosMes: "288" },
@@ -152,13 +140,6 @@ export const tenants: Tenant[] = [
   { nome: "Old School BBR", cidade: "Belo Horizonte · MG", monograma: "OS", plano: "Pro", status: "trial", mrr: "—", agendamentosMes: "63" },
   { nome: "Lâmina & Cia", cidade: "Curitiba · PR", monograma: "LC", plano: "Básico", status: "atrasado", mrr: "R$ 129", agendamentosMes: "94" },
   { nome: "Barbearia Imperial", cidade: "Porto Alegre · RS", monograma: "BI", plano: "Pro", status: "ativo", mrr: "R$ 249", agendamentosMes: "330" },
-];
-
-export const atividadeSaas: AtividadeSaaS[] = [
-  { cor: "#34D6A6", texto: "Studio Navalha assinou o plano Pro", quando: "há 2h" },
-  { cor: "#E7C078", texto: "Old School BBR iniciou um trial", quando: "há 5h" },
-  { cor: "#34D6A6", texto: "Barbearia Imperial fez upgrade para Pro", quando: "há 1 dia" },
-  { cor: "#F0978A", texto: "Lâmina & Cia — pagamento em atraso", quando: "há 2 dias" },
 ];
 
 // ---- Booking público ----
