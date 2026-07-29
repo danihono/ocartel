@@ -24,6 +24,7 @@
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth, type UserRecord } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { claimsDoPerfil } from "../lib/claims";
 
 async function main() {
   const email = process.argv[2];
@@ -65,20 +66,15 @@ async function main() {
   // um tenantId já existente (caso esteja promovendo um admin).
   const ref = db.collection("users").doc(user.uid);
   const existing = (await ref.get()).data() ?? {};
-  await ref.set(
-    {
-      role: "superAdmin",
-      email,
-      nome: existing.nome || user.displayName || email.split("@")[0],
-      tenantId: existing.tenantId ?? "",
-    },
-    { merge: true },
-  );
-  try {
-    await auth.setCustomUserClaims(user.uid, { role: "superAdmin" });
-  } catch {
-    /* custom claim é opcional — as regras usam o doc users/{uid}.role */
-  }
+  const perfil = {
+    role: "superAdmin",
+    email,
+    nome: existing.nome || user.displayName || email.split("@")[0],
+    tenantId: existing.tenantId ?? "",
+  };
+  await ref.set(perfil, { merge: true });
+  // Espelha o perfil nos claims (mesma forma que o app aplica — ver lib/claims.ts).
+  await auth.setCustomUserClaims(user.uid, claimsDoPerfil(perfil) ?? { role: "superAdmin", tenantId: "" });
 
   console.log(`OK: ${email} (${user.uid}) agora é superAdmin.`);
   process.exit(0);

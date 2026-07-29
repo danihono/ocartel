@@ -171,8 +171,15 @@ export const agendamentos = {
   // ~6 meses + futuro), em vez de toda a coleção de todos os tempos. `date` é
   // string "YYYY-MM-DD" — comparação lexicográfica = cronológica. Índice de
   // campo único em `date` é criado automaticamente pelo Firestore.
-  subscribe(tenantId: string, cutoffISO: string, cb: (rows: Agendamento[]) => void) {
-    return onSnapshot(query(col(tenantId, "agendamentos"), where("date", ">=", cutoffISO)), (s) => cb(rows<Agendamento>(s)));
+  //
+  // `barbeiroId` NÃO é um filtro de conveniência: as regras só deixam o papel
+  // `barbeiro` ler a própria coluna, e o Firestore recusa o listener inteiro se a
+  // query não provar esse recorte. Passar o filtro é o que faz a assinatura
+  // funcionar para ele (exige o índice composto em firestore.indexes.json).
+  subscribe(tenantId: string, cutoffISO: string, cb: (rows: Agendamento[]) => void, barbeiroId?: string) {
+    const filtros = [where("date", ">=", cutoffISO)];
+    if (barbeiroId) filtros.push(where("barbeiroId", "==", barbeiroId));
+    return onSnapshot(query(col(tenantId, "agendamentos"), ...filtros), (s) => cb(rows<Agendamento>(s)));
   },
   add(tenantId: string, a: Agendamento) {
     return addDoc(col(tenantId, "agendamentos"), { ...semId(a), createdAt: serverTimestamp() });

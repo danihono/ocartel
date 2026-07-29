@@ -6,6 +6,7 @@
 // automaticamente; basta o projectId bater com o do emulador.
 
 import { getApps, initializeApp, type App } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
 function adminApp(): App {
@@ -17,3 +18,4 @@ function adminApp(): App {
 }
 
 export const adminDb = getFirestore(adminApp());
+export const adminAuth = getAuth(adminApp());

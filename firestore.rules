@@ -1,31 +1,85 @@
 rules_version = '2';
 
-// Modelo multi-tenant: cada usuário tem um doc users/{uid} com { role, tenantId }.
-// O acesso a tenants/{t}/** é liberado quando o tenantId do usuário casa com {t}
-// (ou quando o papel é superAdmin). As escritas de booking público NÃO passam por
-// aqui — elas entram pela server action (Admin SDK), que ignora estas regras.
+// Modelo multi-tenant com papéis. Cada usuário tem um doc users/{uid} com
+// { role, tenantId, barbeiroId? }, espelhado nos custom claims do token
+// (ver lib/claims.ts). As regras preferem o CLAIM — que vem de graça no token —
+// e só caem no get(users/{uid}), que é uma leitura cobrada por operação, para
+// quem ainda não foi migrado. Quando o backfill (npm run backfill:claims) tiver
+// rodado para todos, o fallback pode sair e o custo some.
+//
+// As escritas do booking público NÃO passam por aqui — entram pela server action
+// (Admin SDK), que ignora estas regras e faz as próprias validações.
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function signedIn() {
       return request.auth != null;
     }
+    function temClaim() {
+      return signedIn() && 'role' in request.auth.token;
+    }
     function uDoc() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
+
+    // ---- Identidade: claim primeiro, doc users/{uid} como fallback legado ----
+    function papel() {
+      return temClaim() ? request.auth.token.role : uDoc().role;
+    }
+    function tenantDoUsuario() {
+      return temClaim() ? request.auth.token.tenantId : uDoc().tenantId;
+    }
+    function barbeiroDoUsuario() {
+      return temClaim()
+        ? ('barbeiroId' in request.auth.token ? request.auth.token.barbeiroId : '')
+        : ('barbeiroId' in uDoc() ? uDoc().barbeiroId : '');
+    }
+
+    // ---- Papéis ----
     function isSuper() {
-      return signedIn() && uDoc().role == 'superAdmin';
+      return signedIn() && papel() == 'superAdmin';
     }
-    function owns(tenantId) {
-      return signedIn() && uDoc().tenantId == tenantId;
+    function isAdmin(tenantId) {
+      return signedIn() && papel() == 'admin' && tenantDoUsuario() == tenantId;
     }
+    function isBarbeiro(tenantId) {
+      return signedIn() && papel() == 'barbeiro' && tenantDoUsuario() == tenantId;
+    }
+    /** Quem administra a barbearia (dona ou suporte). */
     function canManage(tenantId) {
-      return owns(tenantId) || isSuper();
+      return isAdmin(tenantId) || isSuper();
+    }
+    /** Qualquer pessoa da equipe — inclui o barbeiro. */
+    function membro(tenantId) {
+      return canManage(tenantId) || isBarbeiro(tenantId);
+    }
+
+    // ---- Suspensão (billing) ----
+    // Barbearia suspensa vira SOMENTE LEITURA: a dona continua enxergando tudo
+    // para regularizar, mas nada entra. O superAdmin escreve mesmo assim — é ele
+    // quem precisa conseguir arrumar o estado.
+    function tenantAtivo(tenantId) {
+      return get(/databases/$(database)/documents/tenants/$(tenantId)).data.status != 'suspenso';
+    }
+    function podeEscrever(tenantId) {
+      return isSuper() || (isAdmin(tenantId) && tenantAtivo(tenantId));
+    }
+    function barbeiroPodeEscrever(tenantId) {
+      return isBarbeiro(tenantId) && tenantAtivo(tenantId);
     }
 
     // ---- Validações de shape/valor (escritas financeiras e de agenda) ----
     function statusAgendamentoValido(s) {
       return s in ['agendado', 'confirmado', 'atendimento', 'concluido', 'noshow', 'cancelado', 'bloqueio'];
+    }
+    function agendamentoValido() {
+      return statusAgendamentoValido(request.resource.data.status)
+        && request.resource.data.duracaoMin is number;
+    }
+    /** O barbeiro só mexe na PRÓPRIA coluna — nem na de entrada, nem na de saída. */
+    function agendamentoDoBarbeiro() {
+      return (!('barbeiroId' in request.resource.data) || request.resource.data.barbeiroId == barbeiroDoUsuario())
+        && (resource == null || resource.data.barbeiroId == barbeiroDoUsuario());
     }
     function transacaoCreateValida() {
       let d = request.resource.data;
@@ -41,12 +95,15 @@ service cloud.firestore {
         && (novo.status != 'pago' || (novo.paidAt is string && novo.amountReceived is number));
     }
 
-    // Perfil do usuário. Auto-cadastro só pode criar a si mesmo como 'admin'.
+    // Perfil do usuário. Auto-cadastro só pode criar a si mesmo como 'admin' — o
+    // papel `barbeiro` nasce pelo Admin SDK (app/actions/equipe.ts), que não
+    // passa por aqui.
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isSuper());
       allow create: if request.auth.uid == uid
         && request.resource.data.role == 'admin'
         && request.resource.data.keys().hasAll(['role', 'tenantId', 'nome', 'email']);
+      // Ninguém promove a si mesmo: papel e barbearia são imutáveis fora do superAdmin.
       allow update: if isSuper()
         || (request.auth.uid == uid
             && request.resource.data.role == resource.data.role
@@ -61,44 +118,79 @@ service cloud.firestore {
       allow update, delete: if isSuper();
     }
 
+    // Métricas e eventos do SaaS (console super-admin). Escritos pelo Admin SDK.
+    match /saasMetrics/{mes} {
+      allow read: if isSuper();
+      allow write: if false;
+    }
+    match /saasEventos/{id} {
+      allow read: if isSuper();
+      allow create: if signedIn();
+      allow update, delete: if isSuper();
+    }
+
     match /tenants/{tenantId} {
       // Doc público (nome, slug, endereco, plano) — NÃO guardar segredos aqui.
       allow read: if true;
       allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
-      allow update, delete: if canManage(tenantId);
+      // A dona edita os dados da barbearia, mas NUNCA o próprio status/plano —
+      // senão bastaria um update para sair da suspensão ou virar Pro de graça.
+      allow update: if isSuper()
+        || (isAdmin(tenantId)
+            && tenantAtivo(tenantId)
+            && request.resource.data.status == resource.data.status
+            && request.resource.data.plano == resource.data.plano);
+      allow delete: if isSuper();
 
       // Dados sensíveis (billing) ficam isolados e nunca são públicos.
       match /private/{doc} {
-        allow read, write: if canManage(tenantId);
+        allow read: if canManage(tenantId);
+        allow write: if podeEscrever(tenantId);
       }
 
       // Catálogo de leitura pública (a vitrine de /book/[slug]).
-      match /servicos/{id}    { allow read: if true; allow write: if canManage(tenantId); }
-      match /barbeiros/{id}   { allow read: if true; allow write: if canManage(tenantId); }
-      match /config/{id}      { allow read: if true; allow write: if canManage(tenantId); }
-      match /planosTiers/{id} { allow read: if true; allow write: if canManage(tenantId); }
+      match /servicos/{id}    { allow read: if true; allow write: if podeEscrever(tenantId); }
+      match /barbeiros/{id}   { allow read: if true; allow write: if podeEscrever(tenantId); }
+      match /config/{id}      { allow read: if true; allow write: if podeEscrever(tenantId); }
+      match /planosTiers/{id} { allow read: if true; allow write: if podeEscrever(tenantId); }
 
-      // Dados privados do tenant.
+      // ---- Dados privados do tenant ----
+
+      // O barbeiro lê a base de clientes (a aba Clientes da tela dele), mas não
+      // cadastra nem altera ninguém.
       match /clientes/{id} {
-        allow read, delete: if canManage(tenantId);
-        allow create, update: if canManage(tenantId) && request.resource.data.nome is string;
+        allow read: if membro(tenantId);
+        allow delete: if podeEscrever(tenantId);
+        allow create, update: if podeEscrever(tenantId) && request.resource.data.nome is string;
       }
+
+      // Financeiro é exclusivo da administração — o barbeiro não vê faturamento.
       match /transacoes/{id} {
-        allow read, delete: if canManage(tenantId);
-        allow create: if canManage(tenantId) && transacaoCreateValida();
-        allow update: if canManage(tenantId) && transacaoUpdateValida();
+        allow read: if canManage(tenantId);
+        allow delete: if podeEscrever(tenantId);
+        allow create: if podeEscrever(tenantId) && transacaoCreateValida();
+        allow update: if podeEscrever(tenantId) && transacaoUpdateValida();
       }
-      match /agendamentos/{id} {
-        allow read, delete: if canManage(tenantId);
-        allow create, update: if canManage(tenantId)
-          && statusAgendamentoValido(request.resource.data.status)
-          && request.resource.data.duracaoMin is number;
-      }
-      // Planos de assinatura do cliente (mensalidade) — privados do tenant.
       match /planos/{id} {
-        allow read, delete: if canManage(tenantId);
-        allow create, update: if canManage(tenantId) && request.resource.data.valor is number;
+        allow read: if canManage(tenantId);
+        allow delete: if podeEscrever(tenantId);
+        allow create, update: if podeEscrever(tenantId) && request.resource.data.valor is number;
       }
+
+      // Agenda: a administração vê tudo; o barbeiro só a própria coluna.
+      // A leitura restrita exige que a query do cliente filtre por barbeiroId
+      // (ver lib/store.tsx) — senão o Firestore recusa o listener inteiro.
+      match /agendamentos/{id} {
+        allow read: if canManage(tenantId)
+          || (isBarbeiro(tenantId) && resource.data.barbeiroId == barbeiroDoUsuario());
+        allow delete: if podeEscrever(tenantId)
+          || (barbeiroPodeEscrever(tenantId) && resource.data.barbeiroId == barbeiroDoUsuario());
+        allow create, update: if agendamentoValido()
+          && (podeEscrever(tenantId) || (barbeiroPodeEscrever(tenantId) && agendamentoDoBarbeiro()));
+      }
+
+      // `rateLimits/**` (contadores anti-abuso do booking) não tem match: cai no
+      // default-deny. Só a server action (Admin SDK) toca nesses docs.
     }
   }
 }

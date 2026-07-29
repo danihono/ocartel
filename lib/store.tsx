@@ -250,11 +250,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, buildSeedState);
   const { profile, role, tenantId } = useAuth();
   const nome = profile?.nome ?? "";
+  const barbeiroVinculado = profile?.barbeiroId ?? "";
 
   // Assina os listeners do tenant. Limpa a semente ao entrar e refaz ao trocar
   // de tenant / deslogar.
   useEffect(() => {
     const isSuper = role === "superAdmin";
+    const ehBarbeiro = role === "barbeiro";
     if (!tenantId && !isSuper) return;
 
     dispatch({
@@ -283,14 +285,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         repo.clientes.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { clientes: rows } })),
         repo.barbeiros.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { barbeiros: rows } })),
         repo.servicos.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { servicos: rows } })),
-        repo.transacoes.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { transacoes: rows } })),
-        repo.agendamentos.subscribe(tenantId, cutoffAgendamentos, (rows) => dispatch({ type: "SET_DATA", patch: { agendamentos: rows } })),
         repo.planosTiers.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { planosTiers: rows } })),
-        repo.planos.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { planos: rows } })),
         repo.config.subscribe(tenantId, (cfg) => {
           if (cfg) dispatch({ type: "SET_DATA", patch: { config: cfg, auth: { logado: true, nome, barbeariaNome: cfg.nome }, ui: { hidratado: true } } });
         }),
       );
+
+      // Financeiro é só da administração — assinar como barbeiro renderia
+      // `permission-denied` no console a cada carregamento da tela.
+      if (!ehBarbeiro) {
+        unsubs.push(
+          repo.transacoes.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { transacoes: rows } })),
+          repo.planos.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { planos: rows } })),
+        );
+      }
+
+      // O barbeiro só enxerga a própria agenda — e a query PRECISA declarar isso
+      // (ver repo.agendamentos.subscribe). Sem vínculo não há o que assinar: a
+      // tela dele fica vazia em vez de estourar erro de permissão.
+      if (!ehBarbeiro || barbeiroVinculado) {
+        unsubs.push(
+          repo.agendamentos.subscribe(
+            tenantId,
+            cutoffAgendamentos,
+            (rows) => dispatch({ type: "SET_DATA", patch: { agendamentos: rows } }),
+            ehBarbeiro ? barbeiroVinculado : undefined,
+          ),
+        );
+      }
     } else {
       // superAdmin sem tenant próprio: nada de coleções por tenant.
       dispatch({ type: "SET_DATA", patch: { ui: { hidratado: true } } });
@@ -303,7 +325,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
 
     return () => unsubs.forEach((u) => u());
-  }, [tenantId, role, nome]);
+  }, [tenantId, role, nome, barbeiroVinculado]);
 
   const actions = useMemo<StoreActions>(() => buildActions(tenantId ?? ""), [tenantId]);
 

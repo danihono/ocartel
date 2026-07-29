@@ -49,7 +49,7 @@ export default function BarbeiroPage() {
 
 function BarbeiroMobile() {
   const { state, actions } = useStore();
-  const { profile } = useAuth();
+  const { profile, role } = useAuth();
   const toast = useToast();
   const searchParams = useSearchParams();
   const bParam = searchParams.get("b");
@@ -65,14 +65,26 @@ function BarbeiroMobile() {
   const [bloquearOpen, setBloquearOpen] = useState(false);
   const [detalhe, setDetalhe] = useState<Agendamento | null>(null);
 
-  // Qual barbeiro é o "dono" desta tela: ?b= (preview do admin) → vínculo do
-  // perfil → casamento por nome → 1º barbeiro (fallback).
+  // Qual barbeiro é o "dono" desta tela.
+  //
+  // Para quem TEM papel `barbeiro` a resposta é só uma: o vínculo do próprio
+  // perfil. Nada de `?b=` (senão bastaria trocar a querystring para abrir a
+  // agenda do colega) e nada de cair no 1º da lista. As regras do Firestore já
+  // recusariam a leitura, mas a tela não deve nem sugerir que dá.
+  //
+  // `?b=` continua valendo para admin/superAdmin — é o preview do link
+  // "Tela do barbeiro ↗".
+  const ehBarbeiro = role === "barbeiro";
   const barbId = useMemo(() => {
+    if (ehBarbeiro) {
+      return profile?.barbeiroId && state.barbeiros.some((b) => b.id === profile.barbeiroId)
+        ? profile.barbeiroId
+        : null;
+    }
     if (bParam && state.barbeiros.some((b) => b.id === bParam)) return bParam;
-    if (profile?.barbeiroId && state.barbeiros.some((b) => b.id === profile.barbeiroId)) return profile.barbeiroId;
     const porNome = profile?.nome ? state.barbeiros.find((b) => slugify(b.nome) === slugify(profile.nome)) : undefined;
     return porNome?.id ?? state.barbeiros[0]?.id ?? null;
-  }, [bParam, profile?.barbeiroId, profile?.nome, state.barbeiros]);
+  }, [ehBarbeiro, bParam, profile?.barbeiroId, profile?.nome, state.barbeiros]);
 
   const barbeiro = state.barbeiros.find((b) => b.id === barbId) ?? null;
 
@@ -100,6 +112,10 @@ function BarbeiroMobile() {
       <div style={{ flex: 1, overflow: "auto", padding: "16px 16px 18px" }}>
         {carregando ? (
           <Vazio texto="Carregando…" />
+        ) : ehBarbeiro && !barbId ? (
+          // Conta de barbeiro sem vínculo: a agenda viria vazia e pareceria bug.
+          // Melhor dizer o que houve — e o que a pessoa pode fazer a respeito.
+          <Vazio texto="Sua conta ainda não está ligada a um barbeiro do cadastro. Peça para a administração da barbearia refazer o acesso." />
         ) : tab === "agenda" ? (
           <>
             {/* navegação de dia */}

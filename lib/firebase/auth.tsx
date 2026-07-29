@@ -4,10 +4,12 @@
 // doc users/{uid} (para pegar role/tenantId reativamente — inclusive logo após o
 // onboarding criar o doc). É a fonte da verdade de "está logado" e "qual tenant".
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "./config";
+import { claimsDesatualizados, claimsDoPerfil } from "@/lib/claims";
+import { sincronizarClaims } from "@/app/actions/claims";
 import type { Role } from "@/lib/types";
 
 // Chave do localStorage para a "impersonação" do superAdmin: a barbearia cujo
@@ -92,6 +94,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       unsubAuth();
     };
   }, []);
+
+  // Mantém os custom claims em dia com o doc users/{uid}. Roda aqui (e não só no
+  // login) para que as contas que já existiam ganhem claims sozinhas no primeiro
+  // acesso — sem depender de alguém lembrar de rodar o backfill. A assinatura
+  // evita repetir a chamada a cada snapshot do perfil.
+  const claimsSincronizados = useRef("");
+  useEffect(() => {
+    if (!user || !profile) return;
+    const alvo = claimsDoPerfil(profile as unknown as Record<string, unknown>);
+    if (!alvo) return;
+
+    const assinatura = `${user.uid}:${alvo.role}:${alvo.tenantId}:${alvo.barbeiroId ?? ""}`;
+    if (claimsSincronizados.current === assinatura) return;
+    claimsSincronizados.current = assinatura;
+
+    let cancelado = false;
+    void (async () => {
+      try {
+        const atual = await user.getIdTokenResult();
+        if (!claimsDesatualizados(atual.claims as Record<string, unknown>, alvo)) return;
+        const { atualizado } = await sincronizarClaims(await user.getIdToken());
+        // Claim só entra no token numa nova emissão — sem isto as regras só
+        // enxergariam o papel novo no próximo refresh (até 1h depois).
+        if (atualizado && !cancelado) await user.getIdToken(true);
+      } catch {
+        // Não pode derrubar a sessão: as regras ainda resolvem o papel pelo doc
+        // users/{uid}, então no pior caso seguimos no caminho antigo.
+        claimsSincronizados.current = "";
+      }
+    })();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [user, profile]);
 
   const enterTenant = useCallback((tenantId: string) => {
     setImpersonatedTenantId(tenantId);
