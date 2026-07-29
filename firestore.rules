@@ -125,7 +125,9 @@ service cloud.firestore {
     }
     match /saasEventos/{id} {
       allow read: if isSuper();
-      allow create: if signedIn();
+      // Só dá para registrar evento da PRÓPRIA barbearia — senão qualquer conta
+      // autenticada conseguiria poluir o feed do console com eventos inventados.
+      allow create: if isSuper() || (signedIn() && request.resource.data.tenantId == tenantDoUsuario());
       allow update, delete: if isSuper();
     }
 
