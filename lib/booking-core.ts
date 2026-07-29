@@ -1,7 +1,6 @@
-// Núcleo de agendamento validado no SERVIDOR (Admin SDK). Compartilhado entre o
-// booking público (app/book/[slug]/actions.ts) e a aprovação de propostas da IA
-// do WhatsApp (app/(admin)/whatsapp/actions.ts). Concentra num só lugar as
-// guardas autoritativas: data futura, dia/expediente aberto, sem sobreposição de
+// Núcleo de agendamento validado no SERVIDOR (Admin SDK), usado pelo booking
+// público (app/book/[slug]/actions.ts). Concentra num só lugar as guardas
+// autoritativas: data futura, dia/expediente aberto, sem sobreposição de
 // horário e vínculo/criação de cliente por telefone.
 //
 // Só use isto no servidor — importa firebase-admin. Não importe de componentes
@@ -50,7 +49,7 @@ export interface CriarAgendamentoInput {
   clienteNome: string;
   clienteTelefone?: string;
   observacoes?: string;
-  origem?: "booking" | "whatsapp-ia" | "admin";
+  origem?: "booking" | "admin";
 }
 
 export interface CriarAgendamentoResult {

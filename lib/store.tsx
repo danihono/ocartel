@@ -38,8 +38,6 @@ import type {
   Servico,
   Tenant,
   Transacao,
-  WaProposta,
-  WhatsAppIntegration,
 } from "./types";
 
 export interface AppState {
@@ -53,8 +51,6 @@ export interface AppState {
   tenants: Tenant[];
   planosTiers: PlanoTier[];
   planos: Plano[];
-  whatsapp: WhatsAppIntegration | null;
-  propostas: WaProposta[];
   ui: { hidratado: boolean; visao: Role; barbeiroVisaoId: string | null };
 }
 
@@ -137,8 +133,6 @@ export function buildSeedState(): AppState {
     tenants: seedTenants.map((t) => ({ ...t })),
     planosTiers,
     planos: seedPlanos.map((p) => ({ ...p })),
-    whatsapp: null,
-    propostas: [],
     ui: { hidratado: false, visao: "admin", barbeiroVisaoId: barbeiros[0]?.id ?? null },
   };
 }
@@ -196,8 +190,6 @@ export interface StoreActions {
     gerarMensalidades: (novas: Transacao[]) => Promise<void>;
   };
   config: { update: (patch: Partial<ConfigBarbearia>) => Promise<void> };
-  whatsapp: { enviarComando: (action: "connect" | "disconnect") => Promise<void> };
-  propostas: { recusar: (id: string) => Promise<void>; aprovar: (id: string, agendamentoId: string) => Promise<void> };
   planosTiers: { update: (tier: PlanoTier) => Promise<void> };
   planos: { add: (p: Plano) => Promise<Ref>; update: (p: Plano) => Promise<void>; remove: (id: string) => Promise<void> };
   tenants: { update: (tenantId: string, patch: Partial<Tenant>) => Promise<void> };
@@ -236,11 +228,6 @@ function buildActions(tenantId: string): StoreActions {
       gerarMensalidades: (novas) => repo.transacoes.gerarMensalidades(tenantId, novas),
     },
     config: { update: (patch) => repo.config.update(tenantId, patch) },
-    whatsapp: { enviarComando: (action) => repo.whatsapp.enviarComando(tenantId, action) },
-    propostas: {
-      recusar: (id) => repo.propostas.recusar(tenantId, id),
-      aprovar: (id, agendamentoId) => repo.propostas.aprovar(tenantId, id, agendamentoId),
-    },
     planosTiers: { update: (tier) => repo.planosTiers.update(tenantId, tier) },
     planos: {
       add: (p) => repo.planos.add(tenantId, p),
@@ -281,8 +268,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         transacoes: [],
         tenants: [],
         planos: [],
-        propostas: [],
-        whatsapp: null,
         ui: { hidratado: false },
       },
     });
@@ -302,8 +287,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         repo.agendamentos.subscribe(tenantId, cutoffAgendamentos, (rows) => dispatch({ type: "SET_DATA", patch: { agendamentos: rows } })),
         repo.planosTiers.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { planosTiers: rows } })),
         repo.planos.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { planos: rows } })),
-        repo.whatsapp.subscribeStatus(tenantId, (wa) => dispatch({ type: "SET_DATA", patch: { whatsapp: wa } })),
-        repo.propostas.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { propostas: rows } })),
         repo.config.subscribe(tenantId, (cfg) => {
           if (cfg) dispatch({ type: "SET_DATA", patch: { config: cfg, auth: { logado: true, nome, barbeariaNome: cfg.nome }, ui: { hidratado: true } } });
         }),

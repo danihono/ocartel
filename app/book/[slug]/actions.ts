@@ -4,8 +4,7 @@
 // com o Admin SDK, que valida tudo do lado do servidor e ignora as regras de
 // segurança — assim não precisamos abrir escrita pública e anônima no Firestore.
 //
-// A validação/gravação autoritativa mora em lib/booking-core.ts (compartilhada
-// com a aprovação de propostas da IA do WhatsApp).
+// A validação/gravação autoritativa mora em lib/booking-core.ts.
 
 import { adminDb } from "@/lib/firebase/admin";
 import { criarAgendamentoValidado, intervalosOcupados, ISO_DATE } from "@/lib/booking-core";
