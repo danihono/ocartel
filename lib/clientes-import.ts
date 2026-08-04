@@ -24,6 +24,18 @@ export function normalizarTelefone(v: string): string {
   return (v ?? "").replace(/\D/g, "").slice(0, 11);
 }
 
+/**
+ * Telefone no formato que o wa.me espera: 55 + DDD + número, só dígitos.
+ * Tolera quem já guardou com o 55 na frente. Devolve null quando não dá pra
+ * montar um número discável (curto demais, vazio, lixo).
+ */
+export function telefoneWhatsApp(v: string): string | null {
+  let d = (v ?? "").replace(/\D/g, "");
+  if (d.startsWith("55") && (d.length === 12 || d.length === 13)) d = d.slice(2);
+  if (d.length !== 10 && d.length !== 11) return null;
+  return `55${d}`;
+}
+
 /** Iniciais a partir do nome (até 2 letras). */
 export function iniciaisDe(nome: string): string {
   const partes = (nome ?? "").trim().split(/\s+/);

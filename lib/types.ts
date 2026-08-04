@@ -139,6 +139,15 @@ export interface Agendamento {
   cobertoPorPlano?: boolean;
   /** Liga este agendamento a uma série criada em massa. Ausente nos individuais. */
   recorrenciaId?: string;
+  /**
+   * Segredo do link de confirmação enviado ao cliente pelo WhatsApp. Fica só no
+   * doc (privado nas regras) e no link — nunca é exibido na tela.
+   */
+  confirmToken?: string;
+  /** Marcado quando foi o PRÓPRIO cliente quem respondeu, pelo link. */
+  confirmadoPeloCliente?: boolean;
+  /** Quando o cliente respondeu pelo link (ISO datetime). */
+  respondidoEm?: string;
 }
 
 export type FormaPagamento = "pix" | "cartao" | "cartao_debito" | "dinheiro";

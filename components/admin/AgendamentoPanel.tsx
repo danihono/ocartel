@@ -11,11 +11,15 @@ import { isoParaLabelLongo } from "@/lib/date";
 import { useHoje } from "@/lib/useRelogio";
 import { c, font } from "@/lib/theme";
 import { blocoMeta, STATUS_LABEL, tagMeta } from "@/lib/status";
+import { telefoneWhatsApp } from "@/lib/clientes-import";
+import { linkConfirmacao, linkWhatsApp, mensagemWhatsApp, montarCodigo, novoToken } from "@/lib/confirmacao";
+import { useAuth } from "@/lib/firebase/auth";
 import type { AgendamentoStatus } from "@/lib/types";
 
 /** Painel lateral de detalhe do agendamento (substitui o modal central na Agenda). */
 export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boolean; onClose: () => void; agendamentoId: string | null }) {
   const { state, actions } = useStore();
+  const { tenantId } = useAuth();
   const toast = useToast();
   const hoje = useHoje();
 
@@ -36,6 +40,17 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, agendamentoId]);
 
+  // Agendamentos criados antes desta funcionalidade não têm o segredo do link.
+  // Gera um na primeira vez que o painel abre — os novos já nascem com ele
+  // (lib/firebase/repos.ts e lib/booking-core.ts).
+  useEffect(() => {
+    if (!open || !ag || ag.confirmToken || ag.status === "bloqueio") return;
+    void actions.agendamentos.update(ag.id, { confirmToken: novoToken() }).catch(() => {
+      /* sem token, o botão do WhatsApp simplesmente não aparece */
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, agendamentoId, ag?.confirmToken]);
+
   if (!open || !ag) return null;
 
   const isBloqueio = ag.status === "bloqueio";
@@ -52,6 +67,31 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
   // tem volta. "Concluído" continua terminal — reverter mexeria na transação e
   // no totalGasto já gravados por repo.agendamentos.concluir().
   const ehRevertivel = ag.status === "noshow" || ag.status === "cancelado";
+
+  // Link de clique-para-conversar já apontando para o número cadastrado, com a
+  // mensagem e o link de confirmação prontos. É um <a> com href calculado no
+  // render — abrir em `window.open` depois de um `await` cairia no bloqueador.
+  const zap = telefoneWhatsApp(cliente?.telefone ?? "");
+  const podeMandarZap =
+    !isBloqueio && !!zap && !!ag.confirmToken && !!tenantId && ag.status !== "cancelado" && ag.status !== "concluido";
+  const urlWhatsApp = podeMandarZap
+    ? linkWhatsApp(
+        zap,
+        mensagemWhatsApp({
+          cliente: ag.clienteNome,
+          barbearia: state.config.nome,
+          servico: ag.servico,
+          profissional: barbeiroNomePorId(state, ag.barbeiroId),
+          dateISO: ag.date,
+          hora: ag.inicio,
+          link: linkConfirmacao(
+            typeof window !== "undefined" ? window.location.origin : "",
+            montarCodigo({ tenantId: tenantId!, agendamentoId: ag.id, token: ag.confirmToken! }),
+          ),
+          jaConfirmado: ag.status === "confirmado",
+        }),
+      )
+    : null;
 
   /** Muda o status oferecendo "Desfazer" no toast (volta ao estado anterior). */
   async function setStatus(status: AgendamentoStatus, msg: string, opts?: { manterAberto?: boolean }) {
@@ -157,6 +197,15 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
           <span style={{ width: 9, height: 9, borderRadius: 3, background: meta.bar }} />
           <span style={{ fontSize: 12.5, fontWeight: 700, color: c.inkTitle }}>{STATUS_LABEL[ag.status]}</span>
+          {/* Quem respondeu sozinho pelo link vale mais que quem a barbearia marcou. */}
+          {ag.confirmadoPeloCliente ? (
+            <span
+              title={ag.respondidoEm ? `Resposta do cliente em ${ag.respondidoEm.slice(0, 10)}` : undefined}
+              style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 9px", borderRadius: 999, background: c.greenBg, color: c.greenText }}
+            >
+              ✓ pelo cliente
+            </span>
+          ) : null}
         </div>
 
         {/* Cliente */}
@@ -171,6 +220,33 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
         {!isBloqueio && cliente?.telefone ? (
           <a href={`tel:${cliente.telefone}`} style={{ fontSize: 13, color: c.brassDeep, fontWeight: 600, textDecoration: "none" }}>
             {cliente.telefone}
+          </a>
+        ) : null}
+
+        {/* Abre a conversa no número cadastrado, com a mensagem e o link prontos. */}
+        {urlWhatsApp ? (
+          <a
+            href={urlWhatsApp}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="oc-btn"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              marginTop: 12,
+              background: "#25D366", // verde do WhatsApp — é o que o olho procura
+              color: "#0B3D26",
+              borderRadius: 11,
+              padding: "11px 14px",
+              fontSize: 13.5,
+              fontWeight: 700,
+              textDecoration: "none",
+            }}
+          >
+            <span aria-hidden>💬</span>
+            {ag.status === "confirmado" ? "Lembrar pelo WhatsApp" : "Pedir confirmação pelo WhatsApp"}
           </a>
         ) : null}
 

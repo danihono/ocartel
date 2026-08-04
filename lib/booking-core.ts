@@ -9,6 +9,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { horaParaMin, horarioLivre, ocupaHorario, type IntervaloOcupado } from "@/lib/agenda";
 import { indiceSegDom, mesAnoCurto } from "@/lib/date";
+import { novoToken } from "@/lib/confirmacao";
 
 export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 export const HORA = /^\d{2}:\d{2}$/;
@@ -158,6 +159,8 @@ export async function criarAgendamentoValidado(
       status: "agendado",
       origem: input.origem ?? "booking",
       ...(input.observacoes ? { observacoes: input.observacoes } : {}),
+      // Segredo do link de confirmação por WhatsApp (ver lib/confirmacao.ts).
+      confirmToken: novoToken(),
       createdAt: FieldValue.serverTimestamp(),
     });
     return ref.id;

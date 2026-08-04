@@ -23,6 +23,7 @@ import {
   type QuerySnapshot,
 } from "firebase/firestore";
 import { db } from "./config";
+import { novoToken } from "@/lib/confirmacao";
 import type {
   Agendamento,
   AgendamentoStatus,
@@ -174,15 +175,19 @@ export const agendamentos = {
   subscribe(tenantId: string, cutoffISO: string, cb: (rows: Agendamento[]) => void) {
     return onSnapshot(query(col(tenantId, "agendamentos"), where("date", ">=", cutoffISO)), (s) => cb(rows<Agendamento>(s)));
   },
+  // `confirmToken` nasce aqui (e no booking-core, para o público): é o segredo do
+  // link de confirmação que o cliente recebe por WhatsApp. Gerar num ponto só
+  // cobre todos os caminhos do painel sem repetir isso em cada modal.
   add(tenantId: string, a: Agendamento) {
-    return addDoc(col(tenantId, "agendamentos"), { ...semId(a), createdAt: serverTimestamp() });
+    return addDoc(col(tenantId, "agendamentos"), { confirmToken: novoToken(), ...semId(a), createdAt: serverTimestamp() });
   },
   /** Cria N agendamentos de uma vez (agendamento recorrente). Fatiado em commits de 500. */
   async addMany(tenantId: string, lista: Agendamento[]) {
     for (let i = 0; i < lista.length; i += BATCH_LIMIT) {
       const batch = writeBatch(db);
       for (const a of lista.slice(i, i + BATCH_LIMIT)) {
-        batch.set(doc(col(tenantId, "agendamentos")), { ...semId(a), createdAt: serverTimestamp() });
+        // Um token por ocorrência: cada data tem o seu link.
+        batch.set(doc(col(tenantId, "agendamentos")), { confirmToken: novoToken(), ...semId(a), createdAt: serverTimestamp() });
       }
       await batch.commit();
     }
