@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { c, font, shadow } from "@/lib/theme";
 import { useStore } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { selectAgendaPorBarbeiro, selectAtendimentosHoje } from "@/lib/selectors";
-import { blocoMeta, horaDesde, minutosDesde, PX_PER_MIN } from "@/lib/status";
+import { blocoMeta, horaDesde, minutosDesde, PX_PER_MIN, STATUS_LABEL } from "@/lib/status";
 import { intervalosSobrepoem } from "@/lib/agenda";
 import { useRelogio } from "@/lib/useRelogio";
 import type { Agendamento } from "@/lib/types";
@@ -14,7 +14,6 @@ import {
   addMeses,
   diasDaSemana,
   diasDoMes,
-  hojeLocalISO,
   isoParaLabelLongo,
   labelSemana,
   mesLabel,
@@ -29,13 +28,12 @@ const SNAP_MIN = 15; // granularidade do arraste / resize / clique-no-vazio (ali
 const MIN_DUR_MIN = 15; // duração mínima ao redimensionar
 const STEP_PX = SNAP_MIN * PX_PER_MIN; // 1 passo de snap em pixels
 
-const legenda = [
-  { label: "Agendado", cor: c.brass },
-  { label: "Confirmado", cor: "#0EA37A" },
-  { label: "Em atendimento", cor: "#E0A21A" },
-  { label: "No-show", cor: "#E5484D" },
-  { label: "Bloqueio", cor: "#9AA7A4" },
-];
+// Rótulo e cor saem das fontes únicas (STATUS_LABEL / blocoMeta) — antes eram
+// literais duplicados aqui, e o swatch de "Agendado" nem batia com o bloco.
+const legenda = (["agendado", "confirmado", "atendimento", "noshow", "bloqueio"] as const).map((s) => ({
+  label: STATUS_LABEL[s],
+  cor: blocoMeta[s].bar,
+}));
 
 function gridBg(colH: number): React.CSSProperties {
   return {
@@ -159,8 +157,12 @@ function Bloco({
         top,
         height,
         background: m.bg,
+        // `border: none` + `borderLeft` juntos disparam aviso do React (mistura
+        // de shorthand com longhand no rerender) — declara lado a lado.
+        borderTop: "none",
+        borderRight: "none",
+        borderBottom: "none",
         borderLeft: `3px solid ${m.bar}`,
-        border: "none",
         borderRadius: 7,
         padding: "8px 10px",
         overflow: "hidden",
@@ -201,23 +203,51 @@ const btnNav: React.CSSProperties = {
 
 type View = "dia" | "semana" | "mes";
 
+// Camadas do sticky da grade do dia. Os blocos usam zIndex 1 (5 durante o
+// arraste), então deslizam POR BAIXO do cabeçalho e da régua — que é o certo.
+const Z_REGUA = 6;
+const Z_HEADER = 12;
+const Z_CANTO = 14;
+
+const celulaHeader: React.CSSProperties = {
+  height: 58,
+  position: "sticky",
+  top: 0,
+  zIndex: Z_HEADER,
+  background: c.surface, // sem fundo o conteúdo apareceria por baixo
+};
+const celulaCanto: React.CSSProperties = { ...celulaHeader, left: 0, zIndex: Z_CANTO };
+const reguaHoras: React.CSSProperties = {
+  position: "sticky",
+  left: 0,
+  zIndex: Z_REGUA,
+  background: c.surface,
+};
+/** Cabeçalho fixo das visões Semana/Mês (mesma ideia, sem coluna fixa). */
+const headerFixo: React.CSSProperties = { position: "sticky", top: 0, zIndex: Z_HEADER, background: c.surface };
+
 export default function AgendaPage() {
   const { state, dispatch, actions } = useStore();
   const toast = useToast();
   const { hoje, agora } = useRelogio();
-  const [dateISO, setDateISO] = useState(hoje);
-  const [view, setView] = useState<View>("dia");
+
+  // Data / visão / busca vivem no store: trocar de aba no menu e voltar não
+  // remonta a tela do zero. `dateISO: null` = hoje, resolvido a cada render —
+  // sem frame com a data-semente e sem data velha depois da meia-noite.
+  const tela = state.ui.telas.agenda;
+  const dateISO = tela.dateISO ?? hoje;
+  const view = tela.view;
+  const busca = tela.busca;
+  const setTela = (patch: Partial<typeof tela>) => dispatch({ type: "SET_TELA", tela: "agenda", patch });
+  const setDateISO = (iso: string) => setTela({ dateISO: iso });
+  const setView = (v: View) => setTela({ view: v });
+  const setBusca = (q: string) => setTela({ busca: q });
+
   const [agSel, setAgSel] = useState<string | null>(null);
   const [bloquear, setBloquear] = useState(false);
   const [recorrenteOpen, setRecorrenteOpen] = useState(false);
   const [novoOpen, setNovoOpen] = useState(false);
   const [novoDefaults, setNovoDefaults] = useState<NovoAgendamentoDefaults>({});
-  const [busca, setBusca] = useState("");
-
-  // Pós-mount, salta para a data real do sistema (o 1º render usa a semente p/ SSR).
-  useEffect(() => {
-    setDateISO(hojeLocalISO());
-  }, []);
 
   // Janela da grade derivada do horário de funcionamento do tenant (não mais fixa 09–19).
   const abre = state.config.horario.abre || "09:00";
@@ -236,8 +266,12 @@ export default function AgendaPage() {
     : null;
   const barbeiroVisaoNome = barbId ? state.barbeiros.find((b) => b.id === barbId)?.nome ?? null : null;
 
-  const todasColunas = selectAgendaPorBarbeiro(state, dateISO);
-  const colunas = barbId ? todasColunas.filter((col) => col.barbeiro.id === barbId) : todasColunas;
+  // Memoizado: a busca digita letra a letra e re-renderiza a tela inteira.
+  const todasColunas = useMemo(() => selectAgendaPorBarbeiro(state, dateISO), [state, dateISO]);
+  const colunas = useMemo(
+    () => (barbId ? todasColunas.filter((col) => col.barbeiro.id === barbId) : todasColunas),
+    [todasColunas, barbId],
+  );
   const ehHoje = dateISO === hoje;
   const nowTop = minutosDesde(agora, abre) * PX_PER_MIN;
 
@@ -304,7 +338,7 @@ export default function AgendaPage() {
           </div>
           <button style={btnNav} onClick={() => passo(1)}>›</button>
           <button
-            onClick={() => setDateISO(hoje)}
+            onClick={() => setTela({ dateISO: null })}
             style={{ border: "none", fontSize: 12, fontWeight: 700, color: c.brassDeep, background: c.brassSoft, borderRadius: 999, padding: "6px 13px", cursor: "pointer" }}
           >
             Hoje
@@ -397,13 +431,14 @@ export default function AgendaPage() {
             </div>
           ) : (
           <div style={{ display: "grid", gridTemplateColumns: `64px repeat(${colunasDia.length},1fr)`, minWidth: 740 }}>
-            {/* header row */}
-            <div style={{ height: 58, borderBottom: `1px solid ${c.border}`, borderRight: `1px solid ${c.borderSoft}` }} />
+            {/* header row — fica grudado no topo enquanto o dia rola (e o canto,
+                também na esquerda, por cima da régua de horas) */}
+            <div style={{ ...celulaCanto, borderBottom: `1px solid ${c.border}`, borderRight: `1px solid ${c.borderSoft}` }} />
             {colunasDia.map(({ barbeiro }, i) => (
               <div
                 key={barbeiro.id}
                 style={{
-                  height: 58,
+                  ...celulaHeader,
                   borderBottom: `1px solid ${c.border}`,
                   borderLeft: i === 0 ? "none" : `1px solid ${c.borderSoft}`,
                   display: "flex",
@@ -422,8 +457,8 @@ export default function AgendaPage() {
               </div>
             ))}
 
-            {/* gutter */}
-            <div style={{ position: "relative", height: colH, borderRight: `1px solid ${c.borderSoft}` }}>
+            {/* gutter — fixo à esquerda: com muitos barbeiros a grade rola na horizontal */}
+            <div style={{ ...reguaHoras, height: colH, borderRight: `1px solid ${c.borderSoft}` }}>
               {gutterMarks.map((min) => (
                 <div key={min} style={{ position: "absolute", top: min * PX_PER_MIN - 7, right: 10, fontSize: 11, color: c.ink4, fontWeight: min % 60 === 0 ? 500 : 400 }}>
                   {horaDesde(min, abre)}
@@ -476,7 +511,7 @@ function SemanaView({ dateISO, hoje, state, onSelect, barbeiroId }: { dateISO: s
           .sort((a, b) => a.inicio.localeCompare(b.inicio));
         return (
           <div key={iso} style={{ borderLeft: i === 0 ? "none" : `1px solid ${c.borderSoft}`, minHeight: 520 }}>
-            <div style={{ height: 50, borderBottom: `1px solid ${c.border}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: iso === hoje ? c.brassSoft : "transparent" }}>
+            <div style={{ ...headerFixo, height: 50, borderBottom: `1px solid ${c.border}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: iso === hoje ? c.brassSoft : c.surface }}>
               <span style={{ fontSize: 11, color: c.ink3, fontWeight: 600 }}>{DIAS_CURTO[i]}</span>
               <span style={{ fontFamily: font.serif, fontSize: 15, fontWeight: 700, color: c.inkTitle }}>{iso.slice(8)}</span>
             </div>
@@ -509,7 +544,7 @@ function MesView({ dateISO, hoje, state, onPick, barbeiroId }: { dateISO: string
   const celulas = diasDoMes(dateISO);
   return (
     <div style={{ minWidth: 740 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", borderBottom: `1px solid ${c.border}` }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", borderBottom: `1px solid ${c.border}`, ...headerFixo }}>
         {DIAS_CURTO.map((d) => (
           <div key={d} style={{ padding: "11px 0", textAlign: "center", fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase", color: c.ink3, fontWeight: 600 }}>{d}</div>
         ))}

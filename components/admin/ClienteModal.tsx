@@ -8,6 +8,7 @@ import { useStore, makeId } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { mesAnoCurto, hojeLocalISO } from "@/lib/date";
 import { EMAIL_RE, iniciaisDe, maskCpf, maskTelefone, normalizarCpf, normalizarTelefone, validarCpf } from "@/lib/clientes-import";
+import { DIA_VENCIMENTO_PADRAO, diaVencimentoCliente } from "@/lib/selectors";
 import type { Cliente, ClienteTag } from "@/lib/types";
 
 // "Inadimplente" NÃO é um marcador manual: é derivado das cobranças em atraso
@@ -38,6 +39,7 @@ export function ClienteModal({
   const [cpf, setCpf] = useState("");
   const [email, setEmail] = useState("");
   const [planId, setPlanId] = useState(""); // "" = Avulso (sem plano)
+  const [diaVencimento, setDiaVencimento] = useState(DIA_VENCIMENTO_PADRAO);
   const [tag, setTag] = useState<ClienteTag>("");
   const [observacoes, setObservacoes] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -50,7 +52,11 @@ export function ClienteModal({
     setEmail(cliente?.email ?? "");
     // planId direto; senão tenta casar pelo rótulo `plano` legado; senão Avulso.
     const porNome = cliente?.plano ? state.planos.find((p) => p.nome === cliente.plano)?.id : undefined;
-    setPlanId(cliente?.planId ?? porNome ?? "");
+    const idPlano = cliente?.planId ?? porNome ?? "";
+    setPlanId(idPlano);
+    // Assinante antigo ainda sem dia próprio: herda o que estava no plano, para
+    // que salvar não mude a data de cobrança dele.
+    setDiaVencimento(diaVencimentoCliente(cliente, state.planos.find((p) => p.id === idPlano)));
     setTag(cliente?.tag ?? "");
     setObservacoes(cliente?.observacoes ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -80,7 +86,7 @@ export function ClienteModal({
     setSalvando(true);
     try {
       if (editando && cliente) {
-        const atualizado: Cliente = { ...cliente, nome: nome.trim(), telefone, telefoneNorm: normalizarTelefone(telefone), cpf: cpfNorm, email: email.trim(), plano: planoLabel, planId, tag, observacoes: observacoes.trim(), iniciais: iniciaisDe(nome) };
+        const atualizado: Cliente = { ...cliente, nome: nome.trim(), telefone, telefoneNorm: normalizarTelefone(telefone), cpf: cpfNorm, email: email.trim(), plano: planoLabel, planId, diaVencimento, tag, observacoes: observacoes.trim(), iniciais: iniciaisDe(nome) };
         await actions.clientes.update(atualizado);
         toast("Cliente atualizado.");
         onSaved?.(cliente.id);
@@ -94,6 +100,7 @@ export function ClienteModal({
           email: email.trim(),
           plano: planoLabel,
           planId,
+          diaVencimento,
           tag,
           observacoes: observacoes.trim(),
           ultimoAtendimento: "—",
@@ -143,7 +150,18 @@ export function ClienteModal({
         </Field>
         <div style={{ display: "flex", gap: 12 }}>
           <Field label="Plano" style={{ flex: 1 }}>
-            <Select value={planId} onChange={(e) => setPlanId(e.target.value)}>
+            <Select
+              value={planId}
+              onChange={(e) => {
+                const id = e.target.value;
+                setPlanId(id);
+                // Ao escolher um plano num cliente que ainda não tinha dia próprio,
+                // sugere o dia do plano (legado); depois é editável à mão.
+                if (id && !cliente?.diaVencimento) {
+                  setDiaVencimento(diaVencimentoCliente(null, state.planos.find((p) => p.id === id)));
+                }
+              }}
+            >
               <option value="">Avulso (sem plano)</option>
               {state.planos.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -152,16 +170,29 @@ export function ClienteModal({
               ))}
             </Select>
           </Field>
-          <Field label="Marcador" style={{ flex: 1 }}>
-            <Select value={tag} onChange={(e) => setTag(e.target.value as ClienteTag)}>
-              {TAGS.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          {/* O vencimento é por pessoa: cada assinante fecha num dia diferente. */}
+          {planId ? (
+            <Field label="Vence dia" style={{ width: 96, flex: "none" }}>
+              <TextInput
+                type="number"
+                min={1}
+                max={28}
+                value={diaVencimento}
+                onChange={(e) => setDiaVencimento(Math.min(28, Math.max(1, Number(e.target.value) || 1)))}
+                inputMode="numeric"
+              />
+            </Field>
+          ) : null}
         </div>
+        <Field label="Marcador">
+          <Select value={tag} onChange={(e) => setTag(e.target.value as ClienteTag)}>
+            {TAGS.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
         <Field label="Observações">
           <Textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} placeholder="Preferência de corte, alergia, lembrete…" />
         </Field>

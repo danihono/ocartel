@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { c, font, shadow } from "@/lib/theme";
 import { Card } from "@/components/ui/Card";
 import { Tag } from "@/components/ui/StatusPill";
@@ -15,6 +15,8 @@ import {
   selectProximoAgendamentoCliente,
   selectFormaPreferidaCliente,
   tagDerivadaCliente,
+  diaVencimentoCliente,
+  planoDoCliente,
   formaPagamentoLabel,
   formatBRL,
   type FiltroCliente,
@@ -30,13 +32,20 @@ const FILTROS: FiltroCliente[] = ["Todos", "VIP", "Avulsos", "Inadimplentes"];
 const HIST_INICIAL = 8;
 
 export default function ClientesPage() {
-  const { state, actions } = useStore();
+  const { state, dispatch, actions } = useStore();
   const toast = useToast();
   const hoje = useHoje();
 
-  const [busca, setBusca] = useState("");
-  const [filtro, setFiltro] = useState<FiltroCliente>("Todos");
-  const [selId, setSelId] = useState("");
+  // Busca / filtro / seleção vivem no store: trocar de aba no menu e voltar
+  // devolve a tela exatamente como estava.
+  const tela = state.ui.telas.clientes;
+  const { busca, filtro } = tela;
+  const selId = tela.selId ?? "";
+  const setTela = (patch: Partial<typeof tela>) => dispatch({ type: "SET_TELA", tela: "clientes", patch });
+  const setBusca = (q: string) => setTela({ busca: q });
+  const setFiltro = (f: FiltroCliente) => setTela({ filtro: f });
+  const setSelId = (id: string) => setTela({ selId: id || null });
+
   const [novoOpen, setNovoOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -51,9 +60,10 @@ export default function ClientesPage() {
     } catch {
       /* ignore */
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const lista = selectClientesFiltrados(state, filtro, busca, hoje);
+  const lista = useMemo(() => selectClientesFiltrados(state, filtro, busca, hoje), [state, filtro, busca, hoje]);
   const contagens = selectContagensCliente(state, hoje);
   // Seleção restrita à lista filtrada; cai no 1º item, ou null (estado vazio).
   const sel = lista.find((x) => x.id === selId) ?? lista[0] ?? null;
@@ -217,8 +227,14 @@ export default function ClientesPage() {
           </div>
 
           {/* Plano */}
-          <div style={{ border: `1px solid ${c.surfaceAlt}`, background: c.surface, borderRadius: 12, padding: 16, marginTop: 18, display: "flex", alignItems: "center" }}>
+          <div style={{ border: `1px solid ${c.surfaceAlt}`, background: c.surface, borderRadius: 12, padding: 16, marginTop: 18, display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: c.inkTitle, flex: 1 }}>Plano · {sel.plano}</span>
+            {/* O vencimento é deste cliente, não do plano. */}
+            {!/avulso/i.test(sel.plano) ? (
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: c.ink2, background: c.surfaceAlt, borderRadius: 999, padding: "3px 10px" }}>
+                Vence dia {diaVencimentoCliente(sel, planoDoCliente(state, sel))}
+              </span>
+            ) : null}
             <span style={{ fontSize: 11.5, fontWeight: 600, color: /avulso/i.test(sel.plano) ? c.ink3 : c.green }}>
               {/avulso/i.test(sel.plano) ? "Sem plano ativo" : "Plano ativo"}
             </span>

@@ -4,23 +4,33 @@ import { createContext, useCallback, useContext, useRef, useState, type ReactNod
 import { c, shadow } from "@/lib/theme";
 
 type Tone = "success" | "info" | "error";
+/** Ação opcional no toast (ex.: "Desfazer" logo depois de mudar um status). */
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
 interface ToastItem {
   id: number;
   msg: string;
   tone: Tone;
+  action?: ToastAction;
 }
 
-const ToastContext = createContext<{ toast: (msg: string, tone?: Tone) => void } | null>(null);
+const ToastContext = createContext<{ toast: (msg: string, tone?: Tone, action?: ToastAction) => void } | null>(null);
+
+// Com ação dá tempo de reagir; sem ação, some rápido.
+const MS_SIMPLES = 2800;
+const MS_COM_ACAO = 7000;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
   const seq = useRef(0);
 
-  const toast = useCallback((msg: string, tone: Tone = "success") => {
+  const toast = useCallback((msg: string, tone: Tone = "success", action?: ToastAction) => {
     seq.current += 1;
     const id = seq.current;
-    setItems((list) => [...list, { id, msg, tone }]);
-    setTimeout(() => setItems((list) => list.filter((x) => x.id !== id)), 2800);
+    setItems((list) => [...list, { id, msg, tone, action }]);
+    setTimeout(() => setItems((list) => list.filter((x) => x.id !== id)), action ? MS_COM_ACAO : MS_SIMPLES);
   }, []);
 
   const toneColor: Record<Tone, string> = { success: c.accentDark, info: c.brass, error: c.red };
@@ -48,7 +58,29 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               borderLeft: `3px solid ${toneColor[t.tone]}`,
             }}
           >
-            {t.msg}
+            <span style={{ flex: 1 }}>{t.msg}</span>
+            {t.action ? (
+              <button
+                onClick={() => {
+                  t.action?.onClick();
+                  setItems((list) => list.filter((x) => x.id !== t.id));
+                }}
+                style={{
+                  flex: "none",
+                  // accentDark é o hero sobre o shell escuro — o brass some no espresso.
+                  border: `1px solid ${c.accentDark}`,
+                  background: "transparent",
+                  color: c.accentDark,
+                  borderRadius: 8,
+                  padding: "5px 11px",
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {t.action.label}
+              </button>
+            ) : null}
           </div>
         ))}
       </div>

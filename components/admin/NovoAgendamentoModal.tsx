@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Field, Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
+import { ClientePicker, type ClienteEscolhido } from "@/components/admin/ClientePicker";
+import { DuracaoField } from "@/components/admin/DuracaoField";
 import { useStore, makeId } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { duracaoServico } from "@/lib/selectors";
@@ -31,33 +33,47 @@ export function NovoAgendamentoModal({
   const { state, actions } = useStore();
   const toast = useToast();
 
-  const [cliente, setCliente] = useState("");
+  const [cliente, setCliente] = useState<ClienteEscolhido>({ nome: "" });
   const [servico, setServico] = useState("");
   const [barbeiroId, setBarbeiroId] = useState("");
   const [date, setDate] = useState(HOJE_ISO);
   const [inicio, setInicio] = useState("09:00");
+  // Duração: começa na do serviço e acompanha a troca de serviço ATÉ o usuário
+  // ajustar à mão — daí em diante manda o que ele escolheu.
+  const [duracao, setDuracao] = useState(30);
+  const [duracaoTocada, setDuracaoTocada] = useState(false);
   const [salvando, setSalvando] = useState(false);
+
+  const duracaoPadrao = duracaoServico(state, servico);
 
   useEffect(() => {
     if (!open) return;
-    setCliente(defaults?.clienteNome ?? "");
-    setServico(defaults?.servico ?? state.servicos[0]?.nome ?? "");
+    const svcInicial = defaults?.servico ?? state.servicos[0]?.nome ?? "";
+    setCliente({ nome: defaults?.clienteNome ?? "", id: defaults?.clienteId });
+    setServico(svcInicial);
     setBarbeiroId(defaults?.barbeiroId ?? state.barbeiros[0]?.id ?? "");
     setDate(defaults?.dateISO ?? hojeLocalISO());
     setInicio(defaults?.inicio ?? "09:00");
+    setDuracao(duracaoServico(state, svcInicial));
+    setDuracaoTocada(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  function trocarServico(nome: string) {
+    setServico(nome);
+    if (!duracaoTocada) setDuracao(duracaoServico(state, nome));
+  }
+
   async function salvar() {
-    if (!cliente.trim()) {
+    const nomeLimpo = cliente.nome.trim();
+    if (!nomeLimpo) {
       toast("Informe o nome do cliente.", "error");
       return;
     }
     const svc = state.servicos.find((s) => s.nome === servico);
-    const nomeLimpo = cliente.trim();
-    // Vincula ao cadastro: default explícito, senão casa pelo nome digitado.
-    const clienteId = defaults?.clienteId ?? state.clientes.find((cl) => cl.nome === nomeLimpo)?.id;
-    const duracaoMin = duracaoServico(state, servico);
+    // Vincula ao cadastro: o escolhido no seletor, senão o default explícito.
+    const clienteId = cliente.id ?? defaults?.clienteId;
+    const duracaoMin = duracao;
 
     // Aviso de sobreposição (não bloqueia — mesmo comportamento do drag/resize na agenda).
     const ocupados = state.agendamentos
@@ -103,15 +119,10 @@ export function NovoAgendamentoModal({
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <Field label="Cliente">
-          <TextInput value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Nome do cliente" list="oc-clientes" />
-          <datalist id="oc-clientes">
-            {state.clientes.map((c) => (
-              <option key={c.id} value={c.nome} />
-            ))}
-          </datalist>
+          <ClientePicker valor={cliente} onChange={setCliente} />
         </Field>
         <Field label="Serviço">
-          <Select value={servico} onChange={(e) => setServico(e.target.value)}>
+          <Select value={servico} onChange={(e) => trocarServico(e.target.value)}>
             {state.servicos.map((s) => (
               <option key={s.id} value={s.nome}>
                 {s.nome} · R$ {s.preco} · {s.duracaoMin}min
@@ -136,6 +147,14 @@ export function NovoAgendamentoModal({
             <TextInput type="time" value={inicio} onChange={(e) => setInicio(e.target.value)} />
           </Field>
         </div>
+        <DuracaoField
+          valor={duracao}
+          padrao={duracaoPadrao}
+          onChange={(min) => {
+            setDuracao(min);
+            setDuracaoTocada(true);
+          }}
+        />
       </div>
     </Modal>
   );

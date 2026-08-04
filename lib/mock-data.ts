@@ -26,8 +26,8 @@ export const servicos: Servico[] = [
 // Planos de assinatura do CLIENTE (mensalidade). Os nomes batem com o rótulo
 // `plano` usado nos clientes de exemplo, então o vínculo por nome já funciona.
 export const planosCliente: Plano[] = [
-  { id: "mensal-corte", nome: "Mensal Corte", valor: 99, diaVencimento: 5, ativo: true },
-  { id: "mensal-cb", nome: "Mensal C+B", valor: 149, diaVencimento: 5, ativo: true },
+  { id: "mensal-corte", nome: "Mensal Corte", valor: 99, ativo: true },
+  { id: "mensal-cb", nome: "Mensal C+B", valor: 149, ativo: true },
 ];
 
 // ---- Dashboard ----
@@ -100,7 +100,7 @@ export const agendaBlocos: BlocoAgenda[][] = [
     { inicio: "10:30", duracaoMin: 30, cliente: "Felipe Costa", servico: "Barba · 30min", status: "agendado" },
     { inicio: "12:00", duracaoMin: 40, cliente: "Sérgio Matos", servico: "Corte · 40min", status: "confirmado" },
     { inicio: "14:40", duracaoMin: 60, cliente: "André Lima", servico: "Corte + Barba · 1h", status: "agendado" },
-    { inicio: "16:00", duracaoMin: 30, cliente: "Caio Nunes", servico: "Raspar · no-show", status: "noshow" },
+    { inicio: "16:00", duracaoMin: 30, cliente: "Caio Nunes", servico: "Raspar · não compareceu", status: "noshow" },
   ],
 ];
 

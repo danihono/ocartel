@@ -9,7 +9,9 @@ import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/lib/firebase/auth";
 import {
   clientePossuiPlanoAtivo,
+  diaVencimentoCliente,
   ehDoCliente,
+  planoDoCliente,
   formaPagamentoLabel,
   formatBRL,
   selectContagensTransacao,
@@ -62,15 +64,20 @@ function dataExibida(t: Transacao, hojeISO: string): string {
 }
 
 export default function PagamentosPage() {
-  const { state, actions } = useStore();
+  const { state, dispatch, actions } = useStore();
   const { profile } = useAuth();
   const toast = useToast();
   const narrow = useIsNarrow();
   const hoje = useHoje();
 
-  const [filtro, setFiltro] = useState<FiltroTransacao>("Todas");
-  const [tipo, setTipo] = useState<FiltroTipoCobranca>("todos");
-  const [busca, setBusca] = useState("");
+  // Filtros no store: voltar de outra aba do menu mantém a visão de trabalho.
+  const tela = state.ui.telas.pagamentos;
+  const { filtro, tipo, busca } = tela;
+  const setTela = (patch: Partial<typeof tela>) => dispatch({ type: "SET_TELA", tela: "pagamentos", patch });
+  const setFiltro = (f: FiltroTransacao) => setTela({ filtro: f });
+  const setTipo = (t: FiltroTipoCobranca) => setTela({ tipo: t });
+  const setBusca = (q: string) => setTela({ busca: q });
+
   const [novaOpen, setNovaOpen] = useState(false);
   const [pagar, setPagar] = useState<Transacao | null>(null);
 
@@ -97,18 +104,10 @@ export default function PagamentosPage() {
   function gerarMensalidades() {
     const cicloMes = hoje.slice(0, 7); // "YYYY-MM"
 
-    // Plano vigente do cliente: por planId (preferido) ou casando o rótulo legado pelo nome.
-    const planoDoCliente = (cl: (typeof state.clientes)[number]) => {
-      const p = cl.planId
-        ? state.planos.find((pl) => pl.id === cl.planId)
-        : state.planos.find((pl) => pl.nome === cl.plano);
-      return p && (p.ativo ?? true) ? p : null;
-    };
-
     const novas: Transacao[] = [];
     let semPlano = 0; // assinante (rótulo) sem plano cadastrado correspondente
     for (const cl of state.clientes) {
-      const plano = planoDoCliente(cl);
+      const plano = planoDoCliente(state, cl);
       if (!plano) {
         if (clientePossuiPlanoAtivo(cl)) semPlano += 1;
         continue;
@@ -117,7 +116,8 @@ export default function PagamentosPage() {
         (t) => tipoCobranca(t) === "mensalidade" && ehDoCliente(t, cl) && (t.dueDate ?? "").slice(0, 7) === cicloMes,
       );
       if (jaTem) continue;
-      const dia = String(Math.min(28, Math.max(1, plano.diaVencimento ?? 5))).padStart(2, "0");
+      // O dia é do CLIENTE (com herança do plano legado para assinantes antigos).
+      const dia = String(diaVencimentoCliente(cl, plano)).padStart(2, "0");
       const venc = `${cicloMes}-${dia}`;
       novas.push({
         id: makeId("tx"),

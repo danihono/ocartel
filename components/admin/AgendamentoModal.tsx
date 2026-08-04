@@ -9,18 +9,8 @@ import { useToast } from "@/components/ui/Toast";
 import { barbeiroNomePorId, fmtDur } from "@/lib/selectors";
 import { isoParaLabelLongo } from "@/lib/date";
 import { c } from "@/lib/theme";
-import { blocoMeta } from "@/lib/status";
+import { blocoMeta, STATUS_LABEL } from "@/lib/status";
 import type { AgendamentoStatus } from "@/lib/types";
-
-const STATUS_LABEL: Record<AgendamentoStatus, string> = {
-  agendado: "Agendado",
-  confirmado: "Confirmado",
-  atendimento: "Em atendimento",
-  concluido: "Concluído",
-  noshow: "No-show",
-  cancelado: "Cancelado",
-  bloqueio: "Bloqueio",
-};
 
 export function AgendamentoModal({ open, onClose, agendamentoId }: { open: boolean; onClose: () => void; agendamentoId: string | null }) {
   const { state, actions } = useStore();
@@ -33,9 +23,18 @@ export function AgendamentoModal({ open, onClose, agendamentoId }: { open: boole
   // A conclusão (com a regra de plano) é feita no FinalizarAtendimentoModal.
   async function setStatus(status: AgendamentoStatus, msg: string) {
     if (!ag) return;
+    const { id, status: anterior } = ag;
     try {
-      await actions.agendamentos.setStatus(ag.id, status);
-      toast(msg);
+      await actions.agendamentos.setStatus(id, status);
+      toast(msg, "success", {
+        label: "Desfazer",
+        onClick: () => {
+          void actions.agendamentos
+            .setStatus(id, anterior)
+            .then(() => toast(`Desfeito — voltou para "${STATUS_LABEL[anterior].toLowerCase()}".`))
+            .catch(() => toast("Não foi possível desfazer.", "error"));
+        },
+      });
       onClose();
     } catch {
       toast("Não foi possível atualizar o agendamento.", "error");
@@ -101,7 +100,7 @@ export function AgendamentoModal({ open, onClose, agendamentoId }: { open: boole
             <Button onClick={() => setFinalizando(true)}>Concluir</Button>
           ) : null}
           {ag.status !== "noshow" ? (
-            <Button variant="ghost" onClick={() => setStatus("noshow", "Marcado como no-show.")}>No-show</Button>
+            <Button variant="ghost" onClick={() => setStatus("noshow", `Marcado como "${STATUS_LABEL.noshow.toLowerCase()}".`)}>{STATUS_LABEL.noshow}</Button>
           ) : null}
           {ag.status !== "cancelado" ? (
             <Button variant="ghost" onClick={() => setStatus("cancelado", "Agendamento cancelado.")} style={{ color: c.red }}>Cancelar</Button>

@@ -8,6 +8,7 @@ import type {
   Cliente,
   ClienteTag,
   FormaPagamento,
+  Plano,
   ProximoAgendamento,
   TipoCobranca,
   Transacao,
@@ -37,10 +38,31 @@ export function fmtDur(min: number): string {
 /** Reproduz o rótulo do bloco: "Corte + Barba · 1h", "Corte · em atendimento"... */
 export function rotuloServico(servico: string, dur: number, status: AgendamentoStatus): string {
   if (status === "atendimento") return `${servico} · em atendimento`;
-  if (status === "noshow") return `${servico} · no-show`;
+  if (status === "noshow") return `${servico} · não compareceu`;
   if (status === "concluido") return `${servico} · concluído`;
   if (status === "cancelado") return `${servico} · cancelado`;
   return `${servico} · ${fmtDur(dur)}`;
+}
+
+/** Dia do mês (1..28) em que a mensalidade do cliente vence. */
+export const DIA_VENCIMENTO_PADRAO = 5;
+
+/**
+ * Vencimento do cliente: o dia é POR PESSOA. Assinantes antigos ainda não têm
+ * um dia próprio gravado — nesses casos herdamos o que estava no plano (campo
+ * legado) para não mexer na data de cobrança de ninguém.
+ */
+export function diaVencimentoCliente(cliente: Cliente | null | undefined, plano?: Plano | null): number {
+  const bruto = cliente?.diaVencimento ?? plano?.diaVencimento ?? DIA_VENCIMENTO_PADRAO;
+  return Math.min(28, Math.max(1, Math.round(bruto) || DIA_VENCIMENTO_PADRAO));
+}
+
+/** Plano vigente do cliente: por `planId` ou, em cadastros legados, pelo rótulo. */
+export function planoDoCliente(state: AppState, cliente: Cliente): Plano | null {
+  const p = cliente.planId
+    ? state.planos.find((pl) => pl.id === cliente.planId)
+    : state.planos.find((pl) => pl.nome === cliente.plano);
+  return p && (p.ativo ?? true) ? p : null;
 }
 
 export function barbeiroNomePorId(state: AppState, id: string): string {

@@ -18,7 +18,7 @@ import { fieldInput, fieldLabel } from "@/components/ui/Field";
 import { useStore, makeId } from "@/lib/store";
 import { useAuth } from "@/lib/firebase/auth";
 import { useToast } from "@/components/ui/Toast";
-import { blocoMeta, tagMeta } from "@/lib/status";
+import { blocoMeta, STATUS_LABEL, tagMeta } from "@/lib/status";
 import { horarioLivre, ocupaHorario } from "@/lib/agenda";
 import { slug as slugify, selectClientesFiltrados, precoServico, formatBRL, fmtDur } from "@/lib/selectors";
 import { HOJE_ISO, addDias, hojeLocalISO, isoParaLabelLongo, comparaHora } from "@/lib/date";
@@ -26,16 +26,6 @@ import { useHoje } from "@/lib/useRelogio";
 import type { Agendamento } from "@/lib/types";
 
 type Tab = "agenda" | "clientes" | "resumo";
-
-const STATUS_LABEL: Record<Agendamento["status"], string> = {
-  agendado: "Agendado",
-  confirmado: "Confirmado",
-  atendimento: "Em atendimento",
-  concluido: "Concluído",
-  noshow: "No-show",
-  cancelado: "Cancelado",
-  bloqueio: "Bloqueio",
-};
 
 export default function BarbeiroPage() {
   return (

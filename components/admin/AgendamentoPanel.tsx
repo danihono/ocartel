@@ -10,18 +10,8 @@ import { barbeiroNomePorId, fmtDur, formatBRL, precoServico, tagDerivadaCliente 
 import { isoParaLabelLongo } from "@/lib/date";
 import { useHoje } from "@/lib/useRelogio";
 import { c, font } from "@/lib/theme";
-import { blocoMeta, tagMeta } from "@/lib/status";
+import { blocoMeta, STATUS_LABEL, tagMeta } from "@/lib/status";
 import type { AgendamentoStatus } from "@/lib/types";
-
-const STATUS_LABEL: Record<AgendamentoStatus, string> = {
-  agendado: "Agendado",
-  confirmado: "Confirmado",
-  atendimento: "Em atendimento",
-  concluido: "Concluído",
-  noshow: "No-show",
-  cancelado: "Cancelado",
-  bloqueio: "Bloqueio",
-};
 
 /** Painel lateral de detalhe do agendamento (substitui o modal central na Agenda). */
 export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boolean; onClose: () => void; agendamentoId: string | null }) {
@@ -56,16 +46,29 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
   const selo = tagMeta(seloTag);
   const preco = precoServico(state, ag.servico);
   const obsAlterada = obs.trim() !== (ag.observacoes ?? "").trim();
-  // Estado ATIVO = ainda pode mudar (concluir/no-show/cancelar). Os demais são terminais.
+  // Estado ATIVO = ainda pode mudar (concluir/não compareceu/cancelar).
   const ehAtivo = ag.status === "agendado" || ag.status === "confirmado" || ag.status === "atendimento";
+  // "Não compareceu" e "Cancelado" NÃO são becos sem saída: um clique errado
+  // tem volta. "Concluído" continua terminal — reverter mexeria na transação e
+  // no totalGasto já gravados por repo.agendamentos.concluir().
+  const ehRevertivel = ag.status === "noshow" || ag.status === "cancelado";
 
-  // A conclusão (com a regra de plano) é feita no FinalizarAtendimentoModal.
-  async function setStatus(status: AgendamentoStatus, msg: string) {
+  /** Muda o status oferecendo "Desfazer" no toast (volta ao estado anterior). */
+  async function setStatus(status: AgendamentoStatus, msg: string, opts?: { manterAberto?: boolean }) {
     if (!ag) return;
+    const { id, status: anterior } = ag;
     try {
-      await actions.agendamentos.setStatus(ag.id, status);
-      toast(msg);
-      onClose();
+      await actions.agendamentos.setStatus(id, status);
+      toast(msg, "success", {
+        label: "Desfazer",
+        onClick: () => {
+          void actions.agendamentos
+            .setStatus(id, anterior)
+            .then(() => toast(`Desfeito — voltou para "${STATUS_LABEL[anterior].toLowerCase()}".`))
+            .catch(() => toast("Não foi possível desfazer.", "error"));
+        },
+      });
+      if (!opts?.manterAberto) onClose();
     } catch {
       toast("Não foi possível atualizar o agendamento.", "error");
     }
@@ -215,12 +218,24 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
             ) : null}
             {ehAtivo ? <Button onClick={() => setFinalizando(true)}>Concluir</Button> : null}
             {ehAtivo ? (
-              <Button variant="ghost" onClick={() => setStatus("noshow", "Marcado como no-show.")}>No-show</Button>
+              <Button variant="ghost" onClick={() => setStatus("noshow", `Marcado como "${STATUS_LABEL.noshow.toLowerCase()}".`)}>
+                {STATUS_LABEL.noshow}
+              </Button>
             ) : null}
             {ehAtivo ? (
               <Button variant="ghost" onClick={() => setStatus("cancelado", "Agendamento cancelado.")} style={{ color: c.red }}>Cancelar</Button>
             ) : null}
-            {!ehAtivo ? (
+            {ehRevertivel ? (
+              <>
+                <span style={{ fontSize: 12.5, color: c.ink3, fontWeight: 600, flex: 1, minWidth: 140 }}>
+                  Marcou sem querer?
+                </span>
+                <Button onClick={() => setStatus("agendado", "Revertido para agendado.", { manterAberto: true })}>
+                  Reverter para agendado
+                </Button>
+              </>
+            ) : null}
+            {!ehAtivo && !ehRevertivel ? (
               <span style={{ fontSize: 12.5, color: c.ink3, fontWeight: 600 }}>Agendamento {STATUS_LABEL[ag.status].toLowerCase()} — sem ações disponíveis.</span>
             ) : null}
           </div>

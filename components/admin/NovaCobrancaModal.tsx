@@ -4,17 +4,19 @@ import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Field, MoneyInput, Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
+import { ClientePicker, type ClienteEscolhido } from "@/components/admin/ClientePicker";
 import { useStore, makeId } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
+import { diaVencimentoCliente, planoDoCliente } from "@/lib/selectors";
 import { HOJE_ISO, hojeLocalISO, isoParaDiaMes } from "@/lib/date";
-import type { TipoCobranca } from "@/lib/types";
+import type { Cliente, TipoCobranca } from "@/lib/types";
 
 /** Lança uma cobrança PENDENTE manualmente (retroativa, ajuste, mensalidade fora do lote). */
 export function NovaCobrancaModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { state, actions } = useStore();
   const toast = useToast();
 
-  const [cliente, setCliente] = useState("");
+  const [cliente, setCliente] = useState<ClienteEscolhido>({ nome: "" });
   const [tipo, setTipo] = useState<TipoCobranca>("mensalidade");
   const [item, setItem] = useState("");
   const [valor, setValor] = useState(0);
@@ -23,7 +25,7 @@ export function NovaCobrancaModal({ open, onClose }: { open: boolean; onClose: (
 
   useEffect(() => {
     if (!open) return;
-    setCliente("");
+    setCliente({ nome: "" });
     setTipo("mensalidade");
     setItem("");
     setValor(0);
@@ -31,15 +33,32 @@ export function NovaCobrancaModal({ open, onClose }: { open: boolean; onClose: (
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Pré-preenche o item com o plano do cliente quando é mensalidade.
-  function onClienteChange(nome: string) {
-    setCliente(nome);
-    const cl = state.clientes.find((c) => c.nome === nome.trim());
-    if (cl && tipo === "mensalidade" && !item.trim()) setItem(cl.plano);
+  /** Vencimento no dia do cliente, no mês corrente (ou no próximo, se já passou). */
+  function vencimentoSugerido(cl: Cliente): string {
+    const hoje = hojeLocalISO();
+    const dia = String(diaVencimentoCliente(cl, planoDoCliente(state, cl))).padStart(2, "0");
+    const desteMes = `${hoje.slice(0, 7)}-${dia}`;
+    if (desteMes >= hoje) return desteMes;
+    const [y, m] = hoje.split("-").map(Number);
+    const prox = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+    return `${prox}-${dia}`;
+  }
+
+  // Pré-preenche plano e vencimento a partir do cadastro do cliente escolhido.
+  function onClienteChange(escolhido: ClienteEscolhido) {
+    setCliente(escolhido);
+    const cl = escolhido.id
+      ? state.clientes.find((c) => c.id === escolhido.id)
+      : state.clientes.find((c) => c.nome === escolhido.nome.trim());
+    if (!cl) return;
+    if (tipo === "mensalidade") {
+      if (!item.trim()) setItem(cl.plano);
+      setVencISO(vencimentoSugerido(cl));
+    }
   }
 
   async function salvar() {
-    const nomeLimpo = cliente.trim();
+    const nomeLimpo = cliente.nome.trim();
     if (!nomeLimpo) {
       toast("Informe o cliente.", "error");
       return;
@@ -52,7 +71,7 @@ export function NovaCobrancaModal({ open, onClose }: { open: boolean; onClose: (
       toast("Informe o valor.", "error");
       return;
     }
-    const clienteId = state.clientes.find((cl) => cl.nome === nomeLimpo)?.id;
+    const clienteId = cliente.id ?? state.clientes.find((cl) => cl.nome === nomeLimpo)?.id;
     setSalvando(true);
     try {
       await actions.transacoes.add({
@@ -93,12 +112,7 @@ export function NovaCobrancaModal({ open, onClose }: { open: boolean; onClose: (
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <Field label="Cliente">
-          <TextInput value={cliente} onChange={(e) => onClienteChange(e.target.value)} placeholder="Nome do cliente" list="oc-clientes-cobranca" />
-          <datalist id="oc-clientes-cobranca">
-            {state.clientes.map((c) => (
-              <option key={c.id} value={c.nome} />
-            ))}
-          </datalist>
+          <ClientePicker valor={cliente} onChange={onClienteChange} />
         </Field>
         <div style={{ display: "flex", gap: 12 }}>
           <Field label="Tipo" style={{ flex: 1 }}>

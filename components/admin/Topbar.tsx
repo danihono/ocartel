@@ -1,22 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { c, font, shadow } from "@/lib/theme";
 import { isoParaLabel } from "@/lib/date";
 import { useHoje } from "@/lib/useRelogio";
+import { useStore } from "@/lib/store";
 import { NovoAgendamentoModal } from "@/components/admin/NovoAgendamentoModal";
 
 export default function Topbar({ eyebrow, title }: { eyebrow: string; title: string }) {
   const router = useRouter();
-  const pathname = usePathname();
+  const { dispatch } = useStore();
   const hoje = useHoje();
   const [q, setQ] = useState("");
   const [novo, setNovo] = useState(false);
 
-  function buscar(valor: string) {
-    setQ(valor);
-    if (pathname === "/clientes") router.replace(`/clientes?q=${encodeURIComponent(valor)}`);
+  /** Aplica a busca na tela de Clientes e leva até lá. Só no submit: navegar a
+   *  cada tecla disparava uma requisição por caractere — e sem nenhum efeito. */
+  function buscar() {
+    dispatch({ type: "SET_TELA", tela: "clientes", patch: { busca: q, selId: null } });
+    router.push("/clientes");
   }
 
   return (
@@ -44,7 +47,7 @@ export default function Topbar({ eyebrow, title }: { eyebrow: string; title: str
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          router.push(`/clientes?q=${encodeURIComponent(q)}`);
+          buscar();
         }}
         style={{
           flex: 1,
@@ -63,7 +66,7 @@ export default function Topbar({ eyebrow, title }: { eyebrow: string; title: str
         <span style={{ width: 13, height: 13, border: `1.6px solid ${c.ink4}`, borderRadius: "50%", display: "inline-block", flex: "none" }} />
         <input
           value={q}
-          onChange={(e) => buscar(e.target.value)}
+          onChange={(e) => setQ(e.target.value)}
           placeholder="Buscar cliente…"
           style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontSize: 13, color: c.inkTitle, fontFamily: font.sans }}
         />

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Field, Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
+import { ClientePicker, type ClienteEscolhido } from "@/components/admin/ClientePicker";
+import { DuracaoField } from "@/components/admin/DuracaoField";
 import { useStore, makeId } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { duracaoServico } from "@/lib/selectors";
@@ -51,9 +53,12 @@ export function AgendamentoRecorrenteModal({
   const { state, actions } = useStore();
   const toast = useToast();
 
-  const [cliente, setCliente] = useState("");
+  const [cliente, setCliente] = useState<ClienteEscolhido>({ nome: "" });
   const [servico, setServico] = useState("");
   const [barbeiroId, setBarbeiroId] = useState("");
+  // Mesma regra do agendamento avulso: segue o serviço até o usuário ajustar.
+  const [duracao, setDuracao] = useState(30);
+  const [duracaoTocada, setDuracaoTocada] = useState(false);
   const [dias, setDias] = useState<boolean[]>(() => Array(7).fill(false));
   const [de, setDe] = useState(HOJE_ISO);
   const [ate, setAte] = useState(addMeses(HOJE_ISO, 3));
@@ -65,8 +70,11 @@ export function AgendamentoRecorrenteModal({
   useEffect(() => {
     if (!open) return;
     const inicial = defaults?.dateISO ?? hojeLocalISO();
-    setCliente("");
-    setServico(state.servicos[0]?.nome ?? "");
+    const svcInicial = state.servicos[0]?.nome ?? "";
+    setCliente({ nome: "" });
+    setServico(svcInicial);
+    setDuracao(duracaoServico(state, svcInicial));
+    setDuracaoTocada(false);
     setBarbeiroId(defaults?.barbeiroId ?? state.barbeiros[0]?.id ?? "");
     const d = Array(7).fill(false);
     d[indiceSegDom(inicial)] = true; // pré-marca o dia da semana da data inicial
@@ -86,7 +94,7 @@ export function AgendamentoRecorrenteModal({
   const foraDaJanela = de < janelaInicio; // conflitos antes disso não podem ser verificados
 
   function revisar() {
-    if (!cliente.trim()) {
+    if (!cliente.nome.trim()) {
       toast("Informe o nome do cliente.", "error");
       return;
     }
@@ -113,7 +121,7 @@ export function AgendamentoRecorrenteModal({
       return;
     }
 
-    const duracaoMin = duracaoServico(state, servico);
+    const duracaoMin = duracao;
     const novos: Gerado[] = datas.map((date) => {
       const ocupados = state.agendamentos
         .filter((a) => a.barbeiroId === barbeiroId && a.date === date && ocupaHorario(a.status))
@@ -138,9 +146,9 @@ export function AgendamentoRecorrenteModal({
     if (selecionados.length === 0) return;
 
     const svc = state.servicos.find((s) => s.nome === servico);
-    const nomeLimpo = cliente.trim();
-    const clienteId = state.clientes.find((cl) => cl.nome === nomeLimpo)?.id;
-    const duracaoMin = duracaoServico(state, servico);
+    const nomeLimpo = cliente.nome.trim();
+    const clienteId = cliente.id;
+    const duracaoMin = duracao;
     const recorrenciaId = makeId("rec"); // um id para a série toda
 
     const lista = selecionados.map((g) => ({
@@ -199,15 +207,16 @@ export function AgendamentoRecorrenteModal({
       {etapa === "form" ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Field label="Cliente">
-            <TextInput value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Nome do cliente" list="oc-clientes-rec" />
-            <datalist id="oc-clientes-rec">
-              {state.clientes.map((cl) => (
-                <option key={cl.id} value={cl.nome} />
-              ))}
-            </datalist>
+            <ClientePicker valor={cliente} onChange={setCliente} />
           </Field>
           <Field label="Serviço">
-            <Select value={servico} onChange={(e) => setServico(e.target.value)}>
+            <Select
+              value={servico}
+              onChange={(e) => {
+                setServico(e.target.value);
+                if (!duracaoTocada) setDuracao(duracaoServico(state, e.target.value));
+              }}
+            >
               {state.servicos.map((s) => (
                 <option key={s.id} value={s.nome}>
                   {s.nome} · R$ {s.preco} · {s.duracaoMin}min
@@ -215,6 +224,14 @@ export function AgendamentoRecorrenteModal({
               ))}
             </Select>
           </Field>
+          <DuracaoField
+            valor={duracao}
+            padrao={duracaoServico(state, servico)}
+            onChange={(min) => {
+              setDuracao(min);
+              setDuracaoTocada(true);
+            }}
+          />
           <Field label="Profissional">
             <Select value={barbeiroId} onChange={(e) => setBarbeiroId(e.target.value)}>
               {state.barbeiros.map((b) => (

@@ -1,14 +1,26 @@
 import { c } from "./theme";
 import type { AgendamentoStatus, ClienteTag, TenantStatus } from "./types";
 
+// Rótulo humano de cada status — FONTE ÚNICA. A chave gravada no Firestore
+// continua sendo `noshow`; só o texto mudou para "Não compareceu".
+export const STATUS_LABEL: Record<AgendamentoStatus, string> = {
+  agendado: "Agendado",
+  confirmado: "Confirmado",
+  atendimento: "Em atendimento",
+  concluido: "Concluído",
+  noshow: "Não compareceu",
+  cancelado: "Cancelado",
+  bloqueio: "Bloqueio",
+};
+
 export const statusMeta: Record<
   Exclude<AgendamentoStatus, "concluido" | "cancelado" | "bloqueio">,
   { label: string; fg: string; bg: string }
 > = {
-  agendado: { label: "Agendado", fg: "#0A5560", bg: "#E6F6F8" },
-  confirmado: { label: "Confirmado", fg: c.greenText, bg: c.greenBg },
-  atendimento: { label: "Em atendimento", fg: c.amberText, bg: c.amberBg },
-  noshow: { label: "No-show", fg: c.redText, bg: c.redBg },
+  agendado: { label: STATUS_LABEL.agendado, fg: "#0A5560", bg: "#E6F6F8" },
+  confirmado: { label: STATUS_LABEL.confirmado, fg: c.greenText, bg: c.greenBg },
+  atendimento: { label: STATUS_LABEL.atendimento, fg: c.amberText, bg: c.amberBg },
+  noshow: { label: STATUS_LABEL.noshow, fg: c.redText, bg: c.redBg },
 };
 
 // Calendar block palettes (background + left bar + text colors)

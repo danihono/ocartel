@@ -9,7 +9,7 @@
 // servidor e no 1º render do cliente) — as telas com dados ficam atrás do
 // <AuthGuard>, então a semente nunca aparece para o usuário.
 
-import { createContext, useContext, useEffect, useMemo, useReducer, type Dispatch, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type Dispatch, type ReactNode } from "react";
 import {
   BARBEARIA,
   agendaBarbeiros,
@@ -22,7 +22,7 @@ import {
   tenants as seedTenants,
 } from "./mock-data";
 import { addDias, HOJE_ISO, hojeLocalISO, isoParaDiaMes } from "./date";
-import { slug } from "./selectors";
+import { slug, type FiltroCliente, type FiltroTipoCobranca, type FiltroTransacao } from "./selectors";
 import { useAuth } from "./firebase/auth";
 import * as repo from "./firebase/repos";
 import type {
@@ -40,6 +40,24 @@ import type {
   Transacao,
 } from "./types";
 
+// Estado de UI de cada tela. Vive no store (que fica na raiz e sobrevive às
+// rotas) para que trocar de aba no menu não perca contexto nem remonte a tela
+// do zero — é o que fazia a navegação parecer um reload.
+export interface TelasUi {
+  /** `dateISO: null` = hoje, resolvido no render pelo relógio (nunca envelhece). */
+  agenda: { dateISO: string | null; view: "dia" | "semana" | "mes"; busca: string };
+  clientes: { busca: string; filtro: FiltroCliente; selId: string | null };
+  pagamentos: { busca: string; filtro: FiltroTransacao; tipo: FiltroTipoCobranca };
+  planos: { aba: "servicos" | "planos" };
+}
+
+export const telasIniciais: TelasUi = {
+  agenda: { dateISO: null, view: "dia", busca: "" },
+  clientes: { busca: "", filtro: "Todos", selId: null },
+  pagamentos: { busca: "", filtro: "Todas", tipo: "todos" },
+  planos: { aba: "servicos" },
+};
+
 export interface AppState {
   auth: { logado: boolean; nome: string; barbeariaNome: string };
   barbeiros: Barbeiro[];
@@ -51,7 +69,7 @@ export interface AppState {
   tenants: Tenant[];
   planosTiers: PlanoTier[];
   planos: Plano[];
-  ui: { hidratado: boolean; visao: Role; barbeiroVisaoId: string | null };
+  ui: { hidratado: boolean; visao: Role; barbeiroVisaoId: string | null; telas: TelasUi };
 }
 
 // ---- Semente determinística (idêntica no servidor e no 1º render do cliente) ----
@@ -133,21 +151,30 @@ export function buildSeedState(): AppState {
     tenants: seedTenants.map((t) => ({ ...t })),
     planosTiers,
     planos: seedPlanos.map((p) => ({ ...p })),
-    ui: { hidratado: false, visao: "admin", barbeiroVisaoId: barbeiros[0]?.id ?? null },
+    ui: { hidratado: false, visao: "admin", barbeiroVisaoId: barbeiros[0]?.id ?? null, telas: telasIniciais },
   };
 }
 
 // ---- Ações (apenas estado de UI + injeção de dados pelos listeners) ----
-type StatePatch = Partial<Omit<AppState, "ui">> & { ui?: Partial<AppState["ui"]> };
+type StatePatch = Partial<Omit<AppState, "ui">> & { ui?: Partial<Omit<AppState["ui"], "telas">> };
 export type Action =
   | { type: "SET_DATA"; patch: StatePatch }
   | { type: "SET_VISAO"; visao: Role }
-  | { type: "SET_BARBEIRO_VISAO"; id: string };
+  | { type: "SET_BARBEIRO_VISAO"; id: string }
+  | { type: "SET_AUTH"; patch: Partial<AppState["auth"]> }
+  | { [K in keyof TelasUi]: { type: "SET_TELA"; tela: K; patch: Partial<TelasUi[K]> } }[keyof TelasUi];
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case "SET_DATA":
       return { ...state, ...action.patch, ui: { ...state.ui, ...(action.patch.ui ?? {}) } };
+    case "SET_AUTH":
+      return { ...state, auth: { ...state.auth, ...action.patch } };
+    case "SET_TELA":
+      return {
+        ...state,
+        ui: { ...state.ui, telas: { ...state.ui.telas, [action.tela]: { ...state.ui.telas[action.tela], ...action.patch } } },
+      };
     case "SET_VISAO":
       return { ...state, ui: { ...state.ui, visao: action.visao } };
     case "SET_BARBEIRO_VISAO":
@@ -250,27 +277,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, buildSeedState);
   const { profile, role, tenantId } = useAuth();
   const nome = profile?.nome ?? "";
+  // Último tenant já carregado. O efeito abaixo também re-roda quando só o
+  // `nome` do perfil chega — nesse caso NÃO podemos zerar o cache nem o
+  // `hidratado`, senão as telas piscam "Carregando…" sem motivo.
+  const tenantCarregado = useRef<string | null>(null);
 
   // Assina os listeners do tenant. Limpa a semente ao entrar e refaz ao trocar
   // de tenant / deslogar.
   useEffect(() => {
     const isSuper = role === "superAdmin";
-    if (!tenantId && !isSuper) return;
+    if (!tenantId && !isSuper) {
+      tenantCarregado.current = null; // logout: o próximo login recarrega do zero
+      return;
+    }
 
-    dispatch({
-      type: "SET_DATA",
-      patch: {
-        auth: { logado: true, nome, barbeariaNome: "" },
-        clientes: [],
-        agendamentos: [],
-        servicos: [],
-        barbeiros: [],
-        transacoes: [],
-        tenants: [],
-        planos: [],
-        ui: { hidratado: false },
-      },
-    });
+    const chave = tenantId ?? "__super__";
+    const trocouDeTenant = tenantCarregado.current !== chave;
+    tenantCarregado.current = chave;
+
+    dispatch({ type: "SET_AUTH", patch: { logado: true, nome } });
+    if (trocouDeTenant) {
+      dispatch({
+        type: "SET_DATA",
+        patch: {
+          clientes: [],
+          agendamentos: [],
+          servicos: [],
+          barbeiros: [],
+          transacoes: [],
+          tenants: [],
+          planos: [],
+          ui: { hidratado: false },
+        },
+      });
+    }
 
     const unsubs: Array<() => void> = [];
 
@@ -288,7 +328,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         repo.planosTiers.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { planosTiers: rows } })),
         repo.planos.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { planos: rows } })),
         repo.config.subscribe(tenantId, (cfg) => {
-          if (cfg) dispatch({ type: "SET_DATA", patch: { config: cfg, auth: { logado: true, nome, barbeariaNome: cfg.nome }, ui: { hidratado: true } } });
+          if (!cfg) return;
+          dispatch({ type: "SET_AUTH", patch: { barbeariaNome: cfg.nome } });
+          dispatch({ type: "SET_DATA", patch: { config: cfg, ui: { hidratado: true } } });
         }),
       );
     } else {

@@ -9,11 +9,12 @@ import {
   valorRecebido,
   tipoCobranca,
   clientePossuiPlanoAtivo,
+  diaVencimentoCliente,
   ehDoCliente,
   selectResumoFinanceiro,
 } from "@/lib/selectors";
 import type { AppState } from "@/lib/store";
-import type { Cliente, Transacao } from "@/lib/types";
+import type { Cliente, Plano, Transacao } from "@/lib/types";
 
 describe("slug", () => {
   it("minúsculo, sem acento, hifenizado", () => {
@@ -44,6 +45,29 @@ describe("rotuloServico", () => {
     expect(rotuloServico("Corte", 60, "agendado")).toBe("Corte · 1h");
     expect(rotuloServico("Corte", 60, "atendimento")).toBe("Corte · em atendimento");
     expect(rotuloServico("Corte", 60, "concluido")).toBe("Corte · concluído");
+    expect(rotuloServico("Corte", 60, "noshow")).toBe("Corte · não compareceu");
+  });
+});
+
+describe("diaVencimentoCliente", () => {
+  const cliente = (patch: Partial<Cliente> = {}): Cliente =>
+    ({ id: "c1", nome: "X", telefone: "", email: "", plano: "Mensal", tag: "", ultimoAtendimento: "—", totalGasto: 0, atendimentos: 0, desde: "", iniciais: "X", ...patch }) as Cliente;
+  const plano = (diaVencimento?: number): Plano => ({ id: "p1", nome: "Mensal", valor: 99, diaVencimento });
+
+  it("usa o dia do próprio cliente quando existe", () => {
+    expect(diaVencimentoCliente(cliente({ diaVencimento: 12 }), plano(3))).toBe(12);
+  });
+  it("herda o dia do plano nos assinantes antigos (sem dia próprio)", () => {
+    expect(diaVencimentoCliente(cliente(), plano(3))).toBe(3);
+  });
+  it("cai no padrão quando não há nem um nem outro", () => {
+    expect(diaVencimentoCliente(cliente(), plano())).toBe(5);
+    expect(diaVencimentoCliente(null)).toBe(5);
+  });
+  it("mantém o dia dentro de 1..28", () => {
+    expect(diaVencimentoCliente(cliente({ diaVencimento: 31 }))).toBe(28);
+    expect(diaVencimentoCliente(cliente({ diaVencimento: 0 }))).toBe(5); // 0 é falsy → padrão
+    expect(diaVencimentoCliente(cliente({ diaVencimento: -4 }))).toBe(1);
   });
 });
 

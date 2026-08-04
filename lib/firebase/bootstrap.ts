@@ -225,7 +225,7 @@ export async function seedDemoTenant(params: { ownerUid: string; nome?: string }
     batch.set(doc(db, "tenants", tenantId, "planos", p.id), {
       nome: p.nome,
       valor: p.valor,
-      diaVencimento: p.diaVencimento ?? 5,
+      // Vencimento não é do plano: cada cliente tem o seu (Cliente.diaVencimento).
       ativo: p.ativo ?? true,
       createdAt: serverTimestamp(),
     });

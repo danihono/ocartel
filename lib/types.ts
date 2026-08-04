@@ -48,6 +48,12 @@ export interface Cliente {
   plano: string;
   /** Plano de assinatura do cliente (ref. a `planos`); ausente/"" = avulso (sem plano). */
   planId?: string;
+  /**
+   * Dia do mês em que a mensalidade deste cliente vence (1..28). O vencimento é
+   * por pessoa, não por plano — cada assinante fecha num dia diferente.
+   * Ausente = usa o dia herdado do plano (legado) ou 5.
+   */
+  diaVencimento?: number;
   tag: ClienteTag;
   /** Rótulo legado de exibição ("há 3 dias"); usado como fallback quando não há ISO. */
   ultimoAtendimento: string;
@@ -211,7 +217,11 @@ export interface Plano {
   nome: string;
   /** Mensalidade vigente em R$. */
   valor: number;
-  /** Dia do mês de vencimento (1..28). Default 5. */
+  /**
+   * @deprecated O vencimento passou a ser por cliente (`Cliente.diaVencimento`).
+   * Continua sendo lido apenas como fallback dos assinantes antigos, que ainda
+   * não têm um dia próprio gravado — não é mais editável na tela de Planos.
+   */
   diaVencimento?: number;
   ativo?: boolean;
 }
