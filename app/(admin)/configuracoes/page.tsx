@@ -33,6 +33,8 @@ export default function ConfiguracoesPage() {
   const [abre, setAbre] = useState(state.config.horario.abre);
   const [fecha, setFecha] = useState(state.config.horario.fecha);
   const [diasAtivos, setDiasAtivos] = useState<boolean[]>(state.config.horario.diasAtivos);
+  const [confirmacaoAtiva, setConfirmacaoAtiva] = useState(state.config.confirmacao?.ativa ?? false);
+  const [confirmacaoHora, setConfirmacaoHora] = useState(state.config.confirmacao?.hora ?? "08:00");
 
   const [novoBarbeiro, setNovoBarbeiro] = useState("");
 
@@ -45,11 +47,19 @@ export default function ConfiguracoesPage() {
     setAbre(state.config.horario.abre);
     setFecha(state.config.horario.fecha);
     setDiasAtivos(state.config.horario.diasAtivos);
+    setConfirmacaoAtiva(state.config.confirmacao?.ativa ?? false);
+    setConfirmacaoHora(state.config.confirmacao?.hora ?? "08:00");
   }, [state.config]);
 
   async function salvarConfig() {
     try {
-      await actions.config.update({ nome, endereco, telefone, horario: { abre, fecha, diasAtivos } });
+      await actions.config.update({
+        nome,
+        endereco,
+        telefone,
+        horario: { abre, fecha, diasAtivos },
+        confirmacao: { ativa: confirmacaoAtiva, hora: confirmacaoHora },
+      });
       toast("Configurações salvas.");
     } catch {
       toast("Não foi possível salvar.", "error");
@@ -140,6 +150,34 @@ export default function ConfiguracoesPage() {
                   );
                 })}
               </div>
+            </div>
+
+            <div>
+              <div style={{ ...eyebrow, marginBottom: 8 }}>Confirmação automática pelo WhatsApp</div>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 9, cursor: "pointer", marginBottom: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={confirmacaoAtiva}
+                  onChange={(e) => setConfirmacaoAtiva(e.target.checked)}
+                  style={{ marginTop: 3 }}
+                />
+                <span style={{ fontSize: 13, color: c.ink3, lineHeight: 1.45 }}>
+                  Enviar o pedido de confirmação <b>na manhã do dia do atendimento</b>. Quem marca
+                  para outro dia só é avisado no dia; quem marca no próprio dia, depois do envio,
+                  não recebe.
+                </span>
+              </label>
+              <Field label="Enviar às" style={{ maxWidth: 160 }}>
+                <Select
+                  value={confirmacaoHora}
+                  onChange={(e) => setConfirmacaoHora(e.target.value)}
+                  disabled={!confirmacaoAtiva}
+                >
+                  {HORAS.map((h) => (
+                    <option key={h} value={h}>{h}</option>
+                  ))}
+                </Select>
+              </Field>
             </div>
           </div>
           <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end" }}>
