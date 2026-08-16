@@ -23,6 +23,7 @@ import {
 } from "@/lib/selectors";
 import { isoParaLabel, tempoRelativo } from "@/lib/date";
 import { useHoje } from "@/lib/useRelogio";
+import { useListaProgressiva } from "@/lib/useListaProgressiva";
 import { ClienteModal } from "@/components/admin/ClienteModal";
 import { ImportarClientesModal } from "@/components/admin/ImportarClientesModal";
 import { NovoAgendamentoModal } from "@/components/admin/NovoAgendamentoModal";
@@ -92,6 +93,10 @@ export function TelaClientes() {
   );
   const formaPreferida = useMemo(() => (sel ? selectFormaPreferidaCliente(state, sel) : null), [sel, transacoes]);
   /* eslint-enable react-hooks/exhaustive-deps */
+
+  // A lista sai em blocos; `sel` continua saindo da lista COMPLETA, então um
+  // cliente selecionado além do corte segue resolvendo.
+  const { visiveis, restantes, mostrarMais } = useListaProgressiva(lista, `${filtro}|${busca}`);
 
   const histVisivel = verTudo ? historico : historico.slice(0, HIST_INICIAL);
 
@@ -166,7 +171,7 @@ export function TelaClientes() {
           {lista.length === 0 ? (
             <div style={{ padding: "40px 20px", textAlign: "center", color: c.ink3, fontSize: 13 }}>Nenhum cliente encontrado.</div>
           ) : null}
-          {lista.map((cl) => {
+          {visiveis.map((cl) => {
             const active = sel?.id === cl.id;
             const clTag = tagDerivadaCliente(state, cl, hoje);
             const t = tagMeta(clTag);
@@ -202,6 +207,14 @@ export function TelaClientes() {
               </button>
             );
           })}
+          {restantes > 0 ? (
+            <button
+              onClick={mostrarMais}
+              style={{ width: "100%", border: "none", borderTop: `1px solid ${c.borderSoft}`, background: c.surfaceWarm, color: c.inkTitle, cursor: "pointer", padding: "12px 0", fontSize: 12.5, fontWeight: 600 }}
+            >
+              Mostrar mais ({restantes})
+            </button>
+          ) : null}
         </div>
       </div>
 

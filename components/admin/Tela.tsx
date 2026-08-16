@@ -18,26 +18,31 @@
 // 2. Scroll próprio. Cada tela é o seu próprio container de rolagem, então cada
 //    aba lembra onde estava. `display: none` descarta o scrollTop no navegador,
 //    então salvamos ao esconder e restauramos antes do paint ao mostrar.
+//
+// 3. Montagem preguiçosa. Uma aba só é construída na primeira vez que é aberta —
+//    abrir o painel não paga o custo das seis de uma vez. Depois disso ela nunca
+//    mais é desmontada, e voltar nela é só o toggle de `display`.
 
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 
 export function Tela({ ativa, children }: { ativa: boolean; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
-  const ultimo = useRef<ReactNode>(children);
+  const ultimo = useRef<ReactNode>(null);
   const scroll = useRef(0);
 
   if (ativa) ultimo.current = children;
+  const jaAberta = ultimo.current !== null;
 
   useLayoutEffect(() => {
     const el = ref.current;
-    if (!el) return;
-    if (ativa) {
-      el.scrollTop = scroll.current;
-      return () => {
-        scroll.current = el.scrollTop;
-      };
-    }
+    if (!el || !ativa) return;
+    el.scrollTop = scroll.current;
+    return () => {
+      scroll.current = el.scrollTop;
+    };
   }, [ativa]);
+
+  if (!jaAberta) return null;
 
   return (
     <div

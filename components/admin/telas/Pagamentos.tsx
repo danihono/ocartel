@@ -26,6 +26,7 @@ import {
 } from "@/lib/selectors";
 import { isoParaDiaMes } from "@/lib/date";
 import { useHoje } from "@/lib/useRelogio";
+import { useListaProgressiva } from "@/lib/useListaProgressiva";
 import { RegistrarPagamentoModal } from "@/components/admin/RegistrarPagamentoModal";
 import { NovaCobrancaModal } from "@/components/admin/NovaCobrancaModal";
 import type { Transacao, TransacaoStatus } from "@/lib/types";
@@ -94,6 +95,8 @@ export function TelaPagamentos() {
       return db.localeCompare(da);
     });
   }, [state, filtro, busca, tipo, hoje]);
+
+  const { visiveis, restantes, mostrarMais } = useListaProgressiva(transacoes, `${filtro}|${busca}|${tipo}`);
 
   const kpis = [
     { l: "Recebido este mês", v: formatBRL(resumo.recebidoMes), dot: c.green, sub: "" },
@@ -239,7 +242,7 @@ export function TelaPagamentos() {
           </div>
         ) : null}
 
-        {transacoes.map((t) => {
+        {visiveis.map((t) => {
           const st = statusCobranca(t, hoje);
           const sm = statusMeta[st];
           const cobrado = valorCobrado(t);
@@ -300,6 +303,15 @@ export function TelaPagamentos() {
             </div>
           );
         })}
+
+        {restantes > 0 ? (
+          <button
+            onClick={mostrarMais}
+            style={{ width: "100%", border: "none", borderTop: `1px solid ${c.borderSoft}`, background: c.surfaceWarm, color: c.inkTitle, cursor: "pointer", padding: "13px 0", fontSize: 12.5, fontWeight: 600 }}
+          >
+            Mostrar mais ({restantes})
+          </button>
+        ) : null}
 
         {transacoes.length === 0 ? (
           <div style={{ padding: "36px", textAlign: "center", color: c.ink3, fontSize: 13 }}>
