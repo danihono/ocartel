@@ -4,7 +4,14 @@
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, connectAuthEmulator, type Auth } from "firebase/auth";
-import { getFirestore, initializeFirestore, connectFirestoreEmulator, type Firestore } from "firebase/firestore";
+import {
+  getFirestore,
+  initializeFirestore,
+  connectFirestoreEmulator,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  type Firestore,
+} from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -22,11 +29,22 @@ export const auth: Auth = getAuth(app);
 // redes/proxies que cortam o streaming WebChannel) o `onSnapshot` falha com
 // [unavailable] e os listeners — inclusive o de users/{uid} — nunca resolvem,
 // derrubando o usuário de volta pro /login. O auto-detect cai pra long-polling
-// quando o WebChannel não vinga. O try/catch torna idempotente sob HMR
-// (initializeFirestore só pode rodar uma vez por app).
+// quando o WebChannel não vinga.
+//
+// `persistentLocalCache` guarda os documentos no IndexedDB: no reload o primeiro
+// `onSnapshot` dispara direto do cache (antes de qualquer round-trip de rede), e
+// o painel já abre com dados em vez de zerado. O `persistentMultipleTabManager`
+// permite várias abas abertas ao mesmo tempo (sem ele a 2ª aba falha a
+// persistência) — a "Tela do cliente" e a "Tela do barbeiro" abrem em abas novas.
+//
+// O try/catch torna idempotente sob HMR (initializeFirestore só pode rodar uma
+// vez por app).
 function criarDb(): Firestore {
   try {
-    return initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+      experimentalAutoDetectLongPolling: true,
+    });
   } catch {
     return getFirestore(app);
   }

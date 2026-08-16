@@ -1,28 +1,20 @@
 "use client";
 
-// Store central no cliente (Context + reducer). Agora alimentado pelo Firestore:
-// os dados chegam por listeners em tempo real (onSnapshot) e são despachados via
+// Store central no cliente (Context + reducer). Alimentado pelo Firestore: os
+// dados chegam por listeners em tempo real (onSnapshot) e são despachados via
 // SET_DATA; as escritas vão direto pros repositórios (lib/firebase/repos.ts) e o
 // snapshot reflete de volta. O reducer virou um cache de leitura.
 //
-// `buildSeedState()` continua sendo o estado inicial determinístico (idêntico no
-// servidor e no 1º render do cliente) — as telas com dados ficam atrás do
-// <AuthGuard>, então a semente nunca aparece para o usuário.
+// `buildSeedState()` é o estado inicial determinístico (idêntico no servidor e no
+// 1º render do cliente) e vem VAZIO de propósito: o <AuthGuard> renderiza o
+// conteúdo de forma otimista (latch de sessão), então qualquer dado de exemplo
+// aqui apareceria de verdade na tela antes dos dados reais. Os mocks de
+// `lib/mock-data.ts` seguem servindo ao `seedDemoTenant` (lib/firebase/bootstrap.ts),
+// que é onde eles fazem sentido.
 
 import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type Dispatch, type ReactNode } from "react";
-import {
-  BARBEARIA,
-  agendaBarbeiros,
-  agendaBlocos,
-  bookingBarbeiros,
-  clientes as seedClientes,
-  historicoCliente,
-  planosCliente as seedPlanos,
-  servicos as seedServicos,
-  tenants as seedTenants,
-} from "./mock-data";
-import { addDias, HOJE_ISO, hojeLocalISO, isoParaDiaMes } from "./date";
-import { slug, type FiltroCliente, type FiltroTipoCobranca, type FiltroTransacao } from "./selectors";
+import { addDias, hojeLocalISO } from "./date";
+import { type FiltroCliente, type FiltroTipoCobranca, type FiltroTransacao } from "./selectors";
 import { useAuth } from "./firebase/auth";
 import * as repo from "./firebase/repos";
 import type {
@@ -73,85 +65,27 @@ export interface AppState {
 }
 
 // ---- Semente determinística (idêntica no servidor e no 1º render do cliente) ----
+// Vazia de propósito — ver o comentário no topo do arquivo.
 export function buildSeedState(): AppState {
-  const barbeiros: Barbeiro[] = agendaBarbeiros.map((b) => {
-    const bk = bookingBarbeiros.find((x) => x.nome === b.nome);
-    return { id: slug(b.nome), nome: b.nome, iniciais: b.iniciais, cor: b.cor, rating: bk?.rating, especialidade: bk?.especialidade };
-  });
-  const nomePorId = (id: string) => barbeiros.find((b) => b.id === id)?.nome ?? id;
-  const precoDe = (nome: string) => seedServicos.find((s) => s.nome === nome)?.preco ?? 0;
-
-  const agendamentos: Agendamento[] = [];
-  agendaBlocos.forEach((blocos, idx) => {
-    const barbeiro = barbeiros[idx];
-    blocos.forEach((bl) => {
-      const nomeServico = bl.servico.split(" · ")[0].trim();
-      agendamentos.push({
-        id: `ag-${barbeiro.id}-${bl.inicio.replace(":", "")}`,
-        date: HOJE_ISO,
-        barbeiroId: barbeiro.id,
-        clienteNome: bl.cliente,
-        servico: nomeServico,
-        servicoId: seedServicos.find((s) => s.nome === nomeServico)?.id,
-        inicio: bl.inicio,
-        duracaoMin: bl.duracaoMin,
-        status: bl.status,
-        origem: "admin",
-      });
-    });
-  });
-
-  const hojeLabel = isoParaDiaMes(HOJE_ISO);
-  const transacoes: Transacao[] = [
-    ...historicoCliente.map((h, i) => ({
-      id: `tx-hist-${i}`,
-      data: h.data,
-      clienteNome: "João Pedro Almeida",
-      servico: h.servico,
-      barbeiroNome: h.barbeiro,
-      valor: Number(h.valor.replace(/[^\d]/g, "")),
-      status: "pago" as const,
-      forma: (i % 2 === 0 ? "pix" : "cartao") as FormaPagamento,
-    })),
-    ...agendamentos
-      .filter((a) => a.status === "confirmado")
-      .map((a, i) => ({
-        id: `tx-pend-${i}`,
-        data: hojeLabel,
-        clienteNome: a.clienteNome,
-        servico: a.servico,
-        barbeiroNome: nomePorId(a.barbeiroId),
-        valor: precoDe(a.servico),
-        status: "pendente" as const,
-        forma: (["pix", "cartao", "dinheiro"][i % 3]) as FormaPagamento,
-      })),
-    { id: "tx-atr-0", data: "12 abr", clienteNome: "Rafael Lima", servico: "Luzes", barbeiroNome: "Everton", valor: 120, status: "atrasado", forma: "pix" },
-  ];
-
   const config: ConfigBarbearia = {
-    nome: BARBEARIA.nome,
-    endereco: BARBEARIA.endereco,
-    telefone: "(11) 3060-1200",
+    nome: "",
+    endereco: "",
+    telefone: "",
     horario: { abre: "09:00", fecha: "19:00", diasAtivos: [true, true, true, true, true, true, false] },
   };
 
-  const planosTiers: PlanoTier[] = [
-    { id: "basico", nome: "Básico", preco: 129, descricao: "1 unidade · até 3 barbeiros" },
-    { id: "pro", nome: "Pro", preco: 249, descricao: "Multi-unidade · ilimitado" },
-  ];
-
   return {
-    auth: { logado: false, nome: "", barbeariaNome: BARBEARIA.nome },
-    barbeiros,
-    servicos: seedServicos.map((s) => ({ ...s })),
-    clientes: seedClientes.map((c) => ({ ...c })),
-    agendamentos,
-    transacoes,
+    auth: { logado: false, nome: "", barbeariaNome: "" },
+    barbeiros: [],
+    servicos: [],
+    clientes: [],
+    agendamentos: [],
+    transacoes: [],
     config,
-    tenants: seedTenants.map((t) => ({ ...t })),
-    planosTiers,
-    planos: seedPlanos.map((p) => ({ ...p })),
-    ui: { hidratado: false, visao: "admin", barbeiroVisaoId: barbeiros[0]?.id ?? null, telas: telasIniciais },
+    tenants: [],
+    planosTiers: [],
+    planos: [],
+    ui: { hidratado: false, visao: "admin", barbeiroVisaoId: null, telas: telasIniciais },
   };
 }
 
@@ -292,7 +226,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
 
     const chave = tenantId ?? "__super__";
-    const trocouDeTenant = tenantCarregado.current !== chave;
+    // Só zera quando SAI de um tenant já carregado para outro. Na 1ª montagem
+    // `tenantCarregado.current` é null e a semente já está vazia — zerar de novo
+    // ali só apagaria o que o cache local do Firestore acabou de entregar.
+    const trocouDeTenant = tenantCarregado.current !== null && tenantCarregado.current !== chave;
     tenantCarregado.current = chave;
 
     dispatch({ type: "SET_AUTH", patch: { logado: true, nome } });
@@ -319,18 +256,52 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const cutoffAgendamentos = addDias(hojeLocalISO(), -180);
 
     if (tenantId) {
+      // `hidratado` = todos os listeners essenciais já entregaram o 1º snapshot.
+      // Antes disso, dependia só da config — e um tenant sem `config/main` (o
+      // `if (!cfg) return` de outrora) travava /planos e /barbeiro em
+      // "Carregando…" para sempre.
+      const ESSENCIAIS = ["clientes", "barbeiros", "servicos", "transacoes", "agendamentos", "planos", "config"] as const;
+      const chegaram = new Set<string>();
+      const marcarChegada = (quem: (typeof ESSENCIAIS)[number]) => {
+        if (chegaram.has(quem)) return;
+        chegaram.add(quem);
+        if (chegaram.size === ESSENCIAIS.length) dispatch({ type: "SET_DATA", patch: { ui: { hidratado: true } } });
+      };
+
       unsubs.push(
-        repo.clientes.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { clientes: rows } })),
-        repo.barbeiros.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { barbeiros: rows } })),
-        repo.servicos.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { servicos: rows } })),
-        repo.transacoes.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { transacoes: rows } })),
-        repo.agendamentos.subscribe(tenantId, cutoffAgendamentos, (rows) => dispatch({ type: "SET_DATA", patch: { agendamentos: rows } })),
+        repo.clientes.subscribe(tenantId, (rows) => {
+          dispatch({ type: "SET_DATA", patch: { clientes: rows } });
+          marcarChegada("clientes");
+        }),
+        repo.barbeiros.subscribe(tenantId, (rows) => {
+          dispatch({ type: "SET_DATA", patch: { barbeiros: rows } });
+          marcarChegada("barbeiros");
+        }),
+        repo.servicos.subscribe(tenantId, (rows) => {
+          dispatch({ type: "SET_DATA", patch: { servicos: rows } });
+          marcarChegada("servicos");
+        }),
+        repo.transacoes.subscribe(tenantId, (rows) => {
+          dispatch({ type: "SET_DATA", patch: { transacoes: rows } });
+          marcarChegada("transacoes");
+        }),
+        repo.agendamentos.subscribe(tenantId, cutoffAgendamentos, (rows) => {
+          dispatch({ type: "SET_DATA", patch: { agendamentos: rows } });
+          marcarChegada("agendamentos");
+        }),
         repo.planosTiers.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { planosTiers: rows } })),
-        repo.planos.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { planos: rows } })),
+        repo.planos.subscribe(tenantId, (rows) => {
+          dispatch({ type: "SET_DATA", patch: { planos: rows } });
+          marcarChegada("planos");
+        }),
+        // `cfg` nulo = a barbearia ainda não tem doc de config; é uma resposta
+        // válida, não "carregando". Mantém a config atual e segue.
         repo.config.subscribe(tenantId, (cfg) => {
-          if (!cfg) return;
-          dispatch({ type: "SET_AUTH", patch: { barbeariaNome: cfg.nome } });
-          dispatch({ type: "SET_DATA", patch: { config: cfg, ui: { hidratado: true } } });
+          if (cfg) {
+            dispatch({ type: "SET_AUTH", patch: { barbeariaNome: cfg.nome } });
+            dispatch({ type: "SET_DATA", patch: { config: cfg } });
+          }
+          marcarChegada("config");
         }),
       );
     } else {
@@ -349,7 +320,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const actions = useMemo<StoreActions>(() => buildActions(tenantId ?? ""), [tenantId]);
 
-  return <StoreContext.Provider value={{ state, dispatch, actions }}>{children}</StoreContext.Provider>;
+  // Sem o useMemo, o objeto do value é novo a cada render do provider e TODO
+  // consumidor re-renderiza junto, mesmo quando nada que ele lê mudou.
+  const value = useMemo<StoreValue>(() => ({ state, dispatch, actions }), [state, actions]);
+
+  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 
 export function useStore() {
