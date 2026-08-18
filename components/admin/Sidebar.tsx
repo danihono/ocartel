@@ -9,6 +9,7 @@ import { useStore } from "@/lib/store";
 import { signOutApp, useAuth } from "@/lib/firebase/auth";
 import { slug } from "@/lib/selectors";
 import { useToast } from "@/components/ui/Toast";
+import { PAPEL_LABEL, iniciaisDe } from "@/lib/pessoa";
 
 const items: { label: string; href: string }[] = [
   { label: "Dashboard", href: "/dashboard" },
@@ -21,7 +22,7 @@ const items: { label: string; href: string }[] = [
 
 export default function Sidebar({ active }: { active: string }) {
   const { state } = useStore();
-  const { tenantId, impersonating, exitTenant } = useAuth();
+  const { tenantId, role, impersonating, exitTenant } = useAuth();
   const toast = useToast();
   const router = useRouter();
   const [menu, setMenu] = useState(false);
@@ -133,11 +134,11 @@ export default function Sidebar({ active }: { active: string }) {
           style={{ width: "100%", border: "none", background: "transparent", cursor: "pointer", display: "flex", gap: 11, alignItems: "center", padding: 0 }}
         >
           <div style={{ width: 34, height: 34, borderRadius: "50%", background: c.leather, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: c.darkText }}>
-            MR
+            {iniciaisDe(state.auth.nome)}
           </div>
           <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: c.darkText }}>{state.auth.nome}</div>
-            <div style={{ fontSize: 11, color: c.darkMuted }}>{impersonating ? "Super admin" : "Dona · Admin"}</div>
+            <div style={{ fontSize: 11, color: c.darkMuted }}>{impersonating ? "Super admin" : role ? PAPEL_LABEL[role] : ""}</div>
           </div>
           <span style={{ color: c.darkMuted, fontSize: 12 }}>{menu ? "▾" : "▸"}</span>
         </button>

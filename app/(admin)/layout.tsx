@@ -8,6 +8,8 @@ import Topbar from "@/components/admin/Topbar";
 import { Tela } from "@/components/admin/Tela";
 import AuthGuard from "@/components/auth/AuthGuard";
 import { useAuth } from "@/lib/firebase/auth";
+import { useRelogio } from "@/lib/useRelogio";
+import { saudacaoCompleta } from "@/lib/pessoa";
 import { TelaAgenda } from "@/components/admin/telas/Agenda";
 import { TelaClientes } from "@/components/admin/telas/Clientes";
 import { TelaConfiguracoes } from "@/components/admin/telas/Configuracoes";
@@ -15,8 +17,9 @@ import { TelaDashboard } from "@/components/admin/telas/Dashboard";
 import { TelaPagamentos } from "@/components/admin/telas/Pagamentos";
 import { TelaPlanos } from "@/components/admin/telas/Planos";
 
+// O título do /dashboard é montado no render (saudação + quem está logado),
+// por isso não entra neste mapa de rótulos fixos.
 const titles: Record<string, [string, string]> = {
-  "/dashboard": ["Visão geral", "Bom dia, Marina"],
   "/agenda": ["Operação", "Agenda"],
   "/clientes": ["Relacionamento", "Clientes"],
   "/planos": ["Catálogo", "Planos & Serviços"],
@@ -27,14 +30,18 @@ const titles: Record<string, [string, string]> = {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
-  const { role } = useAuth();
+  const { role, profile } = useAuth();
+  const { agora } = useRelogio();
 
   // O barbeiro é mobile-only: nunca cai no painel desktop — vai para /barbeiro.
   useEffect(() => {
     if (role === "barbeiro") router.replace("/barbeiro");
   }, [role, router]);
 
-  const [eyebrow, title] = titles[path] ?? ["", ""];
+  const [eyebrow, title] =
+    path === "/dashboard"
+      ? ["Visão geral", saudacaoCompleta(agora, profile?.nome)]
+      : (titles[path] ?? ["", ""]);
 
   if (role === "barbeiro") return <div style={{ height: "100vh", background: c.bg }} />;
 

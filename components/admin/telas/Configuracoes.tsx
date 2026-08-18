@@ -9,17 +9,12 @@ import { Button } from "@/components/ui/Button";
 import { useStore, makeId } from "@/lib/store";
 import { signOutApp, useAuth } from "@/lib/firebase/auth";
 import { useToast } from "@/components/ui/Toast";
-import type { Barbeiro, Role } from "@/lib/types";
+import { PAPEL_LABEL, iniciaisDe } from "@/lib/pessoa";
+import type { Barbeiro } from "@/lib/types";
 
 const DIAS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
-const PAPEL_LABEL: Record<Role, string> = { superAdmin: "Super admin", admin: "Admin", barbeiro: "Barbeiro", cliente: "Cliente" };
 const PALETA = ["#0EA37A", "#0FB6C8", "#7C5CFC", "#E0A21A", "#F0476A"];
 const HORAS = Array.from({ length: 15 }, (_, i) => `${String(7 + i).padStart(2, "0")}:00`);
-
-function iniciaisDe(nome: string): string {
-  const p = nome.trim().split(/\s+/);
-  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
-}
 
 export function TelaConfiguracoes() {
   const { state, actions } = useStore();
