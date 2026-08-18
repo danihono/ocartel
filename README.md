@@ -85,8 +85,37 @@ lib/
     booking.ts    leitura pública do catálogo por slug
     admin.ts      Admin SDK (server-only)
 firestore.rules   regras multi-tenant
-firebase.json · apphosting.yaml   config de emuladores e deploy (App Hosting)
+firebase.json     Hosting (deploy), regras do Firestore/Storage e emuladores
 ```
+
+## Publicar
+
+O site vai ao ar pelo **Firebase Hosting** (`firebase.json`, com
+`hosting.source: "."` + `frameworksBackend`) — é de lá que sai o domínio
+`ocartel-497f8.web.app`. A publicação é **manual**:
+
+```bash
+npm run deploy
+```
+
+Três coisas que não são óbvias:
+
+1. **Empurrar para a `main` não publica nada.** O workflow em
+   `.github/workflows/ci.yml` roda lint, tipos, testes e build — e para aí. Estar
+   na `main` e estar no ar são estados diferentes.
+
+2. **Confira o `.env.local` antes de publicar.** O `firebase deploy` roda o build
+   na sua máquina, então o bundle sai com as variáveis desse arquivo. O
+   `.env.example` — de onde ele normalmente é copiado — traz
+   `NEXT_PUBLIC_USE_EMULATORS=true`; com esse valor, `lib/firebase/config.ts`
+   conecta nos emuladores **no bundle de produção** e o site publicado tenta
+   falar com `127.0.0.1`. Para publicar, a variável precisa estar vazia ou
+   `false`.
+
+3. **O `apphosting.yaml` não participa deste deploy.** Ele é config de Firebase
+   App Hosting (outro produto, que publica sozinho a partir de uma branch). Está
+   no repositório, mas o `firebase deploy` ignora — inclusive as variáveis de
+   ambiente declaradas nele, que valem só no App Hosting.
 
 ## Decisões
 
