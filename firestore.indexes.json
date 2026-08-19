@@ -1,4 +1,14 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "//": "Fila de comandos do daemon de WhatsApp. É COLLECTION_GROUP porque a fila vive em users/{uid}/waCommands e o daemon escuta todas de uma vez. Sem este índice o listener do daemon cai com FAILED_PRECONDITION — e como o emulador não valida índices, o erro só aparece em produção.",
+      "collectionGroup": "waCommands",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }
