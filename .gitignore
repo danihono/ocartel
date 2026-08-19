@@ -35,3 +35,6 @@ serviceAccount.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# QR de pareamento do WhatsApp (gerado por scripts/whatsapp-parear.ts)
+whatsapp-qr.html

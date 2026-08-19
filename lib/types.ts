@@ -148,6 +148,11 @@ export interface Agendamento {
   confirmadoPeloCliente?: boolean;
   /** Quando o cliente respondeu pelo link (ISO datetime). */
   respondidoEm?: string;
+  /**
+   * Quando a confirmação automática foi enviada (ISO datetime). É o que torna o disparo
+   * idempotente: rodar de novo não remanda a mensagem. Gravado DEPOIS do envio confirmado.
+   */
+  confirmacaoEnviadaEm?: string;
 }
 
 export type FormaPagamento = "pix" | "cartao" | "cartao_debito" | "dinheiro";
@@ -206,6 +211,17 @@ export interface ConfigBarbearia {
     abre: string; // "09:00"
     fecha: string; // "19:00"
     diasAtivos: boolean[]; // 7 posições, Seg..Dom
+  };
+  /**
+   * Disparo automático da confirmação pelo WhatsApp, na MANHÃ do dia do atendimento —
+   * e não quando o agendamento é criado. Quem marca na terça para sexta só é avisado na
+   * sexta. Ausente ⇒ desligado, para nenhuma barbearia existente começar a mandar
+   * mensagem sozinha sem alguém ter pedido.
+   */
+  confirmacao?: {
+    /** "HH:MM" no fuso de Brasília. A HORA é o que dispara; os minutos são informativos. */
+    hora: string;
+    ativa: boolean;
   };
 }
 
