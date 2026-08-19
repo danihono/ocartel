@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import Sidebar from "@/components/admin/Sidebar";
 import Topbar from "@/components/admin/Topbar";
@@ -9,6 +9,7 @@ import { Tela } from "@/components/admin/Tela";
 import AuthGuard from "@/components/auth/AuthGuard";
 import { useAuth } from "@/lib/firebase/auth";
 import { useRelogio } from "@/lib/useRelogio";
+import { NavegacaoProvider, useNavegacao } from "@/components/admin/navegacao";
 import { saudacaoCompleta } from "@/lib/pessoa";
 import { TelaAgenda } from "@/components/admin/telas/Agenda";
 import { TelaClientes } from "@/components/admin/telas/Clientes";
@@ -28,7 +29,16 @@ const titles: Record<string, [string, string]> = {
 };
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const path = usePathname();
+  return (
+    <NavegacaoProvider>
+      <PainelAdmin>{children}</PainelAdmin>
+    </NavegacaoProvider>
+  );
+}
+
+function PainelAdmin({ children }: { children: React.ReactNode }) {
+  // `rota` vem do pushState, não do roteador do Next — ver components/admin/navegacao.tsx.
+  const { rota: path } = useNavegacao();
   const router = useRouter();
   const { role, profile } = useAuth();
   const { agora } = useRelogio();

@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { c, font } from "@/lib/theme";
 import { Seal } from "@/components/ui/Seal";
@@ -10,6 +9,7 @@ import { signOutApp, useAuth } from "@/lib/firebase/auth";
 import { slug } from "@/lib/selectors";
 import { useToast } from "@/components/ui/Toast";
 import { PAPEL_LABEL, iniciaisDe } from "@/lib/pessoa";
+import { LinkAba } from "@/components/admin/navegacao";
 
 const items: { label: string; href: string }[] = [
   { label: "Dashboard", href: "/dashboard" },
@@ -26,10 +26,6 @@ export default function Sidebar({ active }: { active: string }) {
   const toast = useToast();
   const router = useRouter();
   const [menu, setMenu] = useState(false);
-
-  useEffect(() => {
-    items.forEach((it) => router.prefetch(it.href));
-  }, [router]);
 
   async function sair() {
     await signOutApp();
@@ -79,7 +75,7 @@ export default function Sidebar({ active }: { active: string }) {
         {items.map((it) => {
           const isActive = it.href === active;
           return (
-            <Link key={it.label} href={it.href}>
+            <LinkAba key={it.label} href={it.href}>
               <span
                 style={{
                   display: "flex",
@@ -97,7 +93,7 @@ export default function Sidebar({ active }: { active: string }) {
                 <span style={{ width: 5, height: 5, borderRadius: "50%", background: isActive ? c.lime : "transparent" }} />
                 {it.label}
               </span>
-            </Link>
+            </LinkAba>
           );
         })}
       </nav>
@@ -121,9 +117,9 @@ export default function Sidebar({ active }: { active: string }) {
         </a>
         {menu ? (
           <div style={{ position: "absolute", bottom: "100%", left: 12, right: 12, marginBottom: 6, background: "#0E2722", border: `1px solid ${c.espressoLine}`, borderRadius: 10, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,.4)" }}>
-            <Link href="/configuracoes" onClick={() => setMenu(false)}>
+            <LinkAba href="/configuracoes" onNavigate={() => setMenu(false)}>
               <div style={{ padding: "11px 14px", fontSize: 13, color: "#9FB4AE", cursor: "pointer" }}>Configurações</div>
-            </Link>
+            </LinkAba>
             <button onClick={sair} style={{ width: "100%", textAlign: "left", border: "none", background: "transparent", padding: "11px 14px", fontSize: 13, color: c.darkRed, cursor: "pointer", borderTop: `1px solid ${c.espressoLine}` }}>
               Sair
             </button>

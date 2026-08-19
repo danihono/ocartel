@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { LinkAba } from "@/components/admin/navegacao";
 import { c, font } from "@/lib/theme";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { StatusPill } from "@/components/ui/StatusPill";
@@ -143,9 +143,9 @@ export function TelaDashboard() {
               <span style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.inkTitle }}>Próximos na agenda</span>
               <span style={{ fontSize: 12, color: c.ink3, marginLeft: 10 }}>Hoje · {isoParaDiaMes(hoje)}</span>
             </div>
-            <Link href="/agenda">
+            <LinkAba href="/agenda">
               <span style={{ fontSize: 12.5, fontWeight: 700, color: c.brassDeep, cursor: "pointer" }}>Ver agenda →</span>
-            </Link>
+            </LinkAba>
           </div>
           {proximos.map((u) => {
             const m = statusMeta[u.status as keyof typeof statusMeta];

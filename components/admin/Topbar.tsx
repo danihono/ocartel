@@ -1,15 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { c, font, shadow } from "@/lib/theme";
 import { isoParaLabel } from "@/lib/date";
 import { useHoje } from "@/lib/useRelogio";
 import { useStore } from "@/lib/store";
 import { NovoAgendamentoModal } from "@/components/admin/NovoAgendamentoModal";
+import { useNavegacao } from "@/components/admin/navegacao";
 
 export default function Topbar({ eyebrow, title }: { eyebrow: string; title: string }) {
-  const router = useRouter();
+  const { ir } = useNavegacao();
   const { dispatch } = useStore();
   const hoje = useHoje();
   const [q, setQ] = useState("");
@@ -19,7 +19,7 @@ export default function Topbar({ eyebrow, title }: { eyebrow: string; title: str
    *  cada tecla disparava uma requisição por caractere — e sem nenhum efeito. */
   function buscar() {
     dispatch({ type: "SET_TELA", tela: "clientes", patch: { busca: q, selId: null } });
-    router.push("/clientes");
+    ir("/clientes");
   }
 
   return (
