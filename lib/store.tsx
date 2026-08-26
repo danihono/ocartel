@@ -14,7 +14,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type Dispatch, type ReactNode } from "react";
 import { addDias, hojeLocalISO } from "./date";
-import { type FiltroCliente, type FiltroTipoCobranca, type FiltroTransacao } from "./selectors";
+import { ORDEM_CLIENTE_PADRAO, type FiltroCliente, type FiltroTipoCobranca, type FiltroTransacao, type OrdemCliente } from "./selectors";
 import type { NovaMensalidade } from "./cobranca-ciclo";
 import { useAuth } from "./firebase/auth";
 import * as repo from "./firebase/repos";
@@ -39,14 +39,14 @@ import type {
 export interface TelasUi {
   /** `dateISO: null` = hoje, resolvido no render pelo relógio (nunca envelhece). */
   agenda: { dateISO: string | null; view: "dia" | "semana" | "mes"; busca: string };
-  clientes: { busca: string; filtro: FiltroCliente; selId: string | null };
+  clientes: { busca: string; filtro: FiltroCliente; selId: string | null; ordem: OrdemCliente };
   pagamentos: { busca: string; filtro: FiltroTransacao; tipo: FiltroTipoCobranca };
   planos: { aba: "servicos" | "planos" };
 }
 
 export const telasIniciais: TelasUi = {
   agenda: { dateISO: null, view: "dia", busca: "" },
-  clientes: { busca: "", filtro: "Todos", selId: null },
+  clientes: { busca: "", filtro: "Todos", selId: null, ordem: ORDEM_CLIENTE_PADRAO },
   pagamentos: { busca: "", filtro: "Todas", tipo: "todos" },
   planos: { aba: "servicos" },
 };

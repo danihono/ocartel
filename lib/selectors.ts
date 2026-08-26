@@ -142,11 +142,58 @@ function normaliza(s: string): string {
 
 export type FiltroCliente = "Todos" | "VIP" | "Avulsos" | "Inadimplentes";
 
+export type OrdemCliente = "nome" | "atendimento-recente" | "atendimento-antigo" | "recentes";
+
+/** A lista abre em ordem alfabética: é assim que se procura alguém de quem se sabe o nome. */
+export const ORDEM_CLIENTE_PADRAO: OrdemCliente = "nome";
+
+/**
+ * Ordena a lista de clientes.
+ *
+ * Duas decisões que não são óbvias:
+ *
+ * 1. **A–Z sem `localeCompare`.** `normaliza()` já derruba acento e caixa ("Ângela" → "angela",
+ *    "Gonçalves" → "goncalves"), então uma comparação de string simples basta para o português
+ *    — e é determinística. `Intl`/`localeCompare` carregam tabelas que diferem entre Node e
+ *    navegador, a mesma razão pela qual `lib/date.ts` recusa `toLocaleDateString`.
+ *
+ * 2. **"recentes" NÃO reordena.** A lista já chega do Firestore em `createdAt desc`
+ *    (`repos.clientes.subscribe`), então preservar a ordem recebida é exatamente "cadastrados
+ *    mais recentemente". `Cliente.desde` não serve para isso: é rótulo de exibição ("jan/24"),
+ *    e ordená-lo daria ordem alfabética de mês — "abr" antes de "jan", errado em silêncio.
+ */
+export function ordenarClientes(lista: Cliente[], ordem: OrdemCliente): Cliente[] {
+  if (ordem === "recentes") return lista;
+
+  if (ordem === "nome") {
+    return [...lista].sort((a, b) => {
+      const na = normaliza(a.nome);
+      const nb = normaliza(b.nome);
+      // Desempate por id: dois homônimos não podem trocar de lugar a cada render.
+      return na === nb ? a.id.localeCompare(b.id) : na < nb ? -1 : 1;
+    });
+  }
+
+  const recente = ordem === "atendimento-recente";
+  return [...lista].sort((a, b) => {
+    const da = a.ultimoAtendimentoISO ?? "";
+    const db = b.ultimoAtendimentoISO ?? "";
+    // Quem NUNCA foi atendido vai para o fim nas DUAS direções. Tratar a ausência como data
+    // vazia jogaria o cliente novo que nunca veio para o topo de "sumidos primeiro" — e nunca
+    // ter vindo não é a mesma coisa que ter sumido.
+    if (!da && !db) return normaliza(a.nome) < normaliza(b.nome) ? -1 : 1;
+    if (!da) return 1;
+    if (!db) return -1;
+    return recente ? db.localeCompare(da) : da.localeCompare(db);
+  });
+}
+
 export function selectClientesFiltrados(
   state: AppState,
   filtro: FiltroCliente,
   busca: string,
   hojeISO: string = HOJE_ISO,
+  ordem: OrdemCliente = ORDEM_CLIENTE_PADRAO,
 ): Cliente[] {
   let lista = state.clientes;
   if (filtro === "VIP") lista = lista.filter((c) => c.tag === "VIP");
@@ -159,7 +206,9 @@ export function selectClientesFiltrados(
       (c) => normaliza(c.nome).includes(q) || normaliza(c.telefone).includes(q) || normaliza(c.email).includes(q),
     );
   }
-  return lista;
+  // A ordenação é o ÚLTIMO passo: vale sempre dentro do recorte (filtro + busca), nunca sobre
+  // a base inteira.
+  return ordenarClientes(lista, ordem);
 }
 
 export function selectContagensCliente(state: AppState, hojeISO: string = HOJE_ISO): Record<FiltroCliente, number> {

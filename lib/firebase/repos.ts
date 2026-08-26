@@ -57,6 +57,9 @@ function semId<T extends { id: string }>(obj: T): Omit<T, "id"> {
 
 // ---- Clientes ----
 export const clientes = {
+  // Este `orderBy` não é só detalhe de leitura: é o que dá sentido à opção "Cadastrados
+  // recentemente" da tela de Clientes, que preserva a ordem recebida em vez de reordenar
+  // (ver `ordenarClientes` em lib/selectors.ts). Trocar o critério aqui muda aquela opção.
   subscribe(tenantId: string, cb: (rows: Cliente[]) => void) {
     return onSnapshot(query(col(tenantId, "clientes"), orderBy("createdAt", "desc")), (s) => cb(rows<Cliente>(s)));
   },

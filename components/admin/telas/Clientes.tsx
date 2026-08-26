@@ -10,6 +10,7 @@ import { useStore } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import {
   selectClientesFiltrados,
+  type OrdemCliente,
   selectContagensCliente,
   selectHistoricoCliente,
   selectProximoAgendamentoCliente,
@@ -30,6 +31,12 @@ import { NovoAgendamentoModal } from "@/components/admin/NovoAgendamentoModal";
 
 const eyebrow = { fontSize: 11, letterSpacing: 0.7, textTransform: "uppercase" as const, color: c.ink3, fontWeight: 600 };
 const FILTROS: FiltroCliente[] = ["Todos", "VIP", "Avulsos", "Inadimplentes"];
+const ORDENS: { value: OrdemCliente; label: string }[] = [
+  { value: "nome", label: "Nome (A–Z)" },
+  { value: "atendimento-recente", label: "Atendimento mais recente" },
+  { value: "atendimento-antigo", label: "Sumidos primeiro" },
+  { value: "recentes", label: "Cadastrados recentemente" },
+];
 const HIST_INICIAL = 8;
 
 export function TelaClientes() {
@@ -40,11 +47,12 @@ export function TelaClientes() {
   // Busca / filtro / seleção vivem no store: trocar de aba no menu e voltar
   // devolve a tela exatamente como estava.
   const tela = state.ui.telas.clientes;
-  const { busca, filtro } = tela;
+  const { busca, filtro, ordem } = tela;
   const selId = tela.selId ?? "";
   const setTela = (patch: Partial<typeof tela>) => dispatch({ type: "SET_TELA", tela: "clientes", patch });
   const setBusca = (q: string) => setTela({ busca: q });
   const setFiltro = (f: FiltroCliente) => setTela({ filtro: f });
+  const setOrdem = (o: OrdemCliente) => setTela({ ordem: o });
   const setSelId = (id: string) => setTela({ selId: id || null });
 
   const [novoOpen, setNovoOpen] = useState(false);
@@ -72,8 +80,8 @@ export function TelaClientes() {
 
   /* eslint-disable react-hooks/exhaustive-deps -- deps são as fatias de `state` lidas por cada seletor (ver comentário acima) */
   const lista = useMemo(
-    () => selectClientesFiltrados(state, filtro, busca, hoje),
-    [clientes, transacoes, filtro, busca, hoje],
+    () => selectClientesFiltrados(state, filtro, busca, hoje, ordem),
+    [clientes, transacoes, filtro, busca, hoje, ordem],
   );
   const contagens = useMemo(() => selectContagensCliente(state, hoje), [clientes, transacoes, hoje]);
 
@@ -96,7 +104,7 @@ export function TelaClientes() {
 
   // A lista sai em blocos; `sel` continua saindo da lista COMPLETA, então um
   // cliente selecionado além do corte segue resolvendo.
-  const { visiveis, restantes, mostrarMais } = useListaProgressiva(lista, `${filtro}|${busca}`);
+  const { visiveis, restantes, mostrarMais } = useListaProgressiva(lista, `${filtro}|${busca}|${ordem}`);
 
   const histVisivel = verTudo ? historico : historico.slice(0, HIST_INICIAL);
 
@@ -142,7 +150,7 @@ export function TelaClientes() {
               style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontSize: 13, color: c.inkTitle, fontFamily: font.sans }}
             />
           </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
             {FILTROS.map((f) => {
               const on = f === filtro;
               return (
@@ -164,6 +172,28 @@ export function TelaClientes() {
                 </button>
               );
             })}
+            <div style={{ flex: 1, minWidth: 8 }} />
+            <select
+              value={ordem}
+              onChange={(e) => setOrdem(e.target.value as OrdemCliente)}
+              aria-label="Ordenar clientes por"
+              style={{
+                border: `1px solid ${c.borderInput}`,
+                background: c.surface,
+                color: c.ink2,
+                borderRadius: 999,
+                padding: "5px 10px",
+                fontSize: 12,
+                fontWeight: 600,
+                fontFamily: font.sans,
+                cursor: "pointer",
+                outline: "none",
+              }}
+            >
+              {ORDENS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
           </div>
         </div>
 
