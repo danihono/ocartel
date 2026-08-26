@@ -36,7 +36,7 @@ export function NovaCobrancaModal({ open, onClose }: { open: boolean; onClose: (
   /** Vencimento no dia do cliente, no mês corrente (ou no próximo, se já passou). */
   function vencimentoSugerido(cl: Cliente): string {
     const hoje = hojeLocalISO();
-    const dia = String(diaVencimentoCliente(cl, planoDoCliente(state, cl))).padStart(2, "0");
+    const dia = String(diaVencimentoCliente(cl, planoDoCliente(state.planos, cl))).padStart(2, "0");
     const desteMes = `${hoje.slice(0, 7)}-${dia}`;
     if (desteMes >= hoje) return desteMes;
     const [y, m] = hoje.split("-").map(Number);

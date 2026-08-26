@@ -24,6 +24,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./config";
 import { novoToken } from "@/lib/confirmacao";
+import type { NovaMensalidade } from "@/lib/cobranca-ciclo";
 import type {
   Agendamento,
   AgendamentoStatus,
@@ -156,11 +157,15 @@ export const transacoes = {
     }
     return batch.commit();
   },
-  /** Cria N cobranças pendentes de uma vez (a deduplicação por ciclo é feita na UI). */
-  gerarMensalidades(tenantId: string, novas: Transacao[]) {
+  /**
+   * Cria N cobranças pendentes de uma vez. Quem decide QUAIS (e garante que ninguém seja
+   * cobrado duas vezes pelo mesmo mês) é `mensalidadesAGerar` em `lib/cobranca-ciclo` —
+   * a mesma função que o disparo agendado usa.
+   */
+  gerarMensalidades(tenantId: string, novas: NovaMensalidade[]) {
     const batch = writeBatch(db);
     for (const t of novas) {
-      batch.set(doc(col(tenantId, "transacoes")), { ...semId(t), createdAt: serverTimestamp() });
+      batch.set(doc(col(tenantId, "transacoes")), { ...t, createdAt: serverTimestamp() });
     }
     return batch.commit();
   },
@@ -253,6 +258,34 @@ export const config = {
   },
   update(tenantId: string, patch: Partial<ConfigBarbearia>) {
     return setDoc(sub(tenantId, "config/main"), patch, { merge: true });
+  },
+};
+
+// ---- Credenciais do gateway de cobrança (Asaas) ----
+// Vive em `private/asaas`, junto do vínculo do WhatsApp e longe de `config/main` — que é
+// `allow read: if true` nas regras, porque alimenta a vitrine pública de /book/[slug].
+// Uma chave de API ali seria pública para a internet inteira.
+export const cobrador = {
+  /**
+   * Observa apenas o que a TELA precisa mostrar: se está configurado e em qual ambiente.
+   * A chave nunca é devolvida daqui — não porque as regras a escondam do admin (elas não
+   * escondem; é o doc dele), mas porque uma chave que não sobe para o componente não pode
+   * vazar por print, screenshot de suporte ou log de erro do navegador.
+   */
+  subscribeStatus(tenantId: string, cb: (s: { configurado: boolean; ambiente: "sandbox" | "producao" }) => void) {
+    return onSnapshot(sub(tenantId, "private/asaas"), (snap) => {
+      const d = snap.exists() ? snap.data() : null;
+      cb({
+        configurado: !!d?.apiKey,
+        ambiente: d?.ambiente === "producao" ? "producao" : "sandbox",
+      });
+    });
+  },
+  salvar(tenantId: string, cred: { apiKey: string; ambiente: "sandbox" | "producao"; webhookToken: string }) {
+    return setDoc(sub(tenantId, "private/asaas"), cred, { merge: true });
+  },
+  remover(tenantId: string) {
+    return deleteDoc(sub(tenantId, "private/asaas"));
   },
 };
 

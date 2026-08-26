@@ -16,6 +16,7 @@ import type {
 } from "./types";
 import { addDias, comparaHora, HOJE_ISO, isoParaDiaMes } from "./date";
 import { horaParaMin, ocupaHorario } from "./agenda";
+import { validarCpf } from "./clientes-import";
 
 /** Slug estável para ids (minúsculo, sem acento). */
 export function slug(nome: string): string {
@@ -57,11 +58,16 @@ export function diaVencimentoCliente(cliente: Cliente | null | undefined, plano?
   return Math.min(28, Math.max(1, Math.round(bruto) || DIA_VENCIMENTO_PADRAO));
 }
 
-/** Plano vigente do cliente: por `planId` ou, em cadastros legados, pelo rótulo. */
-export function planoDoCliente(state: AppState, cliente: Cliente): Plano | null {
+/**
+ * Plano vigente do cliente: por `planId` ou, em cadastros legados, pelo rótulo.
+ *
+ * Recebe a LISTA de planos (e não o `AppState`) porque o ciclo automático de cobrança
+ * roda no servidor, onde não existe store — ver `lib/cobranca-ciclo.ts`.
+ */
+export function planoDoCliente(planos: Plano[], cliente: Cliente): Plano | null {
   const p = cliente.planId
-    ? state.planos.find((pl) => pl.id === cliente.planId)
-    : state.planos.find((pl) => pl.nome === cliente.plano);
+    ? planos.find((pl) => pl.id === cliente.planId)
+    : planos.find((pl) => pl.nome === cliente.plano);
   return p && (p.ativo ?? true) ? p : null;
 }
 
@@ -216,6 +222,52 @@ export function tagDerivadaCliente(state: AppState, cliente: Cliente, hojeISO: s
   return cliente.tag === "Inadimplente" ? "" : cliente.tag;
 }
 
+/**
+ * O que a barbearia precisa ver do ciclo de renovação HOJE. Derivado das cobranças que o
+ * store já carrega — sem query nova. É o "alerta para a barbearia": o cliente é avisado
+ * pelo WhatsApp, a dona é avisada aqui.
+ */
+export interface Renovacoes {
+  vencemHoje: Transacao[];
+  /** Vencem nos próximos `DIAS_PROXIMAS_RENOVACOES` dias (sem contar hoje). */
+  proximas: Transacao[];
+  atrasadas: Transacao[];
+  /** Em aberto com boleto já emitido — esperando o pagamento cair. */
+  comBoleto: Transacao[];
+  /** Venceu, não pagou e o cadastro não tem CPF válido: boleto impossível até arrumarem. */
+  semCpf: Transacao[];
+}
+
+export const DIAS_PROXIMAS_RENOVACOES = 7;
+
+export function selectRenovacoes(state: AppState, hojeISO: string = HOJE_ISO): Renovacoes {
+  const limite = addDias(hojeISO, DIAS_PROXIMAS_RENOVACOES);
+  const r: Renovacoes = { vencemHoje: [], proximas: [], atrasadas: [], comBoleto: [], semCpf: [] };
+
+  for (const t of state.transacoes) {
+    if (tipoCobranca(t) !== "mensalidade") continue;
+    if (statusCobranca(t, hojeISO) === "pago") continue;
+    const venc = t.dueDate;
+    if (!venc) continue;
+
+    if (venc < hojeISO) {
+      r.atrasadas.push(t);
+      if (t.boleto) r.comBoleto.push(t);
+      else {
+        const cliente = state.clientes.find((cl) => ehDoCliente(t, cl));
+        if (!cliente?.cpf || !validarCpf(cliente.cpf)) r.semCpf.push(t);
+      }
+    } else if (venc === hojeISO) {
+      r.vencemHoje.push(t);
+      if (t.boleto) r.comBoleto.push(t);
+    } else if (venc <= limite) {
+      r.proximas.push(t);
+    }
+  }
+
+  return r;
+}
+
 export type FiltroTransacao = "Todas" | "Pagas" | "Pendentes" | "Atrasadas";
 export type FiltroTipoCobranca = "todos" | "mensalidade" | "avulso";
 
@@ -364,6 +416,7 @@ export const formaPagamentoLabel: Record<FormaPagamento, string> = {
   cartao: "Cartão de crédito",
   cartao_debito: "Cartão de débito",
   dinheiro: "Dinheiro",
+  boleto: "Boleto",
 };
 
 // ---- Derivações do Dashboard (substituem o mock de lib/mock-data.ts) ----

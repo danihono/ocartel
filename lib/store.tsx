@@ -15,6 +15,7 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type Dispatch, type ReactNode } from "react";
 import { addDias, hojeLocalISO } from "./date";
 import { type FiltroCliente, type FiltroTipoCobranca, type FiltroTransacao } from "./selectors";
+import type { NovaMensalidade } from "./cobranca-ciclo";
 import { useAuth } from "./firebase/auth";
 import * as repo from "./firebase/repos";
 import type {
@@ -148,9 +149,13 @@ export interface StoreActions {
       id: string,
       patch: { paidAt: string; forma: FormaPagamento; amountReceived: number; confirmedBy?: string; clienteId?: string },
     ) => Promise<void>;
-    gerarMensalidades: (novas: Transacao[]) => Promise<void>;
+    gerarMensalidades: (novas: NovaMensalidade[]) => Promise<void>;
   };
   config: { update: (patch: Partial<ConfigBarbearia>) => Promise<void> };
+  cobrador: {
+    salvar: (cred: { apiKey: string; ambiente: "sandbox" | "producao"; webhookToken: string }) => Promise<void>;
+    remover: () => Promise<void>;
+  };
   planosTiers: { update: (tier: PlanoTier) => Promise<void> };
   planos: { add: (p: Plano) => Promise<Ref>; update: (p: Plano) => Promise<void>; remove: (id: string) => Promise<void> };
   tenants: { update: (tenantId: string, patch: Partial<Tenant>) => Promise<void> };
@@ -189,6 +194,10 @@ function buildActions(tenantId: string): StoreActions {
       gerarMensalidades: (novas) => repo.transacoes.gerarMensalidades(tenantId, novas),
     },
     config: { update: (patch) => repo.config.update(tenantId, patch) },
+    cobrador: {
+      salvar: (cred) => repo.cobrador.salvar(tenantId, cred),
+      remover: () => repo.cobrador.remover(tenantId),
+    },
     planosTiers: { update: (tier) => repo.planosTiers.update(tenantId, tier) },
     planos: {
       add: (p) => repo.planos.add(tenantId, p),

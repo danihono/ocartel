@@ -38,7 +38,13 @@ service cloud.firestore {
       // `amount` (valor cobrado original) é imutável depois de criado.
       return (!('amount' in resource.data) || novo.amount == resource.data.amount)
         // Marcar como "pago" exige registro de recebimento (auditabilidade).
-        && (novo.status != 'pago' || (novo.paidAt is string && novo.amountReceived is number));
+        && (novo.status != 'pago' || (novo.paidAt is string && novo.amountReceived is number))
+        // `boleto` e `alertaEnviadoEm` são as travas de idempotência do ciclo automático:
+        // é a AUSÊNCIA delas que autoriza emitir/enviar de novo. Quem as grava é o
+        // servidor (Admin SDK, que não passa por estas regras); apagá-las ou reescrevê-las
+        // pelo navegador faria o próximo ciclo cobrar a mesma pessoa outra vez.
+        && (!('boleto' in resource.data) || novo.boleto == resource.data.boleto)
+        && (!('alertaEnviadoEm' in resource.data) || novo.alertaEnviadoEm == resource.data.alertaEnviadoEm);
     }
 
     // Perfil do usuário. Auto-cadastro só pode criar a si mesmo como 'admin'.
@@ -67,7 +73,9 @@ service cloud.firestore {
       allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
       allow update, delete: if canManage(tenantId);
 
-      // Dados sensíveis (billing) ficam isolados e nunca são públicos.
+      // Dados sensíveis (billing, vínculo do WhatsApp, chave do gateway de cobrança)
+      // ficam isolados e nunca são públicos. NÃO mover nada disto para `config/`, que é
+      // `allow read: if true` para alimentar a vitrine de /book/[slug].
       match /private/{doc} {
         allow read, write: if canManage(tenantId);
       }

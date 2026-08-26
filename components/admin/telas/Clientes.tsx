@@ -264,7 +264,7 @@ export function TelaClientes() {
             {/* O vencimento é deste cliente, não do plano. */}
             {!/avulso/i.test(sel.plano) ? (
               <span style={{ fontSize: 11.5, fontWeight: 600, color: c.ink2, background: c.surfaceAlt, borderRadius: 999, padding: "3px 10px" }}>
-                Vence dia {diaVencimentoCliente(sel, planoDoCliente(state, sel))}
+                Vence dia {diaVencimentoCliente(sel, planoDoCliente(state.planos, sel))}
               </span>
             ) : null}
             <span style={{ fontSize: 11.5, fontWeight: 600, color: /avulso/i.test(sel.plano) ? c.ink3 : c.green }}>

@@ -18,8 +18,10 @@ import {
   selectFaturamentoSerie,
   selectKpiAgendamentosHoje,
   selectProximos,
+  selectRenovacoes,
   selectResumoFinanceiro,
   selectServicosMaisVendidos,
+  DIAS_PROXIMAS_RENOVACOES,
 } from "@/lib/selectors";
 import { isoParaDiaMes, mesLabel } from "@/lib/date";
 import { useHoje } from "@/lib/useRelogio";
@@ -74,6 +76,10 @@ export function TelaDashboard() {
           </Card>
         ))}
       </div>
+
+      {/* Renovações — o alerta da BARBEARIA. O cliente é avisado pelo WhatsApp; a dona,
+          aqui. Só aparece quando há o que fazer: uma faixa permanente vira paisagem. */}
+      <Renovacoes hojeISO={hoje} />
 
       {/* Faturamento + Serviços */}
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 18 }}>
@@ -270,5 +276,64 @@ export function TelaDashboard() {
 
       <AgendamentoModal open={agSel !== null} onClose={() => setAgSel(null)} agendamentoId={agSel} />
     </div>
+  );
+}
+
+/**
+ * Estado do ciclo de renovação hoje. Lê das cobranças que o store já tem — sem query nova.
+ *
+ * A ordem dos números não é decorativa: o que exige ação da dona vem primeiro. Cadastro sem
+ * CPF é o mais urgente, porque é o único que o sistema NÃO consegue resolver sozinho — sem
+ * CPF não existe boleto, e a cobrança fica parada até alguém completar a ficha.
+ */
+function Renovacoes({ hojeISO }: { hojeISO: string }) {
+  const { state } = useStore();
+  const r = selectRenovacoes(state, hojeISO);
+
+  const nada =
+    r.vencemHoje.length === 0 && r.proximas.length === 0 && r.atrasadas.length === 0 && r.semCpf.length === 0;
+  if (nada) return null;
+
+  const itens = [
+    { n: r.atrasadas.length, label: "em atraso", cor: c.red, texto: c.redText },
+    { n: r.vencemHoje.length, label: "vencem hoje", cor: c.amber, texto: c.amberText },
+    { n: r.proximas.length, label: `vencem em ${DIAS_PROXIMAS_RENOVACOES} dias`, cor: c.brass, texto: c.inkTitle },
+    { n: r.comBoleto.length, label: "com boleto emitido", cor: c.ink4, texto: c.ink2 },
+  ].filter((i) => i.n > 0);
+
+  return (
+    <Card pad="16px 20px">
+      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+        <CardTitle sub="Mensalidades">Renovações</CardTitle>
+        <div style={{ flex: 1 }} />
+        <LinkAba href="/pagamentos" style={{ fontSize: 12.5, color: c.brass, fontWeight: 700 }}>
+          Ver cobranças →
+        </LinkAba>
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 22, marginTop: 14 }}>
+        {itens.map((i) => (
+          <div key={i.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ width: 9, height: 9, borderRadius: "50%", background: i.cor, flex: "none" }} />
+            <span style={{ fontFamily: font.serif, fontSize: 22, fontWeight: 600, color: i.texto }}>{i.n}</span>
+            <span style={{ fontSize: 12.5, color: c.ink3 }}>{i.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {r.semCpf.length > 0 ? (
+        <div style={{ marginTop: 14, background: c.redBg, border: `1px solid ${c.red}`, borderRadius: 10, padding: "11px 14px" }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: c.redText }}>
+            {r.semCpf.length} cobrança{r.semCpf.length === 1 ? "" : "s"} vencida{r.semCpf.length === 1 ? "" : "s"} sem CPF no cadastro
+          </div>
+          <div style={{ fontSize: 12, color: c.ink2, marginTop: 3 }}>
+            Sem CPF o boleto não pode ser emitido. Complete a ficha em{" "}
+            <LinkAba href="/clientes" style={{ color: c.brass, fontWeight: 600 }}>Clientes</LinkAba>:{" "}
+            {r.semCpf.slice(0, 3).map((t) => t.clienteNome).join(", ")}
+            {r.semCpf.length > 3 ? ` e mais ${r.semCpf.length - 3}` : ""}.
+          </div>
+        </div>
+      ) : null}
+    </Card>
   );
 }

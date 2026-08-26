@@ -43,6 +43,12 @@ export interface Cliente {
   telefoneNorm?: string;
   /** CPF só dígitos (11) — identificador forte; obrigatório na importação em massa. */
   cpf?: string;
+  /**
+   * Id deste cliente no gateway de cobrança (Asaas). Gravado na primeira emissão de
+   * boleto e reusado nas seguintes — sem ele o ciclo criaria um cadastro novo lá todo
+   * mês, e o mesmo CPF viraria N clientes no painel do provedor.
+   */
+  asaasId?: string;
   email: string;
   /** Rótulo denormalizado do plano (nome do plano ou "Avulso") — exibição/compat. */
   plano: string;
@@ -155,7 +161,7 @@ export interface Agendamento {
   confirmacaoEnviadaEm?: string;
 }
 
-export type FormaPagamento = "pix" | "cartao" | "cartao_debito" | "dinheiro";
+export type FormaPagamento = "pix" | "cartao" | "cartao_debito" | "dinheiro" | "boleto";
 /**
  * Status GRAVADO de uma cobrança. "atrasado" é DERIVADO na leitura
  * (pendente + `dueDate` vencida) via selectors.statusCobranca — não grave-o.
@@ -201,6 +207,31 @@ export interface Transacao {
    * conclusão (não cobra o corte). Em Pagamentos exibe "Coberto pelo plano".
    */
   cobertoPorPlano?: boolean;
+  /**
+   * Quando o aviso de renovação saiu para o cliente (ISO datetime). É o que torna o
+   * alerta idempotente: rodar o ciclo duas vezes no mesmo dia não remanda a mensagem.
+   * Gravado DEPOIS do envio confirmado — mesma disciplina de `confirmacaoEnviadaEm`.
+   */
+  alertaEnviadoEm?: string;
+  /**
+   * Boleto emitido no gateway para esta cobrança. A PRESENÇA deste campo é o que
+   * impede uma segunda emissão — nunca cobre o mesmo cliente duas vezes.
+   */
+  boleto?: Boleto;
+}
+
+/** Boleto emitido no gateway (hoje só Asaas) para uma cobrança. */
+export interface Boleto {
+  provedor: "asaas";
+  /** Id da cobrança no provedor — chave para conciliar e para cancelar, se preciso. */
+  cobrancaId: string;
+  /** Página do boleto (o que vai no WhatsApp do cliente). */
+  url: string;
+  /** Linha digitável, para quem prefere copiar e colar no app do banco. */
+  linhaDigitavel: string;
+  /** Vencimento do BOLETO (ISO) — alguns dias à frente do vencimento da mensalidade. */
+  vencimentoISO: string;
+  emitidoEm: string;
 }
 
 export interface ConfigBarbearia {
@@ -223,6 +254,25 @@ export interface ConfigBarbearia {
     hora: string;
     ativa: boolean;
   };
+  /**
+   * Ciclo automático de cobrança: gera as mensalidades do mês, avisa o cliente antes do
+   * vencimento e emite boleto no CPF de quem não pagou até o dia. Ausente ⇒ DESLIGADO —
+   * mesma decisão de produto da `confirmacao`, e aqui ela pesa mais: nenhuma barbearia
+   * existente deve começar a emitir boleto sozinha sem alguém ter pedido.
+   */
+  cobranca?: CobrancaAutomatica;
+}
+
+export interface CobrancaAutomatica {
+  ativa: boolean;
+  /** "HH:MM" no fuso de Brasília. Só a HORA dispara; os minutos são informativos. */
+  hora: string;
+  /** Quantos dias antes do vencimento sai o aviso de renovação. */
+  diasAntesAlerta: number;
+  /** Emitir boleto automaticamente para quem venceu e não pagou. */
+  emitirBoleto: boolean;
+  /** Folga, em dias, entre a emissão do boleto e o vencimento DELE. */
+  diasVencimentoBoleto: number;
 }
 
 export interface PlanoTier {

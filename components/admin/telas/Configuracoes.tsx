@@ -7,6 +7,9 @@ import { Card, CardTitle } from "@/components/ui/Card";
 import { Field, Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { useStore, makeId } from "@/lib/store";
+import * as repo from "@/lib/firebase/repos";
+import { novoToken } from "@/lib/confirmacao";
+import { PADRAO_DIAS_ANTES_ALERTA, PADRAO_DIAS_VENCIMENTO_BOLETO } from "@/lib/cobranca-ciclo";
 import { signOutApp, useAuth } from "@/lib/firebase/auth";
 import { useToast } from "@/components/ui/Toast";
 import { PAPEL_LABEL, iniciaisDe } from "@/lib/pessoa";
@@ -21,6 +24,8 @@ import type { EstadoPareamento } from "@/lib/canal/pareamento";
 const DIAS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 const PALETA = ["#0EA37A", "#0FB6C8", "#7C5CFC", "#E0A21A", "#F0476A"];
 const HORAS = Array.from({ length: 15 }, (_, i) => `${String(7 + i).padStart(2, "0")}:00`);
+const DIAS_ALERTA = [1, 2, 3, 5, 7];
+const DIAS_BOLETO = [1, 2, 3, 5, 7];
 
 export function TelaConfiguracoes() {
   const { state, actions } = useStore();
@@ -36,6 +41,20 @@ export function TelaConfiguracoes() {
   const [diasAtivos, setDiasAtivos] = useState<boolean[]>(state.config.horario.diasAtivos);
   const [confirmacaoAtiva, setConfirmacaoAtiva] = useState(state.config.confirmacao?.ativa ?? false);
   const [confirmacaoHora, setConfirmacaoHora] = useState(state.config.confirmacao?.hora ?? "08:00");
+  const cob = state.config.cobranca;
+  const [cobrancaAtiva, setCobrancaAtiva] = useState(cob?.ativa ?? false);
+  const [cobrancaHora, setCobrancaHora] = useState(cob?.hora ?? "09:00");
+  const [diasAntesAlerta, setDiasAntesAlerta] = useState(cob?.diasAntesAlerta ?? PADRAO_DIAS_ANTES_ALERTA);
+  const [emitirBoleto, setEmitirBoleto] = useState(cob?.emitirBoleto ?? false);
+  const [diasVencimentoBoleto, setDiasVencimentoBoleto] = useState(
+    cob?.diasVencimentoBoleto ?? PADRAO_DIAS_VENCIMENTO_BOLETO,
+  );
+
+  // Status do gateway. A CHAVE não entra no componente — só o "está configurado" e o
+  // ambiente. Ver `repo.cobrador.subscribeStatus`.
+  const [gateway, setGateway] = useState<{ configurado: boolean; ambiente: "sandbox" | "producao" } | null>(null);
+  const [novaChave, setNovaChave] = useState("");
+  const [novoAmbiente, setNovoAmbiente] = useState<"sandbox" | "producao">("sandbox");
 
   const [novoBarbeiro, setNovoBarbeiro] = useState("");
 
@@ -114,7 +133,18 @@ export function TelaConfiguracoes() {
     setDiasAtivos(state.config.horario.diasAtivos);
     setConfirmacaoAtiva(state.config.confirmacao?.ativa ?? false);
     setConfirmacaoHora(state.config.confirmacao?.hora ?? "08:00");
+    const cb = state.config.cobranca;
+    setCobrancaAtiva(cb?.ativa ?? false);
+    setCobrancaHora(cb?.hora ?? "09:00");
+    setDiasAntesAlerta(cb?.diasAntesAlerta ?? PADRAO_DIAS_ANTES_ALERTA);
+    setEmitirBoleto(cb?.emitirBoleto ?? false);
+    setDiasVencimentoBoleto(cb?.diasVencimentoBoleto ?? PADRAO_DIAS_VENCIMENTO_BOLETO);
   }, [state.config]);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    return repo.cobrador.subscribeStatus(tenantId, setGateway);
+  }, [tenantId]);
 
   async function salvarConfig() {
     try {
@@ -124,10 +154,49 @@ export function TelaConfiguracoes() {
         telefone,
         horario: { abre, fecha, diasAtivos },
         confirmacao: { ativa: confirmacaoAtiva, hora: confirmacaoHora },
+        cobranca: {
+          ativa: cobrancaAtiva,
+          hora: cobrancaHora,
+          diasAntesAlerta,
+          // Boleto só liga junto com o ciclo: emitir cobrança sem o resto rodando não faz
+          // sentido, e "ativa: false + emitirBoleto: true" seria um estado confuso de ler.
+          emitirBoleto: cobrancaAtiva && emitirBoleto,
+          diasVencimentoBoleto,
+        },
       });
       toast("Configurações salvas.");
     } catch {
       toast("Não foi possível salvar.", "error");
+    }
+  }
+
+  async function salvarGateway() {
+    const apiKey = novaChave.trim();
+    if (!apiKey) {
+      toast("Cole a chave de API do Asaas.", "error");
+      return;
+    }
+    try {
+      await actions.cobrador.salvar({
+        apiKey,
+        ambiente: novoAmbiente,
+        // O token do webhook nasce aqui e é o que autentica a baixa automática. Gerado, e
+        // não digitado: uma senha escolhida à mão numa tela de configuração vira "123456".
+        webhookToken: novoToken(),
+      });
+      setNovaChave("");
+      toast("Gateway configurado. Falta cadastrar a URL do webhook no painel do Asaas.");
+    } catch {
+      toast("Não foi possível salvar a chave.", "error");
+    }
+  }
+
+  async function removerGateway() {
+    try {
+      await actions.cobrador.remover();
+      toast("Gateway desconectado. Nenhum boleto novo será emitido.");
+    } catch {
+      toast("Não foi possível desconectar.", "error");
     }
   }
 
@@ -308,6 +377,121 @@ export function TelaConfiguracoes() {
               </div>
             </div>
           </div>
+
+          {/* Cobrança automática — mesma forma do bloco de confirmação acima, e pelo mesmo
+              motivo: quem já entendeu um entende o outro. Vem DESLIGADO por padrão; aqui
+              isso pesa mais, porque o que sai daqui é boleto no CPF de cliente. */}
+          <div style={{ marginTop: 22, paddingTop: 18, borderTop: `1px solid ${c.borderInput}` }}>
+            <div style={{ ...eyebrow, marginBottom: 8 }}>Cobrança automática das mensalidades</div>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 9, cursor: "pointer", marginBottom: 12 }}>
+              <input
+                type="checkbox"
+                checked={cobrancaAtiva}
+                onChange={(e) => setCobrancaAtiva(e.target.checked)}
+                style={{ marginTop: 3 }}
+              />
+              <span style={{ fontSize: 13, color: c.ink3, lineHeight: 1.45 }}>
+                Gerar as mensalidades do mês sozinho e <b>avisar cada assinante pelo WhatsApp</b>{" "}
+                antes do vencimento. Rodar duas vezes não cobra ninguém duas vezes.
+              </span>
+            </label>
+
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <Field label="Rodar às" style={{ maxWidth: 160 }}>
+                <Select value={cobrancaHora} onChange={(e) => setCobrancaHora(e.target.value)} disabled={!cobrancaAtiva}>
+                  {HORAS.map((h) => (
+                    <option key={h} value={h}>{h}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Avisar antes" style={{ maxWidth: 190 }}>
+                <Select
+                  value={String(diasAntesAlerta)}
+                  onChange={(e) => setDiasAntesAlerta(Number(e.target.value))}
+                  disabled={!cobrancaAtiva}
+                >
+                  {DIAS_ALERTA.map((d) => (
+                    <option key={d} value={d}>{d === 1 ? "1 dia antes" : `${d} dias antes`}</option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 9, cursor: "pointer", margin: "14px 0 12px" }}>
+              <input
+                type="checkbox"
+                checked={emitirBoleto}
+                onChange={(e) => setEmitirBoleto(e.target.checked)}
+                disabled={!cobrancaAtiva}
+                style={{ marginTop: 3 }}
+              />
+              <span style={{ fontSize: 13, color: c.ink3, lineHeight: 1.45 }}>
+                No dia do vencimento, <b>emitir boleto no CPF</b> de quem ainda não pagou e mandar o
+                link. Quando o boleto for pago, a baixa é automática — ninguém precisa registrar
+                nada. Assinante sem CPF válido no cadastro é pulado e aparece no painel.
+              </span>
+            </label>
+
+            {emitirBoleto ? (
+              <Field label="Prazo do boleto" style={{ maxWidth: 190 }}>
+                <Select
+                  value={String(diasVencimentoBoleto)}
+                  onChange={(e) => setDiasVencimentoBoleto(Number(e.target.value))}
+                  disabled={!cobrancaAtiva}
+                >
+                  {DIAS_BOLETO.map((d) => (
+                    <option key={d} value={d}>{d === 1 ? "vence em 1 dia" : `vence em ${d} dias`}</option>
+                  ))}
+                </Select>
+              </Field>
+            ) : null}
+
+            {/* Conta do gateway. A chave é da BARBEARIA: o dinheiro do boleto cai na conta
+                dela, não na do O Cartel. Salva à parte do resto da tela porque não é
+                configuração de comportamento — é credencial. */}
+            <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${c.borderInput}` }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: c.inkTitle, marginBottom: 4 }}>
+                Conta do Asaas
+              </div>
+              <div style={{ fontSize: 12.5, color: c.ink3, lineHeight: 1.45, marginBottom: 12 }}>
+                É por ela que o boleto é emitido e o dinheiro cai — use a conta da barbearia.
+                A chave fica guardada e não volta a aparecer nesta tela.
+              </div>
+
+              {gateway?.configurado ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: c.inkTitle }}>
+                    Configurada · {gateway.ambiente === "producao" ? "produção" : "sandbox (teste)"}
+                  </span>
+                  <Button variant="ghost" onClick={removerGateway}>Desconectar</Button>
+                </div>
+              ) : (
+                <div style={{ fontSize: 12.5, color: c.amberText, fontWeight: 600, marginBottom: 12 }}>
+                  Sem chave: nenhum boleto é emitido, mesmo com a opção acima ligada.
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+                <Field label={gateway?.configurado ? "Trocar a chave" : "Chave de API"} style={{ flex: 1, minWidth: 240 }}>
+                  <TextInput
+                    type="password"
+                    value={novaChave}
+                    onChange={(e) => setNovaChave(e.target.value)}
+                    placeholder="$aact_..."
+                    autoComplete="off"
+                  />
+                </Field>
+                <Field label="Ambiente" style={{ maxWidth: 190 }}>
+                  <Select value={novoAmbiente} onChange={(e) => setNovoAmbiente(e.target.value as "sandbox" | "producao")}>
+                    <option value="sandbox">Sandbox (teste)</option>
+                    <option value="producao">Produção</option>
+                  </Select>
+                </Field>
+                <Button onClick={salvarGateway}>Salvar chave</Button>
+              </div>
+            </div>
+          </div>
+
           <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end" }}>
             <Button onClick={salvarConfig}>Salvar alterações</Button>
           </div>

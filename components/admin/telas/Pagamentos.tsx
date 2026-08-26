@@ -4,14 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { c, font } from "@/lib/theme";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { useStore, makeId } from "@/lib/store";
+import { useStore } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/lib/firebase/auth";
 import {
-  clientePossuiPlanoAtivo,
-  diaVencimentoCliente,
-  ehDoCliente,
-  planoDoCliente,
   formaPagamentoLabel,
   formatBRL,
   selectContagensTransacao,
@@ -25,6 +21,7 @@ import {
   type FiltroTransacao,
 } from "@/lib/selectors";
 import { isoParaDiaMes } from "@/lib/date";
+import { mensalidadesAGerar } from "@/lib/cobranca-ciclo";
 import { useHoje } from "@/lib/useRelogio";
 import { useListaProgressiva } from "@/lib/useListaProgressiva";
 import { RegistrarPagamentoModal } from "@/components/admin/RegistrarPagamentoModal";
@@ -56,6 +53,33 @@ function useIsNarrow(maxWidth = 759): boolean {
     return () => mq.removeEventListener("change", update);
   }, [maxWidth]);
   return narrow;
+}
+
+/** Cobrança quitada pelo gateway — ninguém clicou em "Registrar pagamento". */
+function baixaAutomatica(t: Transacao): boolean {
+  return t.source === "gateway";
+}
+
+/**
+ * Link do boleto emitido, quando há um em aberto. O que a dona mais precisa daqui é poder
+ * reenviar o link para o cliente que diz não ter recebido.
+ */
+function LinhaBoleto({ t }: { t: Transacao }) {
+  if (!t.boleto) return null;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 11.5, color: c.ink3 }}>
+      <span style={{ fontWeight: 700, color: c.amberText }}>Boleto emitido</span>
+      <span>vence {isoParaDiaMes(t.boleto.vencimentoISO)}</span>
+      {t.boleto.url ? (
+        <a href={t.boleto.url} target="_blank" rel="noreferrer" style={{ color: c.brass, fontWeight: 600 }}>
+          abrir
+        </a>
+      ) : null}
+      {t.boleto.linhaDigitavel ? (
+        <span style={{ fontFamily: "monospace", fontSize: 11, color: c.ink4 }}>{t.boleto.linhaDigitavel}</span>
+      ) : null}
+    </div>
+  );
 }
 
 /** Data exibida: pagamento (se pago) ou vencimento (se em aberto). */
@@ -104,41 +128,12 @@ export function TelaPagamentos() {
     { l: "Em atraso", v: formatBRL(resumo.emAtraso), dot: c.red, sub: `${resumo.qtdAtraso} cobrança${resumo.qtdAtraso === 1 ? "" : "s"}` },
   ];
 
+  // A REGRA de quem é cobrado e quando não mora mais aqui: mora em `lib/cobranca-ciclo`,
+  // e é a mesma que o disparo agendado (`/api/cobrancas/ciclo`) executa. Duas cópias da
+  // regra divergiriam, e a divergência apareceria como cobrança duplicada.
   function gerarMensalidades() {
     const cicloMes = hoje.slice(0, 7); // "YYYY-MM"
-
-    const novas: Transacao[] = [];
-    let semPlano = 0; // assinante (rótulo) sem plano cadastrado correspondente
-    for (const cl of state.clientes) {
-      const plano = planoDoCliente(state, cl);
-      if (!plano) {
-        if (clientePossuiPlanoAtivo(cl)) semPlano += 1;
-        continue;
-      }
-      const jaTem = state.transacoes.some(
-        (t) => tipoCobranca(t) === "mensalidade" && ehDoCliente(t, cl) && (t.dueDate ?? "").slice(0, 7) === cicloMes,
-      );
-      if (jaTem) continue;
-      // O dia é do CLIENTE (com herança do plano legado para assinantes antigos).
-      const dia = String(diaVencimentoCliente(cl, plano)).padStart(2, "0");
-      const venc = `${cicloMes}-${dia}`;
-      novas.push({
-        id: makeId("tx"),
-        data: isoParaDiaMes(venc),
-        clienteNome: cl.nome,
-        clienteId: cl.id,
-        servico: plano.nome,
-        barbeiroNome: "",
-        valor: plano.valor,
-        status: "pendente",
-        forma: "pix",
-        type: "mensalidade",
-        planId: plano.id,
-        dueDate: venc,
-        amount: plano.valor,
-        source: "manual",
-      });
-    }
+    const { novas, semPlano } = mensalidadesAGerar(state, cicloMes);
 
     if (novas.length === 0) {
       toast(
@@ -265,9 +260,12 @@ export function TelaPagamentos() {
                   {t.cobertoPorPlano ? (
                     <span style={{ fontSize: 12, color: c.greenText, fontWeight: 600, marginLeft: "auto" }}>Coberto pelo plano</span>
                   ) : st === "pago" ? (
-                    <span style={{ fontSize: 12, color: c.ink3, marginLeft: "auto" }}>{formaPagamentoLabel[t.forma]}</span>
+                    <span style={{ fontSize: 12, color: c.ink3, marginLeft: "auto" }}>
+                      {formaPagamentoLabel[t.forma]}{baixaAutomatica(t) ? " · baixa automática" : ""}
+                    </span>
                   ) : null}
                 </div>
+                <LinhaBoleto t={t} />
                 {st !== "pago" ? (
                   <Button variant="ghost" onClick={() => setPagar(t)} style={{ alignSelf: "flex-start" }}>Registrar pagamento</Button>
                 ) : null}
@@ -279,7 +277,10 @@ export function TelaPagamentos() {
           return (
             <div key={t.id} style={{ display: "grid", gridTemplateColumns: COLS, alignItems: "center", padding: "13px 20px", borderBottom: `1px solid ${c.borderSoft}` }}>
               <span style={{ fontSize: 13.5, color: c.inkTitle, fontWeight: 600 }}>{t.clienteNome}</span>
-              <span style={{ fontSize: 13, color: c.ink2 }}>{t.servico}</span>
+              <span style={{ fontSize: 13, color: c.ink2 }}>
+                {t.servico}
+                <LinhaBoleto t={t} />
+              </span>
               <span style={{ fontSize: 12.5, color: st === "atrasado" ? c.redText : c.ink2, fontWeight: 600 }}>{dataExibida(t, hoje)}</span>
               <span>
                 <span style={{ fontSize: 13.5, color: c.inkTitle, fontWeight: 700 }}>{formatBRL(valorMostrado)}</span>
@@ -289,7 +290,18 @@ export function TelaPagamentos() {
                 <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: sm.bg, color: sm.fg }}>{sm.label}</span>
               </span>
               <span style={{ fontSize: 12.5, color: t.cobertoPorPlano ? c.greenText : c.ink2, fontWeight: t.cobertoPorPlano ? 600 : undefined }}>
-                {t.cobertoPorPlano ? "Coberto pelo plano" : st === "pago" ? formaPagamentoLabel[t.forma] : "—"}
+                {t.cobertoPorPlano ? (
+                  "Coberto pelo plano"
+                ) : st === "pago" ? (
+                  <>
+                    {formaPagamentoLabel[t.forma]}
+                    {baixaAutomatica(t) ? (
+                      <div style={{ fontSize: 11, color: c.green, fontWeight: 600 }}>baixa automática</div>
+                    ) : null}
+                  </>
+                ) : (
+                  "—"
+                )}
               </span>
               <span style={{ display: "flex", justifyContent: "flex-end" }}>
                 {st !== "pago" ? (
