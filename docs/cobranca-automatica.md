@@ -95,8 +95,30 @@ coisa não derruba a outra.
 
 ### 4. Segredo da rota
 
-`COBRANCAS_SECRET` no ambiente do App Hosting. A rota devolve **401** sem ele e **500** se a
-variável não existir (falha visível é melhor que disparo aberto).
+A rota devolve **401** sem o header e **500** se a variável não existir (falha visível é
+melhor que disparo aberto).
+
+O site vai ao ar pelo **Firebase Hosting com `frameworksBackend`** (ver README, *Publicar*) —
+o SSR roda numa Cloud Function, então o segredo mora no Secret Manager:
+
+```bash
+firebase functions:secrets:set COBRANCAS_SECRET
+```
+
+e é declarado no `firebase.json` para a função enxergá-lo:
+
+```json
+"frameworksBackend": {
+  "region": "us-central1",
+  "secrets": ["COBRANCAS_SECRET"]
+}
+```
+
+**Crie o segredo ANTES de declarar a linha**: um `secrets` apontando para um segredo que não
+existe faz o `npm run deploy` falhar.
+
+Não confunda com `firebase apphosting:secrets:set` — o `apphosting.yaml` está no repositório,
+mas é config de outro produto (App Hosting) e o `firebase deploy` ignora, variáveis inclusive.
 
 ### 5. Agendador
 
