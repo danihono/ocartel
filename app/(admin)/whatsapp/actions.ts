@@ -12,7 +12,8 @@ import { comoResultado, exigirQuemGerencia, type Resultado } from "@/lib/canal/a
 import { canalDoTenant, garantirContato, type EnvioResultado } from "@/lib/canal";
 import { uidDaBarbearia } from "@/lib/canal/uid";
 import { vincular } from "@/lib/canal/vinculo";
-import { chaveTelefone } from "@/lib/telefone";
+import { chaveTelefone, contactIdDoTelefone } from "@/lib/telefone";
+import { pausarPorHumano } from "@/lib/ia/atender";
 
 /** Quanto a tela espera pelo daemon antes de deixar o espelho terminar a história. */
 const ESPERA_ENVIO_MS = 12_000;
@@ -85,6 +86,11 @@ export async function acaoEnviarMensagem(
         await vincular(tenantId, clienteId, telefone);
       }
     }
+
+    // Uma pessoa assumiu a conversa: o atendente automático cala a boca aqui por algumas
+    // horas. Duas vozes respondendo o mesmo cliente é pior do que nenhuma.
+    const chave = chaveTelefone(telefone)!;
+    await pausarPorHumano(tenantId, contactIdDoTelefone(chave.wa)).catch(() => {});
 
     const canal = await canalDoTenant(tenantId);
     return await canal.enviarMensagem(telefone, corpo, { nome, clienteId, aguardarMs: ESPERA_ENVIO_MS });

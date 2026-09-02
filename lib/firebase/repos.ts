@@ -35,6 +35,7 @@ import type {
   Plano,
   PlanoTier,
   Servico,
+  Sugestao,
   Tenant,
   Transacao,
 } from "@/lib/types";
@@ -54,6 +55,37 @@ function semId<T extends { id: string }>(obj: T): Omit<T, "id"> {
   const { id: _id, ...rest } = obj;
   return rest;
 }
+
+// ---- Sugestões do atendente automático ----
+export const sugestoes = {
+  /**
+   * Só as PENDENTES: confirmada já virou agendamento (e aparece na agenda como tal), e
+   * descartada não interessa a ninguém. Sem `orderBy` — o campo é opcional em documento
+   * antigo, e o Firestore omite do resultado quem não tem o campo ordenado.
+   */
+  subscribe(tenantId: string, cb: (rows: Sugestao[]) => void) {
+    return onSnapshot(query(col(tenantId, "sugestoes"), where("status", "==", "pendente")), (s) =>
+      cb(rows<Sugestao>(s)),
+    );
+  },
+};
+
+// ---- Estado por conversa de WhatsApp ----
+export interface EstadoConversa {
+  /** Timestamp (ms) até quando o atendente automático fica calado nesta conversa. */
+  iaPausadaAte?: number;
+  /** Marcada quando chegou algo que a IA não sabe tratar (mídia sem texto, por exemplo). */
+  precisaDeGente?: boolean;
+}
+
+export const conversas = {
+  /** Escuta o estado de UMA conversa. Quem escreve é sempre o servidor. */
+  subscribeOne(tenantId: string, contactId: string, cb: (estado: EstadoConversa | null) => void) {
+    return onSnapshot(doc(db, "tenants", tenantId, "conversas", contactId), (s) =>
+      cb(s.exists() ? (s.data() as EstadoConversa) : null),
+    );
+  },
+};
 
 // ---- Clientes ----
 export const clientes = {

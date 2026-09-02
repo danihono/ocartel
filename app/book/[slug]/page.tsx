@@ -10,22 +10,12 @@ import { formatBRL, fmtDur } from "@/lib/selectors";
 import { addDias, agoraHHMM, diaSemanaCurtoLabel, hojeLocalISO, indiceSegDom, isoParaDiaMes } from "@/lib/date";
 import { carregarCatalogoPorSlug, type BookingCatalog } from "@/lib/firebase/booking";
 import { horaParaMin, horarioLivre, type IntervaloOcupado } from "@/lib/agenda";
+import { gerarHorarios } from "@/lib/disponibilidade";
 import { criarAgendamentoPublico, disponibilidadePublica } from "./actions";
 
 const sectionTitle: React.CSSProperties = { fontFamily: font.serif, fontSize: 16, fontWeight: 600, color: c.inkTitle, margin: "20px 0 10px" };
 
 type Step = "selecao" | "dados" | "sucesso";
-
-function gerarHorarios(abre: string, fecha: string): string[] {
-  const min = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
-  const ini = min(abre);
-  const fim = min(fecha);
-  const out: string[] = [];
-  for (let t = ini; t < fim; t += 15) {
-    out.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
-  }
-  return out;
-}
 
 export default function BookingPage() {
   const params = useParams<{ slug: string }>();

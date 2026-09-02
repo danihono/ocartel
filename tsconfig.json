@@ -17,5 +17,6 @@
     "paths": { "@/*": ["./*"] }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "functions"],
+  "//": "functions/ é um pacote à parte (Cloud Functions), com o próprio tsconfig e as próprias dependências — ele não faz parte do build do Next."
 }

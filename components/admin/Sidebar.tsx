@@ -75,6 +75,9 @@ export default function Sidebar({ active }: { active: string }) {
         <div style={{ fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "#6E817B", padding: "8px 12px 7px" }}>Gestão</div>
         {items.map((it) => {
           const isActive = it.href === active;
+          // O mesmo contador nas duas abas onde a sugestão pode ser resolvida: quem está
+          // na Agenda não deveria precisar lembrar de olhar o WhatsApp, e vice-versa.
+          const pendentes = it.href === "/whatsapp" || it.href === "/agenda" ? state.sugestoes.length : 0;
           return (
             <LinkAba key={it.label} href={it.href}>
               <span
@@ -93,6 +96,17 @@ export default function Sidebar({ active }: { active: string }) {
               >
                 <span style={{ width: 5, height: 5, borderRadius: "50%", background: isActive ? c.lime : "transparent" }} />
                 {it.label}
+                {pendentes > 0 ? (
+                  <>
+                    <span style={{ flex: 1 }} />
+                    <span
+                      title={`${pendentes} sugestão(ões) do atendente esperando confirmação`}
+                      style={{ background: c.brass, color: "#fff", borderRadius: 999, fontSize: 10.5, fontWeight: 700, padding: "1px 7px" }}
+                    >
+                      {pendentes}
+                    </span>
+                  </>
+                ) : null}
               </span>
             </LinkAba>
           );

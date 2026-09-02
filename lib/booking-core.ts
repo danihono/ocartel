@@ -50,6 +50,12 @@ export interface CriarAgendamentoInput {
   inicio: string; // HH:MM
   clienteNome: string;
   clienteTelefone?: string;
+  /**
+   * Cliente JÁ conhecido. Quando vem preenchido, o vínculo por telefone é pulado — é o que
+   * impede um agendamento vindo do WhatsApp de criar um segundo cadastro para quem já
+   * existe com outro id (importado de planilha, por exemplo).
+   */
+  clienteId?: string;
   observacoes?: string;
   origem?: "booking" | "admin" | "whatsapp";
 }
@@ -114,9 +120,9 @@ export async function criarAgendamentoValidado(
   // O id sai de `chaveTelefone`, e não dos dígitos crus: assim "(19) 98448-7271" e
   // "5519984487271" — que é a forma que chega pelo WhatsApp — caem no MESMO cliente, em
   // vez de criarem dois cadastros para a mesma pessoa.
-  let clienteId: string | undefined;
+  let clienteId: string | undefined = input.clienteId;
   const chaveTel = chaveTelefone(input.clienteTelefone ?? "");
-  if (chaveTel) {
+  if (!clienteId && chaveTel) {
     clienteId = clienteIdDoTelefone(chaveTel.curto);
     const cliRef = tenantRef.collection("clientes").doc(clienteId);
     const cliSnap = await cliRef.get();

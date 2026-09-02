@@ -17,6 +17,12 @@ export interface EnvioResultado {
   ok: boolean;
   pendente?: boolean;
   erro?: string;
+  /**
+   * Id do documento da mensagem no espelho, quando o daemon confirmou o envio (exige
+   * `aguardarMs`). Serve para marcar a mensagem depois — é assim que a resposta escrita
+   * pelo atendente automático ganha o selo de IA.
+   */
+  mensagemId?: string;
 }
 
 /** Quem é o destinatário, para o contato espelhado nascer com nome em vez de número. */
@@ -106,6 +112,11 @@ export async function garantirContato(
   return contactId;
 }
 
+/** Caminho do doc de uma mensagem no espelho — o daemon usa o id do WhatsApp sanitizado. */
+export function caminhoMensagem(uid: string, contactId: string, mensagemId: string): string {
+  return `users/${uid}/contacts/${contactId}/messages/${mensagemId}`;
+}
+
 /** Espera o daemon gravar o resultado no próprio doc do comando. */
 async function aguardarComando(ref: DocumentReference, limiteMs: number): Promise<EnvioResultado> {
   const fim = Date.now() + limiteMs;
@@ -113,7 +124,13 @@ async function aguardarComando(ref: DocumentReference, limiteMs: number): Promis
     await new Promise((r) => setTimeout(r, 500));
     const snap = await ref.get();
     const status = snap.get("status");
-    if (status === "done") return { ok: true };
+    if (status === "done") {
+      // O daemon devolve o id do WhatsApp em `result.id` e grava a mensagem sob esse id
+      // com "/" e "\\" trocados por "_" (sanitizeId, do lado dele).
+      const bruto = snap.get("result")?.id;
+      const mensagemId = typeof bruto === "string" ? bruto.replace(/[/\\]/g, "_") : undefined;
+      return { ok: true, ...(mensagemId ? { mensagemId } : {}) };
+    }
     if (status === "error") {
       return { ok: false, erro: String(snap.get("error")?.message ?? "Falha ao enviar pelo WhatsApp.") };
     }

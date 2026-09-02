@@ -29,6 +29,7 @@ import type {
   PlanoTier,
   Role,
   Servico,
+  Sugestao,
   Tenant,
   Transacao,
 } from "./types";
@@ -65,6 +66,8 @@ export interface AppState {
   tenants: Tenant[];
   planosTiers: PlanoTier[];
   planos: Plano[];
+  /** Agendamentos PROPOSTOS pelo atendente automático, esperando alguém confirmar. */
+  sugestoes: Sugestao[];
   ui: { hidratado: boolean; visao: Role; barbeiroVisaoId: string | null; telas: TelasUi };
 }
 
@@ -89,6 +92,7 @@ export function buildSeedState(): AppState {
     tenants: [],
     planosTiers: [],
     planos: [],
+    sugestoes: [],
     ui: { hidratado: false, visao: "admin", barbeiroVisaoId: null, telas: telasIniciais },
   };
 }
@@ -256,6 +260,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           transacoes: [],
           tenants: [],
           planos: [],
+          sugestoes: [],
           ui: { hidratado: false },
         },
       });
@@ -302,6 +307,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           marcarChegada("agendamentos");
         }),
         repo.planosTiers.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { planosTiers: rows } })),
+        // Não entra em ESSENCIAIS: barbearia sem o atendente automático nunca terá
+        // sugestão, e esperar por um snapshot que não vem travaria a hidratação.
+        repo.sugestoes.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { sugestoes: rows } })),
         repo.planos.subscribe(tenantId, (rows) => {
           dispatch({ type: "SET_DATA", patch: { planos: rows } });
           marcarChegada("planos");

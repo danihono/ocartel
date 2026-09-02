@@ -25,7 +25,10 @@ import { subscribeConversas, subscribeMensagens, type Conversa, type MensagemWa 
 import { montarLista, waDoCliente, type ItemConversa } from "@/lib/whatsapp/lista";
 import { acaoAdicionarConversa, acaoEnviarMensagem, acaoMarcarLida } from "@/app/(admin)/whatsapp/actions";
 import { acaoConsultarPareamento } from "@/app/(admin)/configuracoes/actions";
+import { acaoPausarIa } from "@/app/(admin)/whatsapp/actions-sugestao";
 import { useNavegacao } from "@/components/admin/navegacao";
+import { CardSugestao } from "@/components/admin/CardSugestao";
+import * as repo from "@/lib/firebase/repos";
 
 const eyebrow = { fontSize: 11, letterSpacing: 0.7, textTransform: "uppercase" as const, color: c.ink3, fontWeight: 600 };
 
@@ -83,6 +86,8 @@ export function TelaWhatsapp() {
   const [buscaAdd, setBuscaAdd] = useState("");
   const [adicionando, setAdicionando] = useState<string | null>(null);
   const [conexao, setConexao] = useState<{ status: string; numero: string | null; daemonOnline: boolean } | null>(null);
+  const [estadoConversa, setEstadoConversa] = useState<repo.EstadoConversa | null>(null);
+  const [mexendoNaIa, setMexendoNaIa] = useState(false);
 
   const uid = tenantId ? uidDaBarbearia(tenantId) : null;
   const fimDaConversa = useRef<HTMLDivElement>(null);
@@ -115,6 +120,14 @@ export function TelaWhatsapp() {
     return subscribeMensagens(uid, conversaId, setMensagens);
   }, [uid, conversaId]);
 
+  useEffect(() => {
+    if (!tenantId || !conversaId) {
+      setEstadoConversa(null);
+      return;
+    }
+    return repo.conversas.subscribeOne(tenantId, conversaId, setEstadoConversa);
+  }, [tenantId, conversaId]);
+
   const lista = useMemo(() => montarLista(conversas, state.clientes, busca), [conversas, state.clientes, busca]);
   const listaAdd = useMemo(
     () => montarLista(conversas, state.clientes, buscaAdd).semConversa,
@@ -137,9 +150,14 @@ export function TelaWhatsapp() {
     })().catch(() => {});
   }, [user, tenantId, conversaId, abertaBruta?.conversa.unreadCount]);
 
+  const sugestoesDaConversa = useMemo(
+    () => state.sugestoes.filter((s) => s.contactId === conversaId),
+    [state.sugestoes, conversaId],
+  );
+
   useEffect(() => {
     fimDaConversa.current?.scrollIntoView({ block: "end" });
-  }, [mensagens.length, conversaId]);
+  }, [mensagens.length, conversaId, sugestoesDaConversa.length]);
 
   // Some com a bolha otimista quando a mensagem de verdade chega pelo espelho.
   const pendentesVisiveis = pendentes.filter((p) => {
@@ -164,6 +182,20 @@ export function TelaWhatsapp() {
       setBuscaAdd("");
     } finally {
       setAdicionando(null);
+    }
+  }
+
+  const iaLigada = state.config.ia?.ativa === true;
+  const iaPausada = (estadoConversa?.iaPausadaAte ?? 0) > Date.now();
+
+  async function alternarIa() {
+    if (!user || !tenantId || !conversaId || mexendoNaIa) return;
+    setMexendoNaIa(true);
+    try {
+      const r = await acaoPausarIa(await user.getIdToken(), tenantId, conversaId, !iaPausada);
+      if (!r.ok) toast(r.erro ?? "Não foi possível mudar o atendente.", "error");
+    } finally {
+      setMexendoNaIa(false);
     }
   }
 
@@ -337,7 +369,11 @@ export function TelaWhatsapp() {
           </div>
         ) : (
           <>
-            <CabecalhoConversa item={abertaBruta} onVerCliente={() => ir("/clientes")} />
+            <CabecalhoConversa
+              item={abertaBruta}
+              onVerCliente={() => ir("/clientes")}
+              ia={iaLigada ? { pausada: iaPausada, ocupado: mexendoNaIa, alternar: () => void alternarIa() } : null}
+            />
 
             <div style={{ flex: 1, overflow: "auto", padding: "16px 20px", background: c.bg }}>
               {mensagens.length === 0 && pendentesVisiveis.length === 0 ? (
@@ -362,6 +398,13 @@ export function TelaWhatsapp() {
                   </div>
                 </div>
               ))}
+              {sugestoesDaConversa.length ? (
+                <div style={{ marginTop: 12 }}>
+                  {sugestoesDaConversa.map((sug) => (
+                    <CardSugestao key={sug.id} sugestao={sug} />
+                  ))}
+                </div>
+              ) : null}
               <div ref={fimDaConversa} />
             </div>
 
@@ -462,7 +505,16 @@ function StatusConexao({
   );
 }
 
-function CabecalhoConversa({ item, onVerCliente }: { item: ItemConversa; onVerCliente: () => void }) {
+function CabecalhoConversa({
+  item,
+  onVerCliente,
+  ia,
+}: {
+  item: ItemConversa;
+  onVerCliente: () => void;
+  /** `null` quando o atendente automático está desligado na barbearia inteira. */
+  ia: { pausada: boolean; ocupado: boolean; alternar: () => void } | null;
+}) {
   return (
     <div style={{ padding: "14px 20px", borderBottom: `1px solid ${c.borderSoft}`, display: "flex", alignItems: "center", gap: 12 }}>
       <Retrato item={item} size={40} />
@@ -473,6 +525,33 @@ function CabecalhoConversa({ item, onVerCliente }: { item: ItemConversa; onVerCl
           {item.cliente?.plano ? ` · ${item.cliente.plano}` : ""}
         </div>
       </div>
+      {ia ? (
+        <button
+          onClick={ia.alternar}
+          disabled={ia.ocupado}
+          title={
+            ia.pausada
+              ? "O atendente automático está calado nesta conversa."
+              : "O atendente automático responde esta conversa sozinho."
+          }
+          style={{
+            border: `1px solid ${ia.pausada ? c.borderInput : c.brass}`,
+            background: ia.pausada ? c.surface : c.brassTint,
+            color: ia.pausada ? c.ink2 : c.brassDeep,
+            borderRadius: 9,
+            padding: "7px 12px",
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: ia.ocupado ? "default" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: ia.pausada ? c.ink4 : c.brass }} />
+          {ia.pausada ? "Atendente pausado" : "Atendente ligado"}
+        </button>
+      ) : null}
       {item.cliente ? (
         <button onClick={onVerCliente} style={{ border: `1px solid ${c.borderInput}`, background: c.surface, color: c.inkTitle, borderRadius: 9, padding: "7px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
           Ver cliente

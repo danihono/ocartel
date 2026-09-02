@@ -1,0 +1,125 @@
+// A conversa com o Gemini, isolada num arquivo só.
+//
+// Fica isolado para trocar de modelo — ou de provedor — não espalhar mudança pelo resto do
+// código: quem chama passa instruções, histórico e ferramentas, e recebe texto e chamadas
+// de ferramenta de volta.
+//
+// É a API REST direta, sem SDK, de propósito: é uma chamada HTTP com um corpo JSON, o
+// formato é estável, e um SDK a mais no bundle do site significa uma dependência a mais
+// para auditar e atualizar. O modelo sai de `GEMINI_MODEL` para dar para trocar sem
+// alterar código.
+
+const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
+
+/** Uma ferramenta que o modelo pode chamar (JSON Schema simplificado). */
+export interface Ferramenta {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}
+
+export interface ChamadaFerramenta {
+  name: string;
+  args: Record<string, unknown>;
+}
+
+interface Parte {
+  text?: string;
+  functionCall?: ChamadaFerramenta;
+  functionResponse?: { name: string; response: Record<string, unknown> };
+}
+
+interface Turno {
+  role: "user" | "model";
+  parts: Parte[];
+}
+
+export interface RespostaModelo {
+  texto: string;
+  chamadas: ChamadaFerramenta[];
+}
+
+export class IaIndisponivel extends Error {}
+
+function modelo(): string {
+  return process.env.GEMINI_MODEL || "gemini-2.5-flash";
+}
+
+async function gerar(instrucoes: string, turnos: Turno[], ferramentas: Ferramenta[]): Promise<RespostaModelo> {
+  const chave = process.env.GEMINI_API_KEY;
+  if (!chave) throw new IaIndisponivel("GEMINI_API_KEY não configurada.");
+
+  const resp = await fetch(`${ENDPOINT}/${modelo()}:generateContent`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-goog-api-key": chave },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: instrucoes }] },
+      contents: turnos,
+      ...(ferramentas.length ? { tools: [{ functionDeclarations: ferramentas }] } : {}),
+      generationConfig: { temperature: 0.4, maxOutputTokens: 500 },
+    }),
+  });
+
+  if (!resp.ok) {
+    throw new IaIndisponivel(`Gemini respondeu ${resp.status}: ${(await resp.text()).slice(0, 300)}`);
+  }
+
+  const dados = (await resp.json()) as { candidates?: { content?: { parts?: Parte[] } }[] };
+  const partes = dados.candidates?.[0]?.content?.parts ?? [];
+
+  return {
+    texto: partes
+      .map((p) => p.text ?? "")
+      .join("")
+      .trim(),
+    chamadas: partes.flatMap((p) => (p.functionCall ? [p.functionCall] : [])),
+  };
+}
+
+export interface ParamsConversa {
+  instrucoes: string;
+  /** Histórico da conversa, do mais antigo para o mais novo. */
+  historico: { de: "cliente" | "barbearia"; texto: string }[];
+  ferramentas: Ferramenta[];
+  /** Executa uma ferramenta pedida pelo modelo e devolve o que ele vai ler. */
+  executar: (chamada: ChamadaFerramenta) => Promise<Record<string, unknown>>;
+  /** Quantas rodadas de ferramenta são permitidas antes de exigir uma resposta. */
+  maxRodadas?: number;
+}
+
+/**
+ * Conversa até o modelo produzir uma resposta em texto, executando as ferramentas que ele
+ * pedir pelo caminho.
+ *
+ * O teto de rodadas não é decoração: sem ele, um modelo confuso pode ficar chamando
+ * ferramenta para sempre — e cada rodada é uma cobrança e alguns segundos de silêncio para
+ * quem está esperando resposta no WhatsApp.
+ */
+export async function conversar(p: ParamsConversa): Promise<{ texto: string; usadas: ChamadaFerramenta[] }> {
+  const turnos: Turno[] = p.historico.map((t) => ({
+    role: t.de === "cliente" ? "user" : "model",
+    parts: [{ text: t.texto }],
+  }));
+
+  const usadas: ChamadaFerramenta[] = [];
+  const maxRodadas = p.maxRodadas ?? 3;
+
+  for (let rodada = 0; rodada <= maxRodadas; rodada++) {
+    // Na última rodada as ferramentas somem: o modelo precisa fechar em texto.
+    const resposta = await gerar(p.instrucoes, turnos, rodada < maxRodadas ? p.ferramentas : []);
+
+    if (resposta.chamadas.length === 0) return { texto: resposta.texto, usadas };
+
+    turnos.push({ role: "model", parts: resposta.chamadas.map((functionCall) => ({ functionCall })) });
+
+    const respostas: Parte[] = [];
+    for (const chamada of resposta.chamadas) {
+      usadas.push(chamada);
+      const saida = await p.executar(chamada).catch((err) => ({ erro: String(err) }));
+      respostas.push({ functionResponse: { name: chamada.name, response: saida } });
+    }
+    turnos.push({ role: "user", parts: respostas });
+  }
+
+  return { texto: "", usadas };
+}

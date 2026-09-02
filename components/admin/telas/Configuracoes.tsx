@@ -41,6 +41,7 @@ export function TelaConfiguracoes() {
   const [diasAtivos, setDiasAtivos] = useState<boolean[]>(state.config.horario.diasAtivos);
   const [confirmacaoAtiva, setConfirmacaoAtiva] = useState(state.config.confirmacao?.ativa ?? false);
   const [confirmacaoHora, setConfirmacaoHora] = useState(state.config.confirmacao?.hora ?? "08:00");
+  const [iaAtiva, setIaAtiva] = useState(state.config.ia?.ativa ?? false);
   const cob = state.config.cobranca;
   const [cobrancaAtiva, setCobrancaAtiva] = useState(cob?.ativa ?? false);
   const [cobrancaHora, setCobrancaHora] = useState(cob?.hora ?? "09:00");
@@ -154,6 +155,7 @@ export function TelaConfiguracoes() {
         telefone,
         horario: { abre, fecha, diasAtivos },
         confirmacao: { ativa: confirmacaoAtiva, hora: confirmacaoHora },
+        ia: { ativa: iaAtiva },
         cobranca: {
           ativa: cobrancaAtiva,
           hora: cobrancaHora,
@@ -312,6 +314,25 @@ export function TelaConfiguracoes() {
                   ))}
                 </Select>
               </Field>
+
+              <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${c.borderInput}` }}>
+                <div style={{ ...eyebrow, marginBottom: 8 }}>Atendente automático</div>
+                <label style={{ display: "flex", alignItems: "flex-start", gap: 9, cursor: "pointer" }}>
+                  <input type="checkbox" checked={iaAtiva} onChange={(e) => setIaAtiva(e.target.checked)} style={{ marginTop: 3 }} />
+                  <span style={{ fontSize: 13, color: c.ink3, lineHeight: 1.45 }}>
+                    Responder sozinho quem escrever no WhatsApp, com o que a barbearia tem de
+                    verdade: serviços, preços e horários livres da agenda.{" "}
+                    <b>Ele nunca marca</b> — quando o cliente fecha um horário, aparece uma sugestão
+                    na Agenda e na conversa para você confirmar com um clique.
+                  </span>
+                </label>
+                {iaAtiva ? (
+                  <div style={{ fontSize: 12, color: c.amberText, background: c.amberBg, borderRadius: 8, padding: "8px 10px", marginTop: 10, lineHeight: 1.45 }}>
+                    Ligado, ele responde <b>qualquer número</b> que escrever. Quando você responde
+                    uma conversa à mão, ele se cala nela por algumas horas.
+                  </div>
+                ) : null}
+              </div>
 
               <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${c.borderInput}` }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: c.inkTitle, marginBottom: 4 }}>

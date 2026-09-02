@@ -122,6 +122,13 @@ service cloud.firestore {
           && statusAgendamentoValido(request.resource.data.status)
           && request.resource.data.duracaoMin is number;
       }
+      // Agendamentos PROPOSTOS pelo atendente automático, e o estado de cada conversa
+      // (pausa da IA, contadores). Só leitura: quem escreve é o servidor, e é de propósito
+      // — se o navegador pudesse gravar sugestão, o card "confirmar" viraria um jeito de
+      // criar agendamento pulando `criarAgendamentoValidado`.
+      match /sugestoes/{id} { allow read: if canManage(tenantId); }
+      match /conversas/{id} { allow read: if canManage(tenantId); }
+
       // Planos de assinatura do cliente (mensalidade) — privados do tenant.
       match /planos/{id} {
         allow read, delete: if canManage(tenantId);

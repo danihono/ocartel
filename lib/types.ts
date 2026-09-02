@@ -267,6 +267,46 @@ export interface ConfigBarbearia {
    * existente deve começar a emitir boleto sozinha sem alguém ter pedido.
    */
   cobranca?: CobrancaAutomatica;
+  /**
+   * Atendente automático no WhatsApp. Ausente ⇒ DESLIGADO — nenhuma barbearia existente
+   * começa a responder cliente sozinha sem alguém ter ligado.
+   *
+   * Ligado, o atendente responde qualquer número que escrever. Ele NUNCA marca: quando o
+   * papo fecha num horário, nasce uma sugestão para uma pessoa confirmar.
+   */
+  ia?: {
+    ativa: boolean;
+    /** Como o atendente se apresenta. Vazio ⇒ fala como a própria barbearia. */
+    assinatura?: string;
+  };
+}
+
+/**
+ * Um agendamento PROPOSTO pelo atendente automático, esperando confirmação de gente.
+ *
+ * Não é agendamento: não ocupa horário, não aparece na agenda como marcado e não impede
+ * ninguém de pegar o mesmo horário. Vira agendamento só quando alguém clica em confirmar
+ * — e aí passa por `criarAgendamentoValidado`, que pode recusar se o horário tiver sido
+ * tomado no meio do caminho.
+ */
+export interface Sugestao {
+  id: string;
+  /** Conversa de onde ela saiu (`wa_<55…>`). */
+  contactId: string;
+  clienteId?: string;
+  clienteNome: string;
+  clienteTelefone: string;
+  servicoId: string;
+  servico: string;
+  barbeiroId: string;
+  barbeiro: string;
+  date: string; // YYYY-MM-DD
+  inicio: string; // HH:MM
+  duracaoMin: number;
+  status: "pendente" | "confirmada" | "descartada";
+  /** Preenchido quando vira agendamento de verdade. */
+  agendamentoId?: string;
+  criadoEm?: string;
 }
 
 export interface CobrancaAutomatica {

@@ -19,6 +19,7 @@ import {
   mesLabel,
 } from "@/lib/date";
 import { AgendamentoPanel } from "@/components/admin/AgendamentoPanel";
+import { CardSugestao } from "@/components/admin/CardSugestao";
 import { BloquearHorarioModal } from "@/components/admin/BloquearHorarioModal";
 import { NovoAgendamentoModal, type NovoAgendamentoDefaults } from "@/components/admin/NovoAgendamentoModal";
 import { AgendamentoRecorrenteModal } from "@/components/admin/AgendamentoRecorrenteModal";
@@ -47,6 +48,50 @@ function gridBg(colH: number): React.CSSProperties {
     ].join(","),
     cursor: "copy",
   };
+}
+
+/**
+ * O fantasma de uma sugestão na grade do dia.
+ *
+ * Tracejado e translúcido porque o horário NÃO está reservado: enquanto ninguém
+ * confirmar, qualquer pessoa pode marcar por cima. Ele mostra onde a proposta cairia — os
+ * botões de confirmar ficam no card acima do calendário, onde há espaço para eles.
+ */
+function BlocoSugestao({
+  inicio,
+  dur,
+  cliente,
+  base,
+}: {
+  inicio: string;
+  dur: number;
+  cliente: string;
+  base: string;
+}) {
+  return (
+    <div
+      title={`Sugestão do atendente: ${cliente} às ${inicio}`}
+      style={{
+        position: "absolute",
+        left: 6,
+        right: 6,
+        top: minutosDesde(inicio, base) * PX_PER_MIN,
+        height: dur * PX_PER_MIN - 4,
+        border: `1.5px dashed ${c.brass}`,
+        background: "rgba(14,163,122,0.10)",
+        borderRadius: 8,
+        padding: "4px 8px",
+        pointerEvents: "none",
+        overflow: "hidden",
+        zIndex: 2,
+      }}
+    >
+      <div style={{ fontSize: 10, fontWeight: 700, color: c.brassDeep, letterSpacing: 0.4 }}>SUGESTÃO</div>
+      <div style={{ fontSize: 11.5, color: c.ink2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        {cliente}
+      </div>
+    </div>
+  );
 }
 
 function Bloco({
@@ -243,6 +288,13 @@ export function TelaAgenda() {
   const setView = (v: View) => setTela({ view: v });
   const setBusca = (q: string) => setTela({ busca: q });
 
+  // Sugestões do atendente automático para ESTE dia. Não são agendamentos: não ocupam
+  // horário nem entram nas contas do dia — aparecem como proposta, esperando confirmação.
+  const sugestoesDoDia = useMemo(
+    () => state.sugestoes.filter((sg) => sg.date === dateISO),
+    [state.sugestoes, dateISO],
+  );
+
   const [agSel, setAgSel] = useState<string | null>(null);
   const [bloquear, setBloquear] = useState(false);
   const [recorrenteOpen, setRecorrenteOpen] = useState(false);
@@ -422,6 +474,17 @@ export function TelaAgenda() {
         ))}
       </div>
 
+      {/* Sugestões do atendente automático — só aparece quando há alguma no dia */}
+      {sugestoesDoDia.length ? (
+        <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 2 }}>
+          {sugestoesDoDia.map((sg) => (
+            <div key={sg.id} style={{ minWidth: 250, flex: "none" }}>
+              <CardSugestao sugestao={sg} compacto />
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {/* Calendário */}
       <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 14, overflow: "auto", flex: 1, boxShadow: shadow.card }}>
         {view === "dia" ? (
@@ -481,6 +544,11 @@ export function TelaAgenda() {
                 {blocos.map((b) => (
                   <Bloco key={b.id} id={b.id} inicio={b.inicio} dur={b.duracaoMin} cliente={b.cliente} servico={b.servico} status={b.status} base={abre} colH={colH} atenuado={buscaAtiva && !matchCliente(b.cliente)} onClick={setAgSel} onMove={moverAgendamento} onResize={redimensionar} />
                 ))}
+                {sugestoesDoDia
+                  .filter((sg) => sg.barbeiroId === barbeiro.id)
+                  .map((sg) => (
+                    <BlocoSugestao key={sg.id} inicio={sg.inicio} dur={sg.duracaoMin} cliente={sg.clienteNome} base={abre} />
+                  ))}
               </div>
             ))}
           </div>
