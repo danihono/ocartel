@@ -1,2 +1,8 @@
 lib/
 node_modules/
+
+# O .gitignore da raiz ignora `.env` em qualquer pasta. Aqui isso está errado: os
+# parâmetros da Function (hoje só o SITE_URL) PRECISAM ir no deploy, e são públicos.
+# O que é segredo mesmo — IA_SECRET — não mora neste arquivo: é `defineSecret`, vem do
+# Secret Manager. NÃO ponha chave nenhuma no .env daqui: ele é versionado.
+!.env
