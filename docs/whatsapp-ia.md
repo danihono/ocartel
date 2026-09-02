@@ -100,6 +100,11 @@ firebase deploy --only hosting,functions,firestore:rules
 O `SITE_URL` que a Function usa para avisar o site já está versionado em `functions/.env`
 — não é segredo, é o endereço público.
 
+`functions/` é um pacote à parte, com dependências próprias: o `npm install` da raiz não
+as instala. O `predeploy` em `firebase.json` roda `npm ci` lá dentro antes de compilar,
+então isso se resolve sozinho — sem ele, o deploy morre em
+`Cannot find module 'firebase-functions/v2/firestore'`.
+
 ### 4. Ligar no painel
 
 **Configurações → Atendente automático**. Ligado, ele responde **qualquer número** que
