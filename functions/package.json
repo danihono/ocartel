@@ -2,7 +2,7 @@
   "name": "ocartel-functions",
   "private": true,
   "main": "lib/index.js",
-  "engines": { "node": "20" },
+  "engines": { "node": "22" },
   "scripts": {
     "build": "tsc",
     "deploy": "npm run build && firebase deploy --only functions"
