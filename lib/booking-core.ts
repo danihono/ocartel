@@ -10,6 +10,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { horaParaMin, horarioLivre, ocupaHorario, type IntervaloOcupado } from "@/lib/agenda";
 import { indiceSegDom, mesAnoCurto } from "@/lib/date";
 import { novoToken } from "@/lib/confirmacao";
+import { chaveTelefone, clienteIdDoTelefone } from "@/lib/telefone";
 
 export const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 export const HORA = /^\d{2}:\d{2}$/;
@@ -50,7 +51,7 @@ export interface CriarAgendamentoInput {
   clienteNome: string;
   clienteTelefone?: string;
   observacoes?: string;
-  origem?: "booking" | "admin";
+  origem?: "booking" | "admin" | "whatsapp";
 }
 
 export interface CriarAgendamentoResult {
@@ -109,17 +110,21 @@ export async function criarAgendamentoValidado(
 
   // Vincula/cria o cliente por telefone (id determinístico = evita duplicar).
   // Fica FORA da transação de agenda: não é a parte sensível a corrida.
+  //
+  // O id sai de `chaveTelefone`, e não dos dígitos crus: assim "(19) 98448-7271" e
+  // "5519984487271" — que é a forma que chega pelo WhatsApp — caem no MESMO cliente, em
+  // vez de criarem dois cadastros para a mesma pessoa.
   let clienteId: string | undefined;
-  const telDigits = (input.clienteTelefone ?? "").replace(/\D/g, "");
-  if (telDigits.length >= 10) {
-    clienteId = `tel-${telDigits}`;
+  const chaveTel = chaveTelefone(input.clienteTelefone ?? "");
+  if (chaveTel) {
+    clienteId = clienteIdDoTelefone(chaveTel.curto);
     const cliRef = tenantRef.collection("clientes").doc(clienteId);
     const cliSnap = await cliRef.get();
     if (!cliSnap.exists) {
       await cliRef.set({
         nome,
         telefone: (input.clienteTelefone ?? "").trim(),
-        telefoneNorm: telDigits,
+        telefoneNorm: chaveTel.curto,
         email: "",
         plano: "Avulso",
         planId: "",

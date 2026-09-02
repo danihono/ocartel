@@ -7,12 +7,31 @@
 //
 // Só servidor (Admin SDK). Nunca importe de um componente do cliente.
 
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { FieldValue, Timestamp, type DocumentReference } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
+import { chaveTelefone, contactIdDoTelefone } from "@/lib/telefone";
+import { iniciaisDe } from "@/lib/clientes-import";
+
+/** Resultado de um envio. `pendente` = o daemon ainda não respondeu (e pode dar certo). */
+export interface EnvioResultado {
+  ok: boolean;
+  pendente?: boolean;
+  erro?: string;
+}
+
+/** Quem é o destinatário, para o contato espelhado nascer com nome em vez de número. */
+export interface OpcoesEnvio {
+  /** Nome do cadastro. Sem ele a conversa fica com o número no lugar do nome. */
+  nome?: string;
+  /** Id do cliente em `tenants/{t}/clientes` — o vínculo que a IA usa para saber quem é. */
+  clienteId?: string;
+  /** Espera o daemon confirmar (ms). Omitido = enfileira e segue (comportamento padrão). */
+  aguardarMs?: number;
+}
 
 export interface Canal {
-  /** `telefone` em dígitos com DDI (ex.: "5519998887766"). */
-  enviarMensagem(telefone: string, texto: string): Promise<void>;
+  /** `telefone` em qualquer formato; a normalização é aqui dentro. */
+  enviarMensagem(telefone: string, texto: string, opcoes?: OpcoesEnvio): Promise<EnvioResultado>;
 }
 
 /** Onde fica o vínculo entre a barbearia e a conta de WhatsApp que fala por ela. */
@@ -41,56 +60,110 @@ export function apenasDigitos(telefone: string): string {
   return String(telefone ?? "").replace(/\D/g, "");
 }
 
+/** Validade do doc de comando — casada com o TTL nativo esperado pelo daemon. */
+const COMANDO_TTL_MS = 3_600_000;
+
+/**
+ * Garante o documento de contato que o daemon exige, e devolve o id dele.
+ *
+ * O daemon veio do CRM Titãs e sua ação `message.send` exige um contato no formato DELE —
+ * `users/{uid}/contacts/{contactId}` com o telefone. O Cartel guarda clientes em
+ * `tenants/{id}/clientes`, que é outra forma. Em vez de alterar o daemon (que roda também
+ * para o Titãs, em produção), garantimos aqui o documento que ele espera.
+ *
+ * O id é o MESMO que o daemon geraria sozinho (`wa_<digits>`, ver `resolveContact` lá):
+ * é isso que faz a resposta do cliente cair nesta conversa em vez de abrir uma segunda.
+ *
+ * O `nome` não é enfeite. O daemon só preenche nome de contato que ainda não tem
+ * `createdAt` (`healGhostContact`), e este aqui já nasce com um — sem passar o nome, a
+ * conversa fica com o número para sempre.
+ */
+export async function garantirContato(
+  uid: string,
+  wa: string,
+  opcoes: { nome?: string; clienteId?: string; tenantId?: string } = {},
+): Promise<string> {
+  const contactId = contactIdDoTelefone(wa);
+  const nome = opcoes.nome?.trim();
+
+  await adminDb.doc(`users/${uid}/contacts/${contactId}`).set(
+    {
+      whatsappDigits: wa,
+      whatsapp: wa,
+      phone: wa,
+      waJid: `${wa}@s.whatsapp.net`,
+      source: "whatsapp",
+      ...(nome ? { name: nome, initials: iniciaisDe(nome) || "?", nameSource: "agenda" } : {}),
+      ...(opcoes.clienteId ? { clienteId: opcoes.clienteId } : {}),
+      ...(opcoes.tenantId ? { tenantId: opcoes.tenantId } : {}),
+      status: "WhatsApp",
+      // createdAt é obrigatório para o contato aparecer nas listas ordenadas do daemon.
+      createdAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+
+  return contactId;
+}
+
+/** Espera o daemon gravar o resultado no próprio doc do comando. */
+async function aguardarComando(ref: DocumentReference, limiteMs: number): Promise<EnvioResultado> {
+  const fim = Date.now() + limiteMs;
+  while (Date.now() < fim) {
+    await new Promise((r) => setTimeout(r, 500));
+    const snap = await ref.get();
+    const status = snap.get("status");
+    if (status === "done") return { ok: true };
+    if (status === "error") {
+      return { ok: false, erro: String(snap.get("error")?.message ?? "Falha ao enviar pelo WhatsApp.") };
+    }
+  }
+  // Sem resposta a tempo não é fracasso: os erros que importam (não conectado, número
+  // inexistente) voltam em menos de um segundo. Quem termina a história é o espelho da
+  // conversa, quando a mensagem enviada aparecer nele.
+  return { ok: true, pendente: true };
+}
+
 /**
  * Adaptador do daemon self-hosted (Baileys).
  *
- * O daemon veio do CRM Titãs e sua ação `message.send` exige um contato no formato
- * DELE — `users/{uid}/contacts/{contactId}` com o telefone. O Cartel guarda clientes em
- * `tenants/{id}/clientes`, que é outra forma. Em vez de alterar o daemon (que roda
- * também para o Titãs, em produção), garantimos aqui o documento que ele espera.
- *
- * O efeito colateral é bem-vindo: a conversa fica espelhada em `users/{uid}/contacts`,
- * que é de onde o atendente com IA vai ler o histórico na etapa seguinte.
+ * O efeito colateral de espelhar em `users/{uid}/contacts` é bem-vindo: é de lá que a tela
+ * de WhatsApp lê a conversa, e é de lá que o atendente com IA lê o histórico.
  */
 class CanalDaemon implements Canal {
-  constructor(private readonly uid: string) {}
+  constructor(
+    private readonly uid: string,
+    private readonly tenantId: string,
+  ) {}
 
-  async enviarMensagem(telefone: string, texto: string): Promise<void> {
-    const digits = apenasDigitos(telefone);
-    if (digits.length < 10) throw new Error(`Telefone inválido para envio: "${telefone}"`);
+  async enviarMensagem(telefone: string, texto: string, opcoes: OpcoesEnvio = {}): Promise<EnvioResultado> {
+    const chave = chaveTelefone(telefone);
+    if (!chave) throw new Error(`Telefone inválido para envio: "${telefone}"`);
 
-    const contactId = `wa_${digits}`;
-    const contactRef = adminDb.doc(`users/${this.uid}/contacts/${contactId}`);
-
-    // merge: não sobrescreve nome/foto que o daemon já tenha resolvido.
-    await contactRef.set(
-      {
-        whatsappDigits: digits,
-        whatsapp: digits,
-        waJid: `${digits}@s.whatsapp.net`,
-        source: "whatsapp",
-        // createdAt é obrigatório para o contato aparecer nas listas ordenadas do daemon.
-        createdAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true },
-    );
+    const contactId = await garantirContato(this.uid, chave.wa, {
+      nome: opcoes.nome,
+      clienteId: opcoes.clienteId,
+      tenantId: this.tenantId,
+    });
 
     // O daemon escuta esta coleção por collection group query e devolve o resultado no
-    // próprio doc. Aqui não esperamos a resposta: confirmação é fire-and-forget.
-    await adminDb.collection(`users/${this.uid}/waCommands`).add({
+    // próprio doc.
+    const ref = await adminDb.collection(`users/${this.uid}/waCommands`).add({
       type: "message.send",
       args: { contactId, text: texto },
       status: "pending",
       attempts: 0,
       createdAt: FieldValue.serverTimestamp(),
-      // Casado com o TTL nativo configurado em `expireAt` do lado do daemon.
-      expireAt: Timestamp.fromMillis(Date.now() + 3_600_000),
+      expireAt: Timestamp.fromMillis(Date.now() + COMANDO_TTL_MS),
     });
+
+    if (!opcoes.aguardarMs) return { ok: true, pendente: true };
+    return aguardarComando(ref, opcoes.aguardarMs);
   }
 }
 
 /** Devolve o canal da barbearia. Lança `WhatsAppNaoConfigurado` se não houver vínculo. */
 export async function canalDoTenant(tenantId: string): Promise<Canal> {
   const { uid } = await vinculoDoTenant(tenantId);
-  return new CanalDaemon(uid);
+  return new CanalDaemon(uid, tenantId);
 }

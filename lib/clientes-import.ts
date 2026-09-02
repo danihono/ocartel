@@ -5,6 +5,7 @@
 
 import type { Cliente, Plano } from "@/lib/types";
 import { mesAnoCurto, HOJE_ISO } from "@/lib/date";
+import { chaveTelefone } from "@/lib/telefone";
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -19,21 +20,23 @@ export function maskTelefone(v: string): string {
   return d.replace(/^(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3");
 }
 
-/** Só dígitos (máx. 11) — base de deduplicação. */
+/**
+ * Só dígitos, sem o DDI — base de deduplicação (`telefoneNorm`).
+ *
+ * Passa por `chaveTelefone` primeiro, que sabe tirar o 55 sem estragar DDD 55; o corte
+ * cru em 11 só sobra para entrada que não é telefone (dígito a mais colado, resto de
+ * planilha), onde antes era o único comportamento.
+ */
 export function normalizarTelefone(v: string): string {
-  return (v ?? "").replace(/\D/g, "").slice(0, 11);
+  return chaveTelefone(v)?.curto ?? (v ?? "").replace(/\D/g, "").slice(0, 11);
 }
 
 /**
  * Telefone no formato que o wa.me espera: 55 + DDD + número, só dígitos.
- * Tolera quem já guardou com o 55 na frente. Devolve null quando não dá pra
- * montar um número discável (curto demais, vazio, lixo).
+ * Devolve null quando não dá pra montar um número discável.
  */
 export function telefoneWhatsApp(v: string): string | null {
-  let d = (v ?? "").replace(/\D/g, "");
-  if (d.startsWith("55") && (d.length === 12 || d.length === 13)) d = d.slice(2);
-  if (d.length !== 10 && d.length !== 11) return null;
-  return `55${d}`;
+  return chaveTelefone(v)?.wa ?? null;
 }
 
 /** Iniciais a partir do nome (até 2 letras). */

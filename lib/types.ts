@@ -41,6 +41,11 @@ export interface Cliente {
   telefone: string;
   /** Telefone só dígitos (ex.: "11990000000") — base de deduplicação; o booking já grava. */
   telefoneNorm?: string;
+  /**
+   * Id do contato deste cliente no espelho do WhatsApp (`wa_<55…>`). É o vínculo guardado
+   * entre o cadastro e a conversa — ver lib/canal/vinculo.ts.
+   */
+  waContactId?: string;
   /** CPF só dígitos (11) — identificador forte; obrigatório na importação em massa. */
   cpf?: string;
   /**
@@ -139,7 +144,8 @@ export interface Agendamento {
   inicio: string; // "HH:MM"
   duracaoMin: number;
   status: AgendamentoStatus;
-  origem?: "admin" | "booking";
+  /** "whatsapp" = nasceu de uma sugestão do atendente automático, confirmada por gente. */
+  origem?: "admin" | "booking" | "whatsapp";
   observacoes?: string; // texto livre, editável no painel de detalhe
   /** Conclusão coberta pela assinatura do cliente (atendimento R$ 0; ver selectors). */
   cobertoPorPlano?: boolean;

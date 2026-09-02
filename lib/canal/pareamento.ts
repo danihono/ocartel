@@ -8,17 +8,14 @@
 
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
+import { uidDaBarbearia } from "./uid";
 
 /** Validade do doc de comando — casada com o TTL nativo esperado pelo daemon. */
 const COMANDO_TTL_MS = 3_600_000;
 
-/**
- * O `uid` da sessão no daemon. NÃO é um usuário do Firebase Auth: o daemon usa isso
- * apenas como chave de caminho, e quem escreve na fila é sempre o Admin SDK.
- */
-export function uidDaBarbearia(tenantId: string): string {
-  return `barbearia-${tenantId}`;
-}
+// Mora em ./uid.ts porque o navegador também precisa dela (ver o comentário de lá);
+// reexportado aqui para quem já importava daqui continuar funcionando.
+export { uidDaBarbearia } from "./uid";
 
 export type StatusPareamento =
   | "desconectado"
