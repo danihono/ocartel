@@ -9,7 +9,7 @@
 // login reconferido em `identitytoolkit` e todos os listeners do Firestore
 // reabertos — ~300 ms de tela vazia a cada troca de aba.
 //
-// Como as seis telas já ficam montadas ao mesmo tempo (components/admin/Tela.tsx),
+// Como as telas já ficam montadas ao mesmo tempo (components/admin/Tela.tsx),
 // trocar de aba não precisa de navegação nenhuma: basta trocar qual está visível
 // e atualizar a URL com `history.pushState`. Sem requisição RSC, não há o que a
 // CDN atrapalhar — a troca fica instantânea independente de como o Hosting se

@@ -4,7 +4,7 @@
 //
 // Antes, trocar de aba remontava a tela inteira: o DOM era jogado fora e
 // recriado, os useState locais eram perdidos e todos os useEffect re-executavam.
-// É isso que dava a sensação de reload. Aqui as seis telas são montadas uma vez
+// É isso que dava a sensação de reload. Aqui as telas são montadas uma vez
 // e a troca vira um toggle de `display`.
 //
 // Dois detalhes fazem isso valer a pena:
@@ -20,7 +20,7 @@
 //    então salvamos ao esconder e restauramos antes do paint ao mostrar.
 //
 // 3. Montagem preguiçosa. Uma aba só é construída na primeira vez que é aberta —
-//    abrir o painel não paga o custo das seis de uma vez. Depois disso ela nunca
+//    abrir o painel não paga o custo de todas de uma vez. Depois disso ela nunca
 //    mais é desmontada, e voltar nela é só o toggle de `display`.
 
 import { useLayoutEffect, useRef, type ReactNode } from "react";

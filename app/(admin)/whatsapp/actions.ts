@@ -1,0 +1,107 @@
+"use server";
+
+// Server actions da tela de WhatsApp.
+//
+// A tela LÊ o espelho direto do Firestore (ao vivo, liberado por firestore.rules), mas
+// ESCREVE só por aqui: enfileirar comando para o daemon e mexer no contato exigem o Admin
+// SDK, e o navegador não pode ganhar essa caneta. Toda action passa por
+// `exigirQuemGerencia` antes de qualquer efeito.
+
+import { adminDb } from "@/lib/firebase/admin";
+import { comoResultado, exigirQuemGerencia, type Resultado } from "@/lib/canal/autorizacao";
+import { canalDoTenant, garantirContato, type EnvioResultado } from "@/lib/canal";
+import { uidDaBarbearia } from "@/lib/canal/uid";
+import { vincular } from "@/lib/canal/vinculo";
+import { chaveTelefone } from "@/lib/telefone";
+
+/** Quanto a tela espera pelo daemon antes de deixar o espelho terminar a história. */
+const ESPERA_ENVIO_MS = 12_000;
+
+/**
+ * Cria a conversa de UM cliente do cadastro e grava o vínculo. Não envia nada.
+ *
+ * O telefone é lido do Firestore aqui dentro, e não recebido do navegador: uma action é
+ * endpoint acessível, e aceitar telefone do cliente transformaria isto num jeito de criar
+ * contato para qualquer número.
+ *
+ * Idempotente — o id do contato é determinístico, então clicar duas vezes não duplica.
+ */
+export async function acaoAdicionarConversa(
+  idToken: string,
+  tenantId: string,
+  clienteId: string,
+): Promise<Resultado & { contactId?: string }> {
+  try {
+    await exigirQuemGerencia(idToken, tenantId);
+
+    const snap = await adminDb.doc(`tenants/${tenantId}/clientes/${clienteId}`).get();
+    if (!snap.exists) return { ok: false, erro: "Cliente não encontrado." };
+
+    const chave = chaveTelefone(String(snap.get("telefone") ?? snap.get("telefoneNorm") ?? ""));
+    if (!chave) return { ok: false, erro: "Este cliente não tem um telefone válido no cadastro." };
+
+    const contactId = await garantirContato(uidDaBarbearia(tenantId), chave.wa, {
+      nome: String(snap.get("nome") ?? ""),
+      clienteId,
+      tenantId,
+    });
+    await vincular(tenantId, clienteId, chave.wa);
+
+    return { ok: true, contactId };
+  } catch (err) {
+    return comoResultado(err);
+  }
+}
+
+/**
+ * Manda uma mensagem escrita por uma pessoa.
+ *
+ * Espera a resposta do daemon por alguns segundos, ao contrário dos envios automáticos
+ * (confirmação, cobrança), que são fire-and-forget: aqui tem alguém olhando a tela, e os
+ * erros que importam — WhatsApp desconectado, número que não existe — voltam em menos de
+ * um segundo. Se estourar a espera, `pendente` avisa que ainda pode dar certo, e a
+ * mensagem aparece na conversa quando o daemon a gravar no espelho.
+ */
+export async function acaoEnviarMensagem(
+  idToken: string,
+  tenantId: string,
+  telefone: string,
+  texto: string,
+  clienteId?: string,
+): Promise<EnvioResultado> {
+  try {
+    await exigirQuemGerencia(idToken, tenantId);
+
+    const corpo = texto.trim();
+    if (!corpo) return { ok: false, erro: "Escreva a mensagem antes de enviar." };
+    if (corpo.length > 4000) return { ok: false, erro: "Mensagem longa demais para o WhatsApp." };
+    if (!chaveTelefone(telefone)) return { ok: false, erro: "Número inválido." };
+
+    let nome: string | undefined;
+    if (clienteId) {
+      const snap = await adminDb.doc(`tenants/${tenantId}/clientes/${clienteId}`).get();
+      if (snap.exists) {
+        nome = String(snap.get("nome") ?? "");
+        await vincular(tenantId, clienteId, telefone);
+      }
+    }
+
+    const canal = await canalDoTenant(tenantId);
+    return await canal.enviarMensagem(telefone, corpo, { nome, clienteId, aguardarMs: ESPERA_ENVIO_MS });
+  } catch (err) {
+    return comoResultado(err);
+  }
+}
+
+/** Zera o contador de não lidas ao abrir a conversa (quem incrementa é o daemon). */
+export async function acaoMarcarLida(idToken: string, tenantId: string, contactId: string): Promise<Resultado> {
+  try {
+    await exigirQuemGerencia(idToken, tenantId);
+    await adminDb
+      .doc(`users/${uidDaBarbearia(tenantId)}/contacts/${contactId}`)
+      .set({ unreadCount: 0 }, { merge: true });
+    return { ok: true };
+  } catch (err) {
+    return comoResultado(err);
+  }
+}

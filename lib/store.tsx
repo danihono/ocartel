@@ -40,6 +40,8 @@ export interface TelasUi {
   /** `dateISO: null` = hoje, resolvido no render pelo relógio (nunca envelhece). */
   agenda: { dateISO: string | null; view: "dia" | "semana" | "mes"; busca: string };
   clientes: { busca: string; filtro: FiltroCliente; selId: string | null; ordem: OrdemCliente };
+  /** `conversaId` é o id do contato no espelho (`wa_<55…>`), não o id do cliente. */
+  whatsapp: { busca: string; conversaId: string | null };
   pagamentos: { busca: string; filtro: FiltroTransacao; tipo: FiltroTipoCobranca };
   planos: { aba: "servicos" | "planos" };
 }
@@ -47,6 +49,7 @@ export interface TelasUi {
 export const telasIniciais: TelasUi = {
   agenda: { dateISO: null, view: "dia", busca: "" },
   clientes: { busca: "", filtro: "Todos", selId: null, ordem: ORDEM_CLIENTE_PADRAO },
+  whatsapp: { busca: "", conversaId: null },
   pagamentos: { busca: "", filtro: "Todas", tipo: "todos" },
   planos: { aba: "servicos" },
 };

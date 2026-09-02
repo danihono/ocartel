@@ -14,6 +14,7 @@ import { saudacaoCompleta } from "@/lib/pessoa";
 import { TelaAgenda } from "@/components/admin/telas/Agenda";
 import { TelaClientes } from "@/components/admin/telas/Clientes";
 import { TelaConfiguracoes } from "@/components/admin/telas/Configuracoes";
+import { TelaWhatsapp } from "@/components/admin/telas/Whatsapp";
 import { TelaDashboard } from "@/components/admin/telas/Dashboard";
 import { TelaPagamentos } from "@/components/admin/telas/Pagamentos";
 import { TelaPlanos } from "@/components/admin/telas/Planos";
@@ -23,6 +24,7 @@ import { TelaPlanos } from "@/components/admin/telas/Planos";
 const titles: Record<string, [string, string]> = {
   "/agenda": ["Operação", "Agenda"],
   "/clientes": ["Relacionamento", "Clientes"],
+  "/whatsapp": ["Relacionamento", "WhatsApp"],
   "/planos": ["Catálogo", "Planos & Serviços"],
   "/pagamentos": ["Financeiro", "Pagamentos"],
   "/configuracoes": ["Conta", "Configurações"],
@@ -61,7 +63,7 @@ function PainelAdmin({ children }: { children: React.ReactNode }) {
         <Sidebar active={path} />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
           <Topbar eyebrow={eyebrow} title={title} />
-          {/* As seis telas ficam montadas o tempo todo; a rota só decide qual
+          {/* As telas ficam montadas o tempo todo; a rota só decide qual
               está visível. Ver components/admin/Tela.tsx. Os page.tsx de cada
               rota são stubs que renderizam null. */}
           <div style={{ flex: 1, minHeight: 0, background: c.bg }}>
@@ -73,6 +75,9 @@ function PainelAdmin({ children }: { children: React.ReactNode }) {
             </Tela>
             <Tela ativa={path === "/clientes"}>
               <TelaClientes />
+            </Tela>
+            <Tela ativa={path === "/whatsapp"}>
+              <TelaWhatsapp />
             </Tela>
             <Tela ativa={path === "/planos"}>
               <TelaPlanos />

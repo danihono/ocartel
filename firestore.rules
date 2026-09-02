@@ -47,6 +47,19 @@ service cloud.firestore {
         && (!('alertaEnviadoEm' in resource.data) || novo.alertaEnviadoEm == resource.data.alertaEnviadoEm);
     }
 
+    // O espelho das conversas de WhatsApp vive em users/barbearia-{tenantId}/contacts/**,
+    // escrito pelo daemon (Baileys) com o Admin SDK. "barbearia-{t}" NÃO é um usuário do
+    // Firebase Auth: é só a chave de caminho que o daemon usa por sessão.
+    //
+    // A tela de WhatsApp lê isso AO VIVO, direto do navegador — se dependesse de polling
+    // por server action, a resposta do cliente só apareceria no próximo tique. Escrever
+    // continua sendo exclusividade do servidor: aqui só há `read`.
+    //
+    // isSuper() vem primeiro porque um superAdmin não tem tenantId no perfil.
+    function podeVerEspelho(uid) {
+      return isSuper() || (signedIn() && uid == 'barbearia-' + uDoc().tenantId);
+    }
+
     // Perfil do usuário. Auto-cadastro só pode criar a si mesmo como 'admin'.
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isSuper());
@@ -58,6 +71,13 @@ service cloud.firestore {
             && request.resource.data.role == resource.data.role
             && request.resource.data.tenantId == resource.data.tenantId);
       allow delete: if isSuper();
+
+      match /contacts/{contactId} {
+        allow read: if podeVerEspelho(uid);
+        match /messages/{msgId} {
+          allow read: if podeVerEspelho(uid);
+        }
+      }
     }
 
     // Reserva de slug público (slug -> tenantId) para a página /book/[slug].

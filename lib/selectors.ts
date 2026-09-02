@@ -136,7 +136,8 @@ export function selectKpiAgendamentosHoje(state: AppState, dateISO: string): { t
   return { total: dia.length, aguardando: dia.filter((a) => a.status === "agendado").length };
 }
 
-function normaliza(s: string): string {
+/** Minúsculas e sem acento — a base de toda busca por texto do painel. */
+export function normaliza(s: string): string {
   return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
