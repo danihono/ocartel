@@ -5,8 +5,29 @@
       "collectionGroup": "waCommands",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "ASCENDING" }
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "//": "O daemon veio do CRM Titãs e SEMPRE liga o worker de mensagens agendadas (startScheduledMessageWorker), mesmo o Cartel não usando essa função. Sem este índice ele falha de 5 em 5 segundos com FAILED_PRECONDITION e enche o log, escondendo qualquer erro de verdade. COLLECTION e não COLLECTION_GROUP: a query é users/{uid}/scheduledMessages de um uid por vez.",
+      "collectionGroup": "scheduledMessages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dueAt",
+          "order": "ASCENDING"
+        }
       ]
     }
   ],

@@ -47,7 +47,13 @@ e mexer no contato exigem o Admin SDK, e isso mora nas server actions
 (`app/(admin)/whatsapp/actions.ts`), atrás da mesma verificação de dono do pareamento.
 
 > **Sem publicar as regras a tela abre vazia.** Depois de subir esta versão:
-> `firebase deploy --only firestore:rules`
+> `firebase deploy --only firestore:indexes,firestore:rules`
+>
+> Os índices vão junto porque o daemon precisa de um deles: ele é o código do CRM Titãs e
+> **sempre** liga o worker de mensagens agendadas, mesmo o Cartel não usando essa função.
+> Sem o índice de `scheduledMessages`, ele falha de 5 em 5 segundos com
+> `FAILED_PRECONDITION` — não quebra o espelho nem o envio, mas enche o log e esconde
+> qualquer erro de verdade.
 
 ## O vínculo com o cadastro
 
@@ -81,4 +87,5 @@ WhatsApp. Ver `lib/telefone.ts`.
 | "Serviço de WhatsApp fora do ar" | o daemon na VPS caiu — `whatsappDaemon/heartbeat` parou de bater |
 | "WhatsApp não conectado" | parear em **Configurações** (o QR mora lá) |
 | Mensagem presa em "enviando…" | o comando ficou `pending` em `users/barbearia-{t}/waCommands` — daemon fora do ar ou sem sessão |
+| Log do daemon repetindo `FAILED_PRECONDITION` | falta o índice de `scheduledMessages` — publique os índices |
 | Conversa duplicada para a mesma pessoa | o casamento por `whatsappDigits`/`waJid` falhou; conferir os dois docs em `contacts` |
