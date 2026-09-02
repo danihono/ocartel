@@ -65,28 +65,61 @@ conversa.
 
 ## Ligar
 
-### 1. Chaves
+### 1. A chave do Gemini
 
-| Onde | Variável | O que é |
-|---|---|---|
-| Site | `GEMINI_API_KEY` | chave do Google AI Studio |
-| Site | `IA_SECRET` | segredo compartilhado com a Function |
-| Site (opcional) | `GEMINI_MODEL` | padrão `gemini-2.5-flash` |
-| Function | `IA_SECRET` (secret) | o mesmo valor |
-| Function | `SITE_URL` (param) | a URL pública do site |
+[aistudio.google.com/apikey](https://aistudio.google.com/apikey) → *Create API key*. Dá
+para criar dentro do projeto `ocartel-497f8`, o que mantém a cobrança no mesmo lugar. A
+chave aparece inteira uma vez só.
+
+### 2. Criar os dois segredos
 
 ```bash
+firebase functions:secrets:set GEMINI_API_KEY
 firebase functions:secrets:set IA_SECRET
-firebase deploy --only functions,firestore:rules
 ```
 
-### 2. Ligar no painel
+O `IA_SECRET` é a senha que o site e a Function usam para se reconhecer — ninguém digita
+isso em lugar nenhum, então invente algo longo e aleatório.
+
+**Por que Secret Manager e não `.env.local`:** o site vai ao ar pelo Firebase Hosting com
+`frameworksBackend`, então o SSR roda numa Cloud Function. `.env.local` vale só na sua
+máquina; a função em produção só enxerga um segredo que esteja declarado em
+`firebase.json` (`hosting.frameworksBackend.secrets`) — e já está.
+
+> **A ordem importa.** Segredo declarado em `firebase.json` que ainda não existe no Secret
+> Manager faz o `firebase deploy --only hosting` **falhar**. Crie os dois antes de publicar.
+
+### 3. Publicar
+
+```bash
+npm install
+npm run build
+firebase deploy --only hosting,functions,firestore:rules
+```
+
+O `SITE_URL` que a Function usa para avisar o site já está versionado em `functions/.env`
+— não é segredo, é o endereço público.
+
+### 4. Ligar no painel
 
 **Configurações → Atendente automático**. Ligado, ele responde **qualquer número** que
 escrever.
 
 > Com número de teste, teste com o seu próprio celular antes de apontar para o número da
 > barbearia de verdade.
+
+### Quando não responder
+
+```bash
+firebase functions:log --only atendenteWhatsapp
+```
+
+| no log | o que é |
+|---|---|
+| `GEMINI_API_KEY não configurada` | o segredo não chegou no site — refazer o passo 2 e republicar o hosting |
+| `site respondeu 401` | o `IA_SECRET` do site e o da Function não batem |
+| `SITE_URL não configurada` | o `functions/.env` não foi para o deploy |
+| nada, silêncio total | o interruptor está desligado, ou a conversa está pausada, ou caiu num freio (ver a tabela acima) |
 
 ## Custo
 
