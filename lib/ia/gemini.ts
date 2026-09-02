@@ -56,7 +56,10 @@ async function gerar(instrucoes: string, turnos: Turno[], ferramentas: Ferrament
       systemInstruction: { parts: [{ text: instrucoes }] },
       contents: turnos,
       ...(ferramentas.length ? { tools: [{ functionDeclarations: ferramentas }] } : {}),
-      generationConfig: { temperature: 0.4, maxOutputTokens: 500 },
+      // O teto é generoso porque nos modelos com raciocínio ele cobre o pensamento ANTES
+      // da resposta: apertado, o modelo gasta a cota pensando e devolve texto vazio — que
+      // aqui vira silêncio no WhatsApp de alguém.
+      generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
     }),
   });
 
@@ -96,10 +99,15 @@ export interface ParamsConversa {
  * quem está esperando resposta no WhatsApp.
  */
 export async function conversar(p: ParamsConversa): Promise<{ texto: string; usadas: ChamadaFerramenta[] }> {
-  const turnos: Turno[] = p.historico.map((t) => ({
+  // A conversa precisa começar por quem escreveu de fora. Muita conversa da barbearia
+  // começa com uma mensagem NOSSA (a confirmação automática do dia, por exemplo), e mandar
+  // isso como primeiro turno é um histórico que começa pela resposta.
+  const primeiroDoCliente = p.historico.findIndex((t) => t.de === "cliente");
+  const turnos: Turno[] = (primeiroDoCliente < 0 ? [] : p.historico.slice(primeiroDoCliente)).map((t) => ({
     role: t.de === "cliente" ? "user" : "model",
     parts: [{ text: t.texto }],
   }));
+  if (turnos.length === 0) return { texto: "", usadas: [] };
 
   const usadas: ChamadaFerramenta[] = [];
   const maxRodadas = p.maxRodadas ?? 3;

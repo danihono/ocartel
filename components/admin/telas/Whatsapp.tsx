@@ -134,11 +134,13 @@ export function TelaWhatsapp() {
     [conversas, state.clientes, buscaAdd],
   );
 
-  const aberta: ItemConversa | null = lista.conversas.find((i) => i.conversa.id === conversaId) ?? null;
-  // Conversa aberta que a busca escondeu ainda precisa ser encontrável para o painel da
-  // direita — senão digitar na busca esvaziaria a conversa que está aberta.
-  const abertaBruta =
-    aberta ?? (conversaId ? (montarLista(conversas, state.clientes, "").conversas.find((i) => i.conversa.id === conversaId) ?? null) : null);
+  // Conversa aberta que a busca escondeu ainda precisa aparecer no painel da direita —
+  // senão digitar na busca esvaziaria a conversa que está aberta. Por isso a busca daqui é
+  // na lista SEM filtro (memoizada: refazê-la a cada tecla custaria a base inteira).
+  const todas = useMemo(() => montarLista(conversas, state.clientes, "").conversas, [conversas, state.clientes]);
+  const abertaBruta: ItemConversa | null = conversaId
+    ? (todas.find((i) => i.conversa.id === conversaId) ?? null)
+    : null;
 
   // Zera o "não lidas" ao abrir. Quem incrementa é o daemon, então quem zera precisa ser
   // o servidor: as regras liberam só leitura do espelho para o navegador.
