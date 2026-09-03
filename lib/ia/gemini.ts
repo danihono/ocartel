@@ -46,7 +46,10 @@ function modelo(): string {
 }
 
 async function gerar(instrucoes: string, turnos: Turno[], ferramentas: Ferramenta[]): Promise<RespostaModelo> {
-  const chave = process.env.GEMINI_API_KEY;
+  // `.trim()` não é preciosismo: um segredo colado no terminal costuma vir com quebra de
+  // linha no fim, e ela iria inteira no cabeçalho. O Google devolve "API key not valid",
+  // que acusa a chave quando o culpado é o espaço — um erro que some por semanas.
+  const chave = process.env.GEMINI_API_KEY?.trim();
   if (!chave) throw new IaIndisponivel("GEMINI_API_KEY não configurada.");
 
   const resp = await fetch(`${ENDPOINT}/${modelo()}:generateContent`, {
