@@ -23,11 +23,14 @@ import { useToast } from "@/components/ui/Toast";
 import { uidDaBarbearia } from "@/lib/canal/uid";
 import { subscribeConversas, subscribeMensagens, type Conversa, type MensagemWa } from "@/lib/whatsapp/espelho";
 import { montarLista, waDoCliente, type ItemConversa } from "@/lib/whatsapp/lista";
+import { iaEmContato, sugestoesPorConversa } from "@/lib/whatsapp/sinais";
 import { acaoAdicionarConversa, acaoEnviarMensagem, acaoMarcarLida } from "@/app/(admin)/whatsapp/actions";
 import { acaoConsultarPareamento } from "@/app/(admin)/configuracoes/actions";
 import { acaoPausarIa } from "@/app/(admin)/whatsapp/actions-sugestao";
 import { useNavegacao } from "@/components/admin/navegacao";
+import { isoParaDiaMes } from "@/lib/date";
 import { CardSugestao } from "@/components/admin/CardSugestao";
+import type { Sugestao } from "@/lib/types";
 import * as repo from "@/lib/firebase/repos";
 
 const eyebrow = { fontSize: 11, letterSpacing: 0.7, textTransform: "uppercase" as const, color: c.ink3, fontWeight: 600 };
@@ -86,8 +89,11 @@ export function TelaWhatsapp() {
   const [buscaAdd, setBuscaAdd] = useState("");
   const [adicionando, setAdicionando] = useState<string | null>(null);
   const [conexao, setConexao] = useState<{ status: string; numero: string | null; daemonOnline: boolean } | null>(null);
-  const [estadoConversa, setEstadoConversa] = useState<repo.EstadoConversa | null>(null);
+  const [estados, setEstados] = useState<Record<string, repo.EstadoConversa>>({});
   const [mexendoNaIa, setMexendoNaIa] = useState(false);
+  // O selo "IA em contato" expira sozinho (ver lib/whatsapp/sinais.ts). Numa lista parada
+  // nenhum snapshot chega para redesenhar, então o relógio precisa bater por conta própria.
+  const [agora, setAgora] = useState(() => Date.now());
 
   const uid = tenantId ? uidDaBarbearia(tenantId) : null;
   const fimDaConversa = useRef<HTMLDivElement>(null);
@@ -121,12 +127,17 @@ export function TelaWhatsapp() {
   }, [uid, conversaId]);
 
   useEffect(() => {
-    if (!tenantId || !conversaId) {
-      setEstadoConversa(null);
+    if (!tenantId) {
+      setEstados({});
       return;
     }
-    return repo.conversas.subscribeOne(tenantId, conversaId, setEstadoConversa);
-  }, [tenantId, conversaId]);
+    return repo.conversas.subscribeTodas(tenantId, setEstados);
+  }, [tenantId]);
+
+  useEffect(() => {
+    const t = setInterval(() => setAgora(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   const lista = useMemo(() => montarLista(conversas, state.clientes, busca), [conversas, state.clientes, busca]);
   const listaAdd = useMemo(
@@ -152,9 +163,10 @@ export function TelaWhatsapp() {
     })().catch(() => {});
   }, [user, tenantId, conversaId, abertaBruta?.conversa.unreadCount]);
 
+  const sugestoesPorId = useMemo(() => sugestoesPorConversa(state.sugestoes), [state.sugestoes]);
   const sugestoesDaConversa = useMemo(
-    () => state.sugestoes.filter((s) => s.contactId === conversaId),
-    [state.sugestoes, conversaId],
+    () => (conversaId ? (sugestoesPorId.get(conversaId) ?? []) : []),
+    [sugestoesPorId, conversaId],
   );
 
   useEffect(() => {
@@ -188,7 +200,7 @@ export function TelaWhatsapp() {
   }
 
   const iaLigada = state.config.ia?.ativa === true;
-  const iaPausada = (estadoConversa?.iaPausadaAte ?? 0) > Date.now();
+  const iaPausada = ((conversaId ? estados[conversaId]?.iaPausadaAte : 0) ?? 0) > Date.now();
 
   async function alternarIa() {
     if (!user || !tenantId || !conversaId || mexendoNaIa) return;
@@ -242,26 +254,28 @@ export function TelaWhatsapp() {
   const conectado = conexao?.status === "conectado";
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 18, height: "100%", maxWidth: 1600 }}>
+    // A lista é uma coluna de LEITURA: nome, prévia e selos. Quem trabalha é a conversa,
+    // então a lista ganha só o que precisa (largura fixa) e o resto sobra para o papo.
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(230px, 290px) 1fr", gap: 16, height: "100%", maxWidth: 1600 }}>
       {/* ---- Lista de conversas ---- */}
       <div style={painel}>
-        <div style={{ padding: "18px 20px 14px", borderBottom: `1px solid ${c.borderSoft}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-            <span style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.inkTitle }}>Conversas</span>
-            <span style={{ fontSize: 12, color: c.ink3, background: c.surfaceWarm, borderRadius: 999, padding: "2px 9px", fontWeight: 600 }}>
+        <div style={{ padding: "14px 14px 12px", borderBottom: `1px solid ${c.borderSoft}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 9 }}>
+            <span style={{ fontFamily: font.serif, fontSize: 15.5, fontWeight: 600, color: c.inkTitle }}>Conversas</span>
+            <span style={{ fontSize: 11.5, color: c.ink3, background: c.surfaceWarm, borderRadius: 999, padding: "1px 8px", fontWeight: 600 }}>
               {conversas.length}
             </span>
           </div>
 
           <StatusConexao conexao={conexao} onConfigurar={() => ir("/configuracoes")} />
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: c.surfaceWarm, border: `1px solid ${c.border}`, borderRadius: 10, padding: "9px 13px", margin: "12px 0 10px" }}>
-            <span style={{ width: 13, height: 13, border: `1.6px solid ${c.ink4}`, borderRadius: "50%", display: "inline-block", flex: "none" }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 7, background: c.surfaceWarm, border: `1px solid ${c.border}`, borderRadius: 9, padding: "7px 10px", margin: "10px 0 8px" }}>
+            <span style={{ width: 12, height: 12, border: `1.6px solid ${c.ink4}`, borderRadius: "50%", display: "inline-block", flex: "none" }} />
             <input
               value={busca}
               onChange={(e) => setTela({ busca: e.target.value })}
               placeholder="Buscar conversa ou cliente…"
-              style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontSize: 13, color: c.inkTitle, fontFamily: font.sans }}
+              style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontSize: 12.5, color: c.inkTitle, fontFamily: font.sans }}
             />
           </div>
 
@@ -273,20 +287,22 @@ export function TelaWhatsapp() {
               cursor: "pointer",
               background: addOpen ? c.brassTint : c.surface,
               color: c.inkTitle,
-              padding: "9px 12px",
-              borderRadius: 10,
-              fontSize: 12.5,
+              padding: "8px 10px",
+              borderRadius: 9,
+              fontSize: 12,
               fontWeight: 600,
               textAlign: "left",
               display: "flex",
               alignItems: "center",
-              gap: 8,
+              gap: 7,
             }}
           >
-            <span style={{ color: c.brassDeep, fontWeight: 800 }}>{addOpen ? "×" : "+"}</span>
-            {addOpen ? "Fechar" : "Adicionar cliente"}
+            <span style={{ flex: "none", color: c.brassDeep, fontWeight: 800 }}>{addOpen ? "×" : "+"}</span>
+            <span style={{ flex: "none" }}>{addOpen ? "Fechar" : "Adicionar cliente"}</span>
             <span style={{ flex: 1 }} />
-            <span style={{ fontSize: 11.5, color: c.ink3, fontWeight: 600 }}>
+            {/* Numa coluna estreita este contador é o primeiro a não caber — que ele encolha
+                em vez de empurrar o rótulo da ação para fora. */}
+            <span style={{ minWidth: 0, fontSize: 11, color: c.ink3, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {lista.totalSemConversa === 0
                 ? "todos já têm conversa"
                 : `${lista.totalSemConversa} sem conversa`}
@@ -314,6 +330,8 @@ export function TelaWhatsapp() {
             {lista.conversas.map((item) => {
               const ativa = item.conversa.id === conversaId;
               const naoLidas = item.conversa.unreadCount ?? 0;
+              const comIa = iaLigada && iaEmContato(estados[item.conversa.id], agora);
+              const pendentesAqui = sugestoesPorId.get(item.conversa.id) ?? [];
               return (
                 <button
                   key={item.conversa.id}
@@ -327,23 +345,24 @@ export function TelaWhatsapp() {
                     background: ativa ? "rgba(14,163,122,0.12)" : "transparent",
                     display: "flex",
                     alignItems: "center",
-                    gap: 12,
-                    padding: "13px 18px",
+                    gap: 10,
+                    padding: "11px 12px",
                     borderBottom: `1px solid ${c.borderSoft}`,
                   }}
                 >
-                  <Retrato item={item} size={38} />
+                  <Retrato item={item} size={34} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                      <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: c.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 600, color: c.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {item.nome}
                       </span>
+                      {comIa ? <SeloIa /> : null}
                       {item.conversa.lastMessageAt ? (
-                        <span style={{ flex: "none", fontSize: 11, color: c.ink3 }}>{diaLabel(item.conversa.lastMessageAt)}</span>
+                        <span style={{ flex: "none", fontSize: 10.5, color: c.ink3 }}>{diaLabel(item.conversa.lastMessageAt)}</span>
                       ) : null}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-                      <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: c.ink2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: c.ink2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {item.conversa.lastMessage || "—"}
                       </span>
                       {naoLidas > 0 ? (
@@ -352,6 +371,7 @@ export function TelaWhatsapp() {
                         </span>
                       ) : null}
                     </div>
+                    {pendentesAqui.length ? <SeloSugestao pendentes={pendentesAqui} /> : null}
                     {!item.cliente ? (
                       <div style={{ fontSize: 10.5, color: c.amberText, marginTop: 3, fontWeight: 600 }}>não cadastrado</div>
                     ) : null}
@@ -462,6 +482,76 @@ export function TelaWhatsapp() {
 }
 
 // ---------------------------------------------------------------------------
+
+/**
+ * "Quem está falando com esta pessoa é o atendente automático."
+ *
+ * Fica colado no nome porque é isso que ele qualifica: não é um estado da barbearia (esse
+ * é o interruptor em Configurações), é quem está conduzindo AQUELA conversa. Some sozinho
+ * quando uma pessoa assume ou quando a conversa esfria — ver lib/whatsapp/sinais.ts.
+ */
+function SeloIa() {
+  return (
+    <span
+      title="O atendente automático está conduzindo esta conversa."
+      style={{
+        flex: "none",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 3,
+        background: c.brassSoft,
+        color: c.brassDeep,
+        border: `1px solid ${c.brass}`,
+        borderRadius: 999,
+        padding: "0 5px",
+        fontSize: 9.5,
+        fontWeight: 800,
+        letterSpacing: 0.3,
+        lineHeight: "14px",
+      }}
+    >
+      <span style={{ width: 4, height: 4, borderRadius: "50%", background: c.brass }} />
+      IA
+    </span>
+  );
+}
+
+/**
+ * "Tem horário aqui esperando você confirmar."
+ *
+ * O card inteiro (CardSugestao) continua dentro da conversa, que é onde dá para ler o papo
+ * antes de decidir. Aqui embaixo do nome vai só o aviso — o suficiente para ninguém
+ * precisar abrir conversa por conversa para descobrir onde tem alguém esperando.
+ *
+ * Mostra a sugestão mais próxima; quando há mais de uma, o contador vai junto.
+ */
+function SeloSugestao({ pendentes }: { pendentes: Sugestao[] }) {
+  const proxima = pendentes[0];
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 5,
+        marginTop: 4,
+        border: `1px dashed ${c.brass}`,
+        background: c.brassTint,
+        color: c.brassDeep,
+        borderRadius: 7,
+        padding: "2px 6px",
+        fontSize: 10.5,
+        fontWeight: 700,
+        lineHeight: 1.4,
+      }}
+    >
+      <span style={{ flex: "none" }}>Confirmar</span>
+      <span style={{ flex: 1, minWidth: 0, fontWeight: 600, color: c.ink2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        {isoParaDiaMes(proxima.date)} · {proxima.inicio}
+      </span>
+      {pendentes.length > 1 ? <span style={{ flex: "none" }}>+{pendentes.length - 1}</span> : null}
+    </div>
+  );
+}
 
 function Retrato({ item, size }: { item: ItemConversa; size: number }) {
   // A URL da foto vem do daemon com token de download — abre sem autenticação.

@@ -76,14 +76,24 @@ export interface EstadoConversa {
   iaPausadaAte?: number;
   /** Marcada quando chegou algo que a IA não sabe tratar (mídia sem texto, por exemplo). */
   precisaDeGente?: boolean;
+  /** ISO da última vez que o atendente automático respondeu aqui (ver lib/ia/atender.ts). */
+  ultimaRespostaIa?: string;
 }
 
 export const conversas = {
-  /** Escuta o estado de UMA conversa. Quem escreve é sempre o servidor. */
-  subscribeOne(tenantId: string, contactId: string, cb: (estado: EstadoConversa | null) => void) {
-    return onSnapshot(doc(db, "tenants", tenantId, "conversas", contactId), (s) =>
-      cb(s.exists() ? (s.data() as EstadoConversa) : null),
-    );
+  /**
+   * Escuta o estado de TODAS as conversas de uma vez. Quem escreve é sempre o servidor.
+   *
+   * De uma vez, e não uma por vez, porque quem precisa disso é a LISTA da esquerda: o selo
+   * "IA" vale para cada linha, não só para a conversa aberta. A coleção tem no máximo uma
+   * entrada por conversa (e só nasce quando a IA fala ou alguém pausa), então cabe.
+   */
+  subscribeTodas(tenantId: string, cb: (porConversa: Record<string, EstadoConversa>) => void) {
+    return onSnapshot(col(tenantId, "conversas"), (s) => {
+      const mapa: Record<string, EstadoConversa> = {};
+      for (const d of s.docs) mapa[d.id] = d.data() as EstadoConversa;
+      cb(mapa);
+    });
   },
 };
 
