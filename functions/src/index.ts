@@ -60,7 +60,15 @@ export const atendenteWhatsapp = onDocumentCreated(
         headers: { "content-type": "application/json", "x-ia-secret": IA_SECRET.value() },
         body: JSON.stringify({ uid, contactId, messageId }),
       });
-      if (!resp.ok) logger.warn("site respondeu", resp.status, await resp.text());
+
+      // Registra SEMPRE, e não só no erro. O site responde 200 tanto quando atende quanto
+      // quando decide calar a boca (conversa pausada, teto do dia, chegou mensagem mais
+      // nova, atendente desligado...) — e o motivo vem no corpo. Logando só o erro, um
+      // silêncio proposital ficava indistinguível de um silêncio quebrado, e não havia
+      // onde olhar.
+      const corpo = await resp.text();
+      if (resp.ok) logger.info("site respondeu", resp.status, corpo);
+      else logger.warn("site respondeu", resp.status, corpo);
     } catch (err) {
       // Falhar aqui não pode derrubar nada: a mensagem já está espelhada e visível na tela.
       logger.error("não foi possível avisar o site", err);
