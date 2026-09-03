@@ -45,6 +45,20 @@ function modelo(): string {
   return process.env.GEMINI_MODEL || "gemini-2.5-flash";
 }
 
+/**
+ * Desliga o raciocínio prévio do modelo (família 2.5).
+ *
+ * Ele custa vários segundos em TODA mensagem, e aqui não paga o que cobra: a inteligência
+ * do atendimento está nas ferramentas (que consultam a agenda de verdade) e no prompt, não
+ * na deliberação do modelo. Quem espera é alguém olhando o WhatsApp.
+ */
+const SEM_RACIOCINIO = { thinkingBudget: 0 };
+
+/** O 400 que a família 3.x devolveria para `thinkingBudget` — lá o campo tem outro nome. */
+function reclamouDoRaciocinio(status: number, corpo: string): boolean {
+  return status === 400 && /think/i.test(corpo);
+}
+
 async function gerar(instrucoes: string, turnos: Turno[], ferramentas: Ferramenta[]): Promise<RespostaModelo> {
   // `.trim()` não é preciosismo: um segredo colado no terminal costuma vir com quebra de
   // linha no fim, e ela iria inteira no cabeçalho. O Google devolve "API key not valid",
@@ -52,22 +66,38 @@ async function gerar(instrucoes: string, turnos: Turno[], ferramentas: Ferrament
   const chave = process.env.GEMINI_API_KEY?.trim();
   if (!chave) throw new IaIndisponivel("GEMINI_API_KEY não configurada.");
 
-  const resp = await fetch(`${ENDPOINT}/${modelo()}:generateContent`, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-goog-api-key": chave },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: instrucoes }] },
-      contents: turnos,
-      ...(ferramentas.length ? { tools: [{ functionDeclarations: ferramentas }] } : {}),
-      // O teto é generoso porque nos modelos com raciocínio ele cobre o pensamento ANTES
-      // da resposta: apertado, o modelo gasta a cota pensando e devolve texto vazio — que
-      // aqui vira silêncio no WhatsApp de alguém.
-      generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
-    }),
-  });
+  const chamar = async (comRaciocinio: boolean) =>
+    fetch(`${ENDPOINT}/${modelo()}:generateContent`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": chave },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: instrucoes }] },
+        contents: turnos,
+        ...(ferramentas.length ? { tools: [{ functionDeclarations: ferramentas }] } : {}),
+        generationConfig: {
+          temperature: 0.4,
+          // O teto é generoso porque nos modelos com raciocínio ele cobre o pensamento
+          // ANTES da resposta: apertado, o modelo gasta a cota pensando e devolve texto
+          // vazio — que aqui vira silêncio no WhatsApp de alguém.
+          maxOutputTokens: 2048,
+          ...(comRaciocinio ? {} : { thinkingConfig: SEM_RACIOCINIO }),
+        },
+      }),
+    });
 
+  let resp = await chamar(false);
+
+  // Se o modelo configurado não conhecer esse campo, tenta de novo sem ele. Perder alguns
+  // segundos é muito melhor que a IA emudecer porque alguém trocou o GEMINI_MODEL.
   if (!resp.ok) {
-    throw new IaIndisponivel(`Gemini respondeu ${resp.status}: ${(await resp.text()).slice(0, 300)}`);
+    const corpo = await resp.text();
+    if (!reclamouDoRaciocinio(resp.status, corpo)) {
+      throw new IaIndisponivel(`Gemini respondeu ${resp.status}: ${corpo.slice(0, 300)}`);
+    }
+    resp = await chamar(true);
+    if (!resp.ok) {
+      throw new IaIndisponivel(`Gemini respondeu ${resp.status}: ${(await resp.text()).slice(0, 300)}`);
+    }
   }
 
   const dados = (await resp.json()) as { candidates?: { content?: { parts?: Parte[] } }[] };

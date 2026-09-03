@@ -21,8 +21,12 @@ export const maxDuration = 120;
  * Espera antes de responder. Quem manda "oi", "queria cortar", "pode ser sexta?" em três
  * mensagens seguidas merece UMA resposta ao conjunto, não três respostas atropelando o
  * raciocínio. Ao acordar, só segue quem ainda for a última mensagem da conversa.
+ *
+ * Este número é um equilíbrio, e vai direto para o tempo que o cliente espera. Quatro
+ * segundos cobre a rajada típica de WhatsApp (2 a 4 s entre mensagens emendadas) sem
+ * fazer quem mandou uma frase só esperar à toa. Aumentar agrupa melhor e responde pior.
  */
-const ESPERA_AGRUPAMENTO_MS = 8000;
+const ESPERA_AGRUPAMENTO_MS = 4000;
 
 /** Mensagem mais velha que isso é passado: não se responde histórico. */
 const IDADE_MAXIMA_MS = 5 * 60 * 1000;

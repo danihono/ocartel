@@ -126,6 +126,25 @@ firebase functions:log --only atendenteWhatsapp
 | `SITE_URL não configurada` | o `functions/.env` não foi para o deploy |
 | nada, silêncio total | o interruptor está desligado, ou a conversa está pausada, ou caiu num freio (ver a tabela acima) |
 
+## Quanto tempo até a resposta
+
+Uns 7 a 9 segundos, e o tempo tem partes conhecidas:
+
+| parte | quanto |
+|---|---|
+| espera para agrupar mensagens (`ESPERA_AGRUPAMENTO_MS`) | 4 s |
+| o modelo escrevendo (com o raciocínio desligado) | 1,5 a 3 s |
+| instância acordando, só depois de um tempo parado | ~2 s |
+
+As duas primeiras são reguláveis. Aumentar a espera agrupa melhor rajadas de mensagem e
+responde pior; diminuir faz o contrário. O raciocínio do modelo fica desligado
+(`thinkingConfig.thinkingBudget: 0`) porque a inteligência daqui está nas ferramentas e no
+prompt, não na deliberação — se um dia trocarem o `GEMINI_MODEL` por um modelo que não
+conheça esse campo, o código repete a chamada sem ele em vez de emudecer.
+
+O cold start **não** se resolve com `minInstances: 1`: instância parada é exatamente a
+conta que originou este projeto. Dois segundos não valem uma fatura contínua.
+
 ## Custo
 
 Uma conversa típica são 2 a 5 chamadas ao modelo (a resposta mais as rodadas de
