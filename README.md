@@ -98,7 +98,7 @@ O site vai ao ar pelo **Firebase Hosting** (`firebase.json`, com
 npm run deploy
 ```
 
-Três coisas que não são óbvias:
+Quatro coisas que não são óbvias:
 
 1. **Empurrar para a `main` não publica nada.** O workflow em
    `.github/workflows/ci.yml` roda lint, tipos, testes e build — e para aí. Estar
@@ -112,7 +112,24 @@ Três coisas que não são óbvias:
    falar com `127.0.0.1`. Para publicar, a variável precisa estar vazia ou
    `false`.
 
-3. **O `apphosting.yaml` não participa deste deploy.** Ele é config de Firebase
+3. **Cada computador novo precisa de dois preparos, uma vez.** O deploy por framework fica
+   atrás de uma flag do CLI, guardada por máquina — sem ela o comando morre em *"Cannot
+   deploy a web framework from source"*:
+
+   ```bash
+   firebase experiments:enable webframeworks
+   ```
+
+   E se `firebase deploy --only functions` travar em *"Cannot determine backend
+   specification. Timeout after 10000"*, é o CLI não conseguindo falar com o servidor local
+   que ele mesmo sobe para descobrir as funções — antivírus corporativo costuma deixar isso
+   lento. Na mesma janela:
+
+   ```bash
+   set FUNCTIONS_DISCOVERY_TIMEOUT=60
+   ```
+
+4. **O `apphosting.yaml` não participa deste deploy.** Ele é config de Firebase
    App Hosting (outro produto, que publica sozinho a partir de uma branch). Está
    no repositório, mas o `firebase deploy` ignora — inclusive as variáveis de
    ambiente declaradas nele, que valem só no App Hosting.
