@@ -104,13 +104,17 @@ Quatro coisas que não são óbvias:
    `.github/workflows/ci.yml` roda lint, tipos, testes e build — e para aí. Estar
    na `main` e estar no ar são estados diferentes.
 
-2. **Confira o `.env.local` antes de publicar.** O `firebase deploy` roda o build
-   na sua máquina, então o bundle sai com as variáveis desse arquivo. O
-   `.env.example` — de onde ele normalmente é copiado — traz
-   `NEXT_PUBLIC_USE_EMULATORS=true`; com esse valor, `lib/firebase/config.ts`
-   conecta nos emuladores **no bundle de produção** e o site publicado tenta
-   falar com `127.0.0.1`. Para publicar, a variável precisa estar vazia ou
-   `false`.
+2. **A configuração de produção é versionada, em `.env.production`.** O
+   `firebase deploy` roda o build na sua máquina, então antes era preciso ter um
+   `.env.local` preparado à mão — e quem não tivesse via o build quebrar em
+   `auth/invalid-api-key`. Agora não: as chaves do app Web não são segredo (vão
+   para o navegador de qualquer forma) e estão no repositório.
+
+   **Se você usa emulador**, aí sim precisa de um `.env.local` com
+   `NEXT_PUBLIC_USE_EMULATORS=true` — ele tem precedência. E é justamente por isso
+   que `.env.production` fixa `false` explícito: um `.env.local` de emulador
+   esquecido na máquina de quem publica faria o site publicado tentar falar com
+   `127.0.0.1`.
 
 3. **Cada computador novo precisa de dois preparos, uma vez.** O deploy por framework fica
    atrás de uma flag do CLI, guardada por máquina — sem ela o comando morre em *"Cannot
