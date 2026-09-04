@@ -12,6 +12,10 @@
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { defineSecret, defineString } from "firebase-functions/params";
 import { logger } from "firebase-functions";
+import { getApps, initializeApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
+
+if (!getApps().length) initializeApp();
 
 const IA_SECRET = defineSecret("IA_SECRET");
 const SITE_URL = defineString("SITE_URL");
@@ -38,8 +42,24 @@ export const atendenteWhatsapp = onDocumentCreated(
     const dados = event.data?.data();
     if (!dados) return;
 
-    // Nunca responder a si mesmo — seria um laço com o próprio robô.
-    if (dados.fromMe === true) return;
+    // Mensagem NOSSA: nunca responder a si mesmo — seria um laço com o próprio robô.
+    //
+    // Mas ela carrega uma informação que o CRM não tinha: alguém respondeu essa conversa,
+    // provavelmente pelo celular. O daemon incrementa `unreadCount` no que chega e não tem
+    // como zerá-lo quando a resposta sai por fora do sistema — então o Cartel mostrava
+    // "não lidas" numa conversa que já tinha sido lida E respondida.
+    //
+    // Aqui é o único lugar que vê esse evento no instante em que ele acontece, então é
+    // aqui que o contador se acerta.
+    if (dados.fromMe === true) {
+      if (dados.importedFromHistory !== true) {
+        await getFirestore()
+          .doc(`users/${uid}/contacts/${contactId}`)
+          .set({ unreadCount: 0 }, { merge: true })
+          .catch((err) => logger.warn("não consegui zerar as não lidas", err));
+      }
+      return;
+    }
 
     // Importação de histórico despeja meses de conversa de uma vez. Sem esta linha, a
     // primeira sincronização faria a IA responder tudo aquilo, uma mensagem por vez.

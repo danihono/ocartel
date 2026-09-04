@@ -76,6 +76,8 @@ export interface EstadoConversa {
   iaPausadaAte?: number;
   /** Marcada quando chegou algo que a IA não sabe tratar (mídia sem texto, por exemplo). */
   precisaDeGente?: boolean;
+  /** Quando já pedimos a foto de perfil deste contato — impede pedir de novo a cada abertura. */
+  fotoTentadaEm?: string;
   /** ISO da última vez que o atendente automático respondeu aqui (ver lib/ia/atender.ts). */
   ultimaRespostaIa?: string;
 }

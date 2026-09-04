@@ -117,6 +117,29 @@ export function caminhoMensagem(uid: string, contactId: string, mensagemId: stri
   return `users/${uid}/contacts/${contactId}/messages/${mensagemId}`;
 }
 
+/**
+ * Pede ao daemon a foto de perfil do contato no WhatsApp.
+ *
+ * Contato que o daemon cria sozinho (alguém escreveu para a barbearia) já nasce com foto —
+ * ele busca na criação. O que ele NÃO faz é buscar para contato que já existe, e todo
+ * contato criado por `garantirContato` cai nesse caso: quando a mensagem chega, o daemon
+ * encontra o documento pronto e segue em frente. Por isso quem puxamos do cadastro ficava
+ * eternamente com as iniciais.
+ *
+ * Fire-and-forget: a foto aparece sozinha na tela quando o daemon gravar. Falhar não pode
+ * atrapalhar o envio de mensagem — foto é enfeite, conversa não é.
+ */
+export async function pedirFotoDePerfil(uid: string, contactId: string): Promise<void> {
+  await adminDb.collection(`users/${uid}/waCommands`).add({
+    type: "contact.photoRefresh",
+    args: { contactId },
+    status: "pending",
+    attempts: 0,
+    createdAt: FieldValue.serverTimestamp(),
+    expireAt: Timestamp.fromMillis(Date.now() + COMANDO_TTL_MS),
+  });
+}
+
 /** Espera o daemon gravar o resultado no próprio doc do comando. */
 async function aguardarComando(ref: DocumentReference, limiteMs: number): Promise<EnvioResultado> {
   const fim = Date.now() + limiteMs;

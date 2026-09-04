@@ -24,7 +24,7 @@ import { uidDaBarbearia } from "@/lib/canal/uid";
 import { subscribeConversas, subscribeMensagens, type Conversa, type MensagemWa } from "@/lib/whatsapp/espelho";
 import { montarLista, waDoCliente, type ItemConversa } from "@/lib/whatsapp/lista";
 import { iaEmContato, sugestoesPorConversa } from "@/lib/whatsapp/sinais";
-import { acaoAdicionarConversa, acaoEnviarMensagem, acaoMarcarLida } from "@/app/(admin)/whatsapp/actions";
+import { acaoAdicionarConversa, acaoBuscarFoto, acaoEnviarMensagem, acaoMarcarLida } from "@/app/(admin)/whatsapp/actions";
 import { acaoConsultarPareamento } from "@/app/(admin)/configuracoes/actions";
 import { acaoPausarIa } from "@/app/(admin)/whatsapp/actions-sugestao";
 import { useNavegacao } from "@/components/admin/navegacao";
@@ -168,6 +168,18 @@ export function TelaWhatsapp() {
     () => (conversaId ? (sugestoesPorId.get(conversaId) ?? []) : []),
     [sugestoesPorId, conversaId],
   );
+
+  // Foto de perfil: pede uma vez por contato, ao abrir. O daemon busca no WhatsApp e grava
+  // no espelho, e a foto aparece sozinha pelo snapshot. Contato que o daemon criou (alguém
+  // escreveu para a barbearia) já vem com foto — isto é para quem nós puxamos do cadastro.
+  useEffect(() => {
+    if (!user || !tenantId || !conversaId || !abertaBruta) return;
+    if (abertaBruta.conversa.photoUrl) return;
+    if (estados[conversaId]?.fotoTentadaEm) return;
+    (async () => {
+      await acaoBuscarFoto(await user.getIdToken(), tenantId, conversaId);
+    })().catch(() => {});
+  }, [user, tenantId, conversaId, abertaBruta, estados]);
 
   useEffect(() => {
     fimDaConversa.current?.scrollIntoView({ block: "end" });

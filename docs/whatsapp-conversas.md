@@ -66,6 +66,32 @@ Por que importa: os ids do sistema saem do telefone (`wa_<55…>` para a convers
 o vínculo escrito, a mesma pessoa não vira dois cadastros quando o agendamento chega pelo
 WhatsApp. Ver `lib/telefone.ts`.
 
+## Não lidas, quando a resposta sai pelo celular
+
+O daemon incrementa `unreadCount` no que **chega**, e não tem como zerá-lo quando alguém
+responde por fora do sistema — direto no WhatsApp do celular. O resultado é uma conversa
+marcada como não lida que já tinha sido lida e respondida.
+
+Quem acerta isso é a Cloud Function do atendente: ela vê toda mensagem gravada no espelho,
+inclusive as nossas, e ao ver uma `fromMe` zera o contador daquela conversa. É o único
+ponto que enxerga esse evento no instante em que acontece.
+
+**O que isso NÃO cobre:** ler sem responder. O espelho não guarda confirmação de leitura,
+então uma conversa que a pessoa só abriu no celular continua contando como não lida até
+alguém responder ou abrir a conversa no Cartel.
+
+## Foto de perfil
+
+O daemon busca a foto quando **ele** cria o contato — ou seja, quando alguém escreve para a
+barbearia. Contato que nós criamos (`garantirContato`, ao puxar alguém do cadastro) já
+existe quando a mensagem chega, então ele passa direto e a conversa fica só com as
+iniciais.
+
+A tela resolve pedindo: ao abrir uma conversa sem foto, dispara o comando
+`contact.photoRefresh` — que é do próprio daemon, feito para isso. **Uma vez por contato**,
+marcada em `tenants/{t}/conversas/{contactId}.fotoTentadaEm`: quem não tem foto (ou
+escondeu por privacidade) nunca vai ter, e insistir a cada clique só gastaria a conexão.
+
 ## Detalhes que já custaram caro
 
 - **A lista de conversas não usa `orderBy`.** O Firestore omite do resultado quem não tem

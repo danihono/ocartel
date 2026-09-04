@@ -9,7 +9,7 @@
 
 import { adminDb } from "@/lib/firebase/admin";
 import { comoResultado, exigirQuemGerencia, type Resultado } from "@/lib/canal/autorizacao";
-import { canalDoTenant, garantirContato, type EnvioResultado } from "@/lib/canal";
+import { canalDoTenant, garantirContato, pedirFotoDePerfil, type EnvioResultado } from "@/lib/canal";
 import { uidDaBarbearia } from "@/lib/canal/uid";
 import { vincular } from "@/lib/canal/vinculo";
 import { chaveTelefone, contactIdDoTelefone } from "@/lib/telefone";
@@ -47,6 +47,9 @@ export async function acaoAdicionarConversa(
       tenantId,
     });
     await vincular(tenantId, clienteId, chave.wa);
+
+    // A foto vem depois, sozinha: o daemon busca e grava, e a tela reage ao snapshot.
+    await pedirFotoDePerfil(uidDaBarbearia(tenantId), contactId).catch(() => {});
 
     return { ok: true, contactId };
   } catch (err) {
@@ -94,6 +97,34 @@ export async function acaoEnviarMensagem(
 
     const canal = await canalDoTenant(tenantId);
     return await canal.enviarMensagem(telefone, corpo, { nome, clienteId, aguardarMs: ESPERA_ENVIO_MS });
+  } catch (err) {
+    return comoResultado(err);
+  }
+}
+
+/**
+ * Pede a foto de perfil de uma conversa, no máximo UMA vez por contato.
+ *
+ * O marcador em `tenants/{t}/conversas/{contactId}` é o que impede a tela de pedir de novo
+ * a cada abertura: quem não tem foto no WhatsApp (ou escondeu por privacidade) nunca vai
+ * ter, e insistir a cada clique só gastaria a conexão. Se a busca falhar de vez, a
+ * conversa segue com as iniciais — que é o que já acontecia.
+ */
+export async function acaoBuscarFoto(
+  idToken: string,
+  tenantId: string,
+  contactId: string,
+): Promise<Resultado> {
+  try {
+    await exigirQuemGerencia(idToken, tenantId);
+
+    const ref = adminDb.doc(`tenants/${tenantId}/conversas/${contactId}`);
+    const snap = await ref.get();
+    if (snap.get("fotoTentadaEm")) return { ok: true };
+
+    await ref.set({ fotoTentadaEm: new Date().toISOString() }, { merge: true });
+    await pedirFotoDePerfil(uidDaBarbearia(tenantId), contactId);
+    return { ok: true };
   } catch (err) {
     return comoResultado(err);
   }
