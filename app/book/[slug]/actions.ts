@@ -6,9 +6,20 @@
 //
 // A validação/gravação autoritativa mora em lib/booking-core.ts.
 
+import { headers } from "next/headers";
 import { adminDb } from "@/lib/firebase/admin";
 import { criarAgendamentoValidado, intervalosOcupados, ISO_DATE } from "@/lib/booking-core";
+import { consumir, origemDaRequisicao } from "@/lib/ratelimit";
 import type { IntervaloOcupado } from "@/lib/agenda";
+
+// Porta anônima: sem login, sem App Check, e cada chamada CRIA documento. O teto é
+// generoso para uma pessoa (ninguém marca 8 horários em 10 minutos) e apertado para um
+// script. Ver lib/ratelimit.ts.
+const LIMITE_AGENDAR = { max: 8, janelaSeg: 600 };
+/** Leitura, mais barata e mais frequente: a tela consulta a cada troca de dia. */
+const LIMITE_CONSULTAR = { max: 120, janelaSeg: 600 };
+
+const MUITAS_TENTATIVAS = "Muitas tentativas. Aguarde alguns minutos e tente de novo.";
 
 export interface BookingPayload {
   barbeiroId: string;
@@ -26,6 +37,11 @@ export interface BookingResult {
 
 export async function criarAgendamentoPublico(slug: string, payload: BookingPayload): Promise<BookingResult> {
   if (!slug) return { ok: false, error: "Barbearia não encontrada." };
+
+  const origem = origemDaRequisicao(await headers());
+  if (!(await consumir("book", origem, LIMITE_AGENDAR))) {
+    return { ok: false, error: MUITAS_TENTATIVAS };
+  }
 
   try {
     const slugSnap = await adminDb.collection("slugs").doc(slug).get();
@@ -58,6 +74,7 @@ export async function disponibilidadePublica(
   date: string,
 ): Promise<IntervaloOcupado[]> {
   if (!slug || !barbeiroId || !ISO_DATE.test(date)) return [];
+  if (!(await consumir("disponibilidade", origemDaRequisicao(await headers()), LIMITE_CONSULTAR))) return [];
   try {
     const slugSnap = await adminDb.collection("slugs").doc(slug).get();
     if (!slugSnap.exists) return [];

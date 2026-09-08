@@ -7,7 +7,7 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { canalDoTenant, WhatsAppNaoConfigurado } from "@/lib/canal";
-import { linkConfirmacao, mensagemWhatsApp, montarCodigo } from "@/lib/confirmacao";
+import { linkConfirmacao, mensagemWhatsApp, montarCodigo, tokenConfere } from "@/lib/confirmacao";
 import { telefoneWhatsApp } from "@/lib/clientes-import";
 import { agoraEmBrasilia, deveAvisar, deveDispararAgora } from "@/lib/confirmacao-disparo";
 
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   if (!segredo) {
     return NextResponse.json({ error: "CONFIRMACOES_SECRET não configurado." }, { status: 500 });
   }
-  if (req.headers.get("x-confirmacoes-secret") !== segredo) {
+  if (!tokenConfere(req.headers.get("x-confirmacoes-secret") ?? "", segredo)) {
     return NextResponse.json({ error: "não autorizado" }, { status: 401 });
   }
 

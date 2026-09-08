@@ -9,7 +9,7 @@ import {
   comoResultado,
   exigirQuemGerencia,
   type Resultado,
-} from "@/lib/canal/autorizacao";
+} from "@/lib/autorizacao";
 import {
   desconectarPareamento,
   iniciarPareamento,

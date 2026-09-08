@@ -15,6 +15,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { canalDoTenant, WhatsAppNaoConfigurado, type Canal } from "@/lib/canal";
 import { cobradorDoTenant, CobradorNaoConfigurado, type Cobrador } from "@/lib/cobrador";
 import { telefoneWhatsApp, normalizarCpf, validarCpf } from "@/lib/clientes-import";
+import { tokenConfere } from "@/lib/confirmacao";
 import { mensagemBoleto, mensagemRenovacao } from "@/lib/cobranca-mensagem";
 import {
   agoraEmBrasilia,
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
   if (!segredo) {
     return NextResponse.json({ error: "COBRANCAS_SECRET não configurado." }, { status: 500 });
   }
-  if (req.headers.get("x-cobrancas-secret") !== segredo) {
+  if (!tokenConfere(req.headers.get("x-cobrancas-secret") ?? "", segredo)) {
     return NextResponse.json({ error: "não autorizado" }, { status: 401 });
   }
 

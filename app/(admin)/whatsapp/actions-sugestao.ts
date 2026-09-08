@@ -10,7 +10,7 @@
 // As duas telas (WhatsApp e Agenda) chamam estas mesmas actions.
 
 import { adminDb } from "@/lib/firebase/admin";
-import { comoResultado, exigirQuemGerencia, type Resultado } from "@/lib/canal/autorizacao";
+import { comoResultado, exigirQuemGerencia, type Resultado } from "@/lib/autorizacao";
 import { criarAgendamentoValidado } from "@/lib/booking-core";
 import { canalDoTenant } from "@/lib/canal";
 import { definirPausa } from "@/lib/ia/atender";

@@ -12,6 +12,7 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { atender } from "@/lib/ia/atender";
+import { tokenConfere } from "@/lib/confirmacao";
 
 export const dynamic = "force-dynamic";
 /** A conversa com o modelo pode levar algumas rodadas de ferramenta. */
@@ -33,7 +34,7 @@ const IDADE_MAXIMA_MS = 5 * 60 * 1000;
 
 export async function POST(req: Request) {
   const segredo = process.env.IA_SECRET;
-  if (!segredo || req.headers.get("x-ia-secret") !== segredo) {
+  if (!segredo || !tokenConfere(req.headers.get("x-ia-secret") ?? "", segredo)) {
     return NextResponse.json({ error: "não autorizado" }, { status: 401 });
   }
 

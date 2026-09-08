@@ -9,7 +9,7 @@ import { atividadeSaas, mrr12m, saasKpis } from "@/lib/mock-data";
 import { tenantStatusMeta } from "@/lib/status";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/firebase/auth";
-import { seedDemoTenant } from "@/lib/firebase/bootstrap";
+import { acaoCriarBarbeariaDemo } from "./actions";
 import { useToast } from "@/components/ui/Toast";
 import { TenantDrawer } from "@/components/admin/TenantDrawer";
 import type { Tenant, TenantStatus } from "@/lib/types";
@@ -50,8 +50,10 @@ export default function SuperAdminPage() {
     if (!user || criando) return;
     setCriando(true);
     try {
-      const { tenantId } = await seedDemoTenant({ ownerUid: user.uid, nome: "Barbearia Demo" });
-      enterTenant(tenantId);
+      // Criada pelo servidor: o navegador não escreve mais em `tenants` (ver firestore.rules).
+      const r = await acaoCriarBarbeariaDemo(await user.getIdToken(), "Barbearia Demo");
+      if (!r.ok || !r.tenantId) throw new Error(r.erro);
+      enterTenant(r.tenantId);
       toast("Barbearia demo criada. Abrindo painel…");
       router.push("/dashboard");
     } catch {

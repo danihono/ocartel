@@ -2,8 +2,22 @@ rules_version = '2';
 
 // Modelo multi-tenant: cada usuário tem um doc users/{uid} com { role, tenantId }.
 // O acesso a tenants/{t}/** é liberado quando o tenantId do usuário casa com {t}
-// (ou quando o papel é superAdmin). As escritas de booking público NÃO passam por
-// aqui — elas entram pela server action (Admin SDK), que ignora estas regras.
+// (ou quando o papel é superAdmin).
+//
+// DUAS COISAS QUE PARECEM DETALHE E NÃO SÃO:
+//
+// 1. `users/{uid}` é SOMENTE-LEITURA para o navegador. Quem cria o perfil é o servidor
+//    (app/login/actions.ts, Admin SDK). Enquanto o cliente pôde criar o próprio doc, ele
+//    escolhia o `tenantId` — e escolher o tenantId de outra barbearia dava a ela acesso
+//    total, inclusive à chave do gateway de cobrança em `private/`. Não existe validação
+//    de regra que conserte isso sem o servidor: o cliente é quem propõe o vínculo.
+//
+// 2. `read` cobre `get` E `list`. Uma vitrine pública precisa de `get` (o visitante chega
+//    por um slug que já conhece), nunca de `list` — que entregaria o catálogo inteiro de
+//    barbearias, com dono e faturamento, para quem apontasse o SDK para cá.
+//
+// As escritas de booking público NÃO passam por aqui — elas entram pela server action
+// (Admin SDK), que ignora estas regras.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -19,8 +33,14 @@ service cloud.firestore {
     function owns(tenantId) {
       return signedIn() && uDoc().tenantId == tenantId;
     }
-    function canManage(tenantId) {
+    // Quem ENXERGA a operação da barbearia: admin e barbeiro (e o superAdmin).
+    function podeVer(tenantId) {
       return owns(tenantId) || isSuper();
+    }
+    // Quem MANDA na barbearia: só o admin (e o superAdmin). O barbeiro trabalha na
+    // agenda, mas não mexe no financeiro, no catálogo, nem nas credenciais.
+    function canManage(tenantId) {
+      return (owns(tenantId) && uDoc().role == 'admin') || isSuper();
     }
 
     // ---- Validações de shape/valor (escritas financeiras e de agenda) ----
@@ -46,6 +66,11 @@ service cloud.firestore {
         && (!('boleto' in resource.data) || novo.boleto == resource.data.boleto)
         && (!('alertaEnviadoEm' in resource.data) || novo.alertaEnviadoEm == resource.data.alertaEnviadoEm);
     }
+    // `config/main` alimenta a vitrine pública. Nenhuma chave com cara de credencial pode
+    // acabar ali por engano — o lugar delas é `private/`, que nunca é público.
+    function semSegredo() {
+      return !request.resource.data.keys().hasAny(['apiKey', 'webhookToken', 'token', 'secret', 'senha']);
+    }
 
     // O espelho das conversas de WhatsApp vive em users/barbearia-{tenantId}/contacts/**,
     // escrito pelo daemon (Baileys) com o Admin SDK. "barbearia-{t}" NÃO é um usuário do
@@ -60,16 +85,23 @@ service cloud.firestore {
       return isSuper() || (signedIn() && uid == 'barbearia-' + uDoc().tenantId);
     }
 
-    // Perfil do usuário. Auto-cadastro só pode criar a si mesmo como 'admin'.
+    // Perfil do usuário.
+    //
+    // `create` é NEGADO: o vínculo entre uma conta e uma barbearia é decidido no servidor,
+    // no onboarding (app/login/actions.ts). Um cliente que pudesse criar o próprio perfil
+    // escolheria o tenantId — e com ele o acesso à barbearia de outra pessoa.
+    //
+    // `update` pelo próprio dono só troca o nome de exibição. Antes bastava manter role e
+    // tenantId iguais, o que ainda deixava plantar campos novos (um `barbeiroId` apontando
+    // para outro profissional, por exemplo).
     match /users/{uid} {
-      allow read: if signedIn() && (request.auth.uid == uid || isSuper());
-      allow create: if request.auth.uid == uid
-        && request.resource.data.role == 'admin'
-        && request.resource.data.keys().hasAll(['role', 'tenantId', 'nome', 'email']);
+      allow get: if signedIn() && (request.auth.uid == uid || isSuper());
+      allow list: if false;
+      allow create: if false;
       allow update: if isSuper()
         || (request.auth.uid == uid
-            && request.resource.data.role == resource.data.role
-            && request.resource.data.tenantId == resource.data.tenantId);
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome'])
+            && request.resource.data.nome is string);
       allow delete: if isSuper();
 
       match /contacts/{contactId} {
@@ -81,58 +113,80 @@ service cloud.firestore {
     }
 
     // Reserva de slug público (slug -> tenantId) para a página /book/[slug].
+    // `get` é público porque o visitante já chega com o slug na URL; `list` não, senão
+    // vira o índice de todas as barbearias do sistema. A reserva é do servidor.
     match /slugs/{slug} {
-      allow read: if true;
-      allow create: if signedIn();
-      allow update, delete: if isSuper();
+      allow get: if true;
+      allow list: if false;
+      allow write: if false;
     }
 
     match /tenants/{tenantId} {
-      // Doc público (nome, slug, endereco, plano) — NÃO guardar segredos aqui.
-      allow read: if true;
-      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
-      allow update, delete: if canManage(tenantId);
+      // O doc do tenant tem ownerUid, plano, status e MRR — nada disso é da vitrine. O que
+      // /book/[slug] mostra (nome, endereço, horário) vem de `config/main`.
+      allow get: if podeVer(tenantId);
+      allow list: if isSuper();
+      allow create: if false; // onboarding é do servidor
+      allow update: if canManage(tenantId);
+      allow delete: if isSuper();
 
       // Dados sensíveis (billing, vínculo do WhatsApp, chave do gateway de cobrança)
-      // ficam isolados e nunca são públicos. NÃO mover nada disto para `config/`, que é
-      // `allow read: if true` para alimentar a vitrine de /book/[slug].
+      // ficam isolados e nunca são públicos — nem para o barbeiro do próprio tenant.
+      // NÃO mover nada disto para `config/`, que é público para alimentar a vitrine.
       match /private/{doc} {
         allow read, write: if canManage(tenantId);
       }
 
-      // Catálogo de leitura pública (a vitrine de /book/[slug]).
-      match /servicos/{id}    { allow read: if true; allow write: if canManage(tenantId); }
-      match /barbeiros/{id}   { allow read: if true; allow write: if canManage(tenantId); }
-      match /config/{id}      { allow read: if true; allow write: if canManage(tenantId); }
-      match /planosTiers/{id} { allow read: if true; allow write: if canManage(tenantId); }
+      // Catálogo de leitura pública (a vitrine de /book/[slug]): estes dois precisam de
+      // `list`, porque a tela mostra a grade de serviços e de profissionais.
+      match /servicos/{id}  { allow read: if true; allow write: if canManage(tenantId); }
+      match /barbeiros/{id} { allow read: if true; allow write: if canManage(tenantId); }
 
-      // Dados privados do tenant.
+      // Público no `get` (a vitrine lê `config/main` direto), nunca no `list`.
+      match /config/{id} {
+        allow get: if true;
+        allow list: if false;
+        allow write: if canManage(tenantId) && semSegredo();
+      }
+
+      // Tiers da assinatura SaaS: é tela de administração, não vitrine.
+      match /planosTiers/{id} {
+        allow read: if podeVer(tenantId);
+        allow write: if canManage(tenantId);
+      }
+
+      // Dados privados do tenant. O barbeiro vê e trabalha na agenda e no cadastro;
+      // excluir é do admin.
       match /clientes/{id} {
-        allow read, delete: if canManage(tenantId);
-        allow create, update: if canManage(tenantId) && request.resource.data.nome is string;
+        allow read: if podeVer(tenantId);
+        allow create, update: if podeVer(tenantId) && request.resource.data.nome is string;
+        allow delete: if canManage(tenantId);
       }
       match /transacoes/{id} {
-        allow read, delete: if canManage(tenantId);
+        allow read: if podeVer(tenantId);
         allow create: if canManage(tenantId) && transacaoCreateValida();
         allow update: if canManage(tenantId) && transacaoUpdateValida();
+        allow delete: if canManage(tenantId);
       }
       match /agendamentos/{id} {
-        allow read, delete: if canManage(tenantId);
-        allow create, update: if canManage(tenantId)
+        allow read: if podeVer(tenantId);
+        allow create, update: if podeVer(tenantId)
           && statusAgendamentoValido(request.resource.data.status)
           && request.resource.data.duracaoMin is number;
+        allow delete: if canManage(tenantId);
       }
       // Agendamentos PROPOSTOS pelo atendente automático, e o estado de cada conversa
       // (pausa da IA, contadores). Só leitura: quem escreve é o servidor, e é de propósito
       // — se o navegador pudesse gravar sugestão, o card "confirmar" viraria um jeito de
       // criar agendamento pulando `criarAgendamentoValidado`.
-      match /sugestoes/{id} { allow read: if canManage(tenantId); }
-      match /conversas/{id} { allow read: if canManage(tenantId); }
+      match /sugestoes/{id} { allow read: if podeVer(tenantId); }
+      match /conversas/{id} { allow read: if podeVer(tenantId); }
 
       // Planos de assinatura do cliente (mensalidade) — privados do tenant.
       match /planos/{id} {
-        allow read, delete: if canManage(tenantId);
+        allow read: if podeVer(tenantId);
         allow create, update: if canManage(tenantId) && request.resource.data.valor is number;
+        allow delete: if canManage(tenantId);
       }
     }
   }

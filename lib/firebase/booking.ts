@@ -1,6 +1,9 @@
 // Leitura pública do catálogo de uma barbearia pela URL /book/[slug].
-// Usa o SDK do cliente — as regras liberam leitura pública de
-// slugs/{slug}, tenants/{id}, servicos e barbeiros.
+//
+// Usa o SDK do cliente. O que é público (firestore.rules) é o mínimo da vitrine: `get` em
+// slugs/{slug} e em config/main, e a listagem de servicos e barbeiros. O DOC DO TENANT não
+// entra aqui de propósito — ele carrega ownerUid, plano, status e MRR, que não são da
+// vitrine. O nome da barbearia vem de `config/main`, onde ele também está.
 
 import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { db } from "./config";
@@ -23,20 +26,19 @@ export async function carregarCatalogoPorSlug(slug: string): Promise<BookingCata
   if (!slugSnap.exists()) return null;
   const tenantId = slugSnap.data().tenantId as string;
 
-  const [tenantSnap, configSnap, servicosSnap, barbeirosSnap] = await Promise.all([
-    getDoc(doc(db, "tenants", tenantId)),
+  const [configSnap, servicosSnap, barbeirosSnap] = await Promise.all([
     getDoc(doc(db, "tenants", tenantId, "config", "main")),
     getDocs(collection(db, "tenants", tenantId, "servicos")),
     getDocs(collection(db, "tenants", tenantId, "barbeiros")),
   ]);
-  if (!tenantSnap.exists()) return null;
+  if (!configSnap.exists()) return null;
 
-  const cfg = configSnap.exists() ? configSnap.data() : null;
+  const cfg = configSnap.data();
   const horario = (cfg?.horario ?? {}) as { abre?: string; fecha?: string; diasAtivos?: boolean[] };
 
   return {
     tenantId,
-    nome: (cfg?.nome as string) ?? (tenantSnap.data().nome as string) ?? "Barbearia",
+    nome: (cfg?.nome as string) ?? "Barbearia",
     endereco: (cfg?.endereco as string) ?? "",
     abre: horario.abre ?? "09:00",
     fecha: horario.fecha ?? "19:00",

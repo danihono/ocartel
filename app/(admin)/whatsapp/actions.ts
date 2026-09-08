@@ -8,7 +8,7 @@
 // `exigirQuemGerencia` antes de qualquer efeito.
 
 import { adminDb } from "@/lib/firebase/admin";
-import { comoResultado, exigirQuemGerencia, type Resultado } from "@/lib/canal/autorizacao";
+import { comoResultado, exigirQuemGerencia, type Resultado } from "@/lib/autorizacao";
 import { canalDoTenant, garantirContato, pedirFotoDePerfil, type EnvioResultado } from "@/lib/canal";
 import { uidDaBarbearia } from "@/lib/canal/uid";
 import { vincular } from "@/lib/canal/vinculo";

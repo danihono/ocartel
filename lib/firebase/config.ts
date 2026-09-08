@@ -3,6 +3,7 @@
 // NEXT_PUBLIC_USE_EMULATORS === "true" (desenvolvimento local).
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
+import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 import { getAuth, connectAuthEmulator, type Auth } from "firebase/auth";
 import {
   getFirestore,
@@ -23,6 +24,30 @@ const firebaseConfig = {
 };
 
 export const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
+
+// App Check — atesta que quem fala com o Firestore é ESTE site, e não um script apontando
+// o SDK para o projeto. É camada COMPLEMENTAR: não substitui autenticação nem as regras,
+// e não protege as server actions (que não passam pelo SDK do cliente). O que ele corta é
+// a raspagem das coleções públicas e o consumo de cota por robô.
+//
+// Só liga quando `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` existe: sem a variável, nada muda — dá
+// para publicar o resto das correções antes de registrar o site no Console. A ordem certa
+// é registrar → publicar com a chave → observar as métricas em modo NÃO obrigatório →
+// só então exigir App Check no Firestore.
+const APPCHECK_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+const acGlobal = globalThis as typeof globalThis & { __OCARTEL_APPCHECK__?: boolean };
+if (APPCHECK_KEY && typeof window !== "undefined" && !acGlobal.__OCARTEL_APPCHECK__) {
+  acGlobal.__OCARTEL_APPCHECK__ = true;
+  try {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(APPCHECK_KEY),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch {
+    /* App Check não pode derrubar o app: sem ele, valem autenticação e regras. */
+  }
+}
+
 export const auth: Auth = getAuth(app);
 
 // Firestore com auto-detecção de long-polling: em produção (atrás de CDN/HTTP3 ou

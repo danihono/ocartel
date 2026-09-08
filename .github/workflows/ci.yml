@@ -28,6 +28,21 @@ jobs:
       - name: Testes
         run: npm test
 
+      # As regras do Firestore são a fronteira de segurança do sistema multi-tenant:
+      # cada caso desta suíte é o ataque de um achado da auditoria, escrito. Precisa de
+      # Java (o emulador roda na JVM) e da flag de web frameworks, porque o firebase.json
+      # declara o Hosting por framework.
+      - name: Preparar emulador do Firestore
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Testes das regras do Firestore
+        run: |
+          npx firebase experiments:enable webframeworks
+          npm run test:rules
+
       - name: Build
         run: npm run build
         env:

@@ -7,14 +7,16 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "deploy": "firebase deploy --only hosting",
+    "deploy": "firebase deploy --only hosting,firestore:rules,storage",
+    "deploy:rules": "firebase deploy --only firestore:rules,storage",
     "emulators": "firebase emulators:start --import=./.seed --export-on-exit",
     "emulators:export": "firebase emulators:export ./.seed",
     "provision:super-admin": "tsx scripts/provision-super-admin.ts",
     "whatsapp:parear": "tsx scripts/whatsapp-parear.ts",
     "limpar:tenants": "tsx scripts/limpar-tenants.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:rules": "firebase emulators:exec --only firestore --project ocartel-497f8 \"vitest run --config vitest.rules.config.ts\""
   },
   "dependencies": {
     "firebase": "^11.3.0",
@@ -25,6 +27,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
     "@types/node": "^22.10.7",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",

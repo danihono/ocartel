@@ -81,9 +81,11 @@ lib/
     config.ts     init do SDK do cliente (+ emuladores)
     auth.tsx      AuthProvider / useAuth (onAuthStateChanged + users/{uid})
     repos.ts      repositórios por tenant (subscribe/add/update/remove)
-    bootstrap.ts  cria tenant + perfil + catálogo no onboarding
-    booking.ts    leitura pública do catálogo por slug
+    booking.ts    leitura pública do catálogo por slug (vitrine)
     admin.ts      Admin SDK (server-only)
+  onboarding.ts   cria tenant + perfil + catálogo (SERVIDOR — ver "Segurança")
+  autorizacao.ts  quem pode o quê nas server actions (id token + perfil)
+  ratelimit.ts    freio das portas públicas (booking, confirmação, webhook)
 firestore.rules   regras multi-tenant
 firebase.json     Hosting (deploy), regras do Firestore/Storage e emuladores
 ```
@@ -137,6 +139,29 @@ Quatro coisas que não são óbvias:
    App Hosting (outro produto, que publica sozinho a partir de uma branch). Está
    no repositório, mas o `firebase deploy` ignora — inclusive as variáveis de
    ambiente declaradas nele, que valem só no App Hosting.
+
+## Segurança
+
+O relatório completo da auditoria está em **`docs/auditoria-seguranca.md`**. O que é preciso
+saber para não desfazer as correções sem querer:
+
+1. **O navegador não decide quem é quem.** `users/{uid}` é somente-leitura nas regras; quem
+   cria o perfil (e escolhe `role`/`tenantId`) é o servidor, em `lib/onboarding.ts`, chamado
+   pelas server actions de `app/login/actions.ts` e `app/super-admin/actions.ts`. Reabrir a
+   escrita desse doc para o cliente reabre a tomada de controle de qualquer barbearia.
+
+2. **`read` cobre `get` E `list`.** A vitrine pública precisa de `get` (o visitante chega com
+   o slug na URL), nunca de `list`. Um `allow read: if true` em `tenants` entrega o catálogo
+   inteiro de barbearias — com dono e faturamento — para quem apontar o SDK.
+
+3. **Credencial mora em `tenants/{t}/private/**`,** que só o admin do tenant lê. `config/`
+   é público e as regras recusam gravar ali qualquer chave com cara de segredo.
+
+4. **`npm run deploy` publica as regras junto** (`hosting,firestore:rules,storage`). Antes
+   publicava só o Hosting, e nada garantia que as regras no ar fossem as do repositório.
+
+5. **`npm run test:rules`** roda a suíte de segurança contra o emulador (também no CI). Cada
+   caso é o ataque de um achado, escrito — se você afrouxar uma regra, ela quebra.
 
 ## Decisões
 

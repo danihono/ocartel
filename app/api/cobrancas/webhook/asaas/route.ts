@@ -12,8 +12,15 @@ import { adminDb } from "@/lib/firebase/admin";
 import { credenciaisDoTenant, CobradorNaoConfigurado } from "@/lib/cobrador";
 import { lerReferencia } from "@/lib/cobranca-ciclo";
 import { tokenConfere } from "@/lib/confirmacao";
+import { consumir, origemDaRequisicao } from "@/lib/ratelimit";
 
 export const dynamic = "force-dynamic";
+
+// A rota é pública e resolve as credenciais do tenant a partir do CORPO — ou seja, uma
+// requisição forjada custava uma leitura no Firestore antes mesmo de ser recusada. O freio
+// vem antes disso. O teto cobre com folga o volume real (um evento por boleto pago) e as
+// retentativas do Asaas.
+const LIMITE = { max: 120, janelaSeg: 60 };
 
 /** Eventos em que o dinheiro já é da barbearia. `PENDING`/`CREATED` não dão baixa. */
 const EVENTOS_DE_BAIXA = new Set(["PAYMENT_RECEIVED", "PAYMENT_CONFIRMED"]);
@@ -31,6 +38,10 @@ interface EventoAsaas {
 }
 
 export async function POST(req: Request) {
+  if (!(await consumir("asaas-webhook", origemDaRequisicao(req.headers), LIMITE))) {
+    return NextResponse.json({ error: "muitas requisições" }, { status: 429 });
+  }
+
   let corpo: EventoAsaas;
   try {
     corpo = (await req.json()) as EventoAsaas;

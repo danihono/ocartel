@@ -7,9 +7,15 @@
 //
 // O que autoriza a ação é o token do link, comparado contra o gravado no doc.
 
+import { headers } from "next/headers";
 import { adminDb } from "@/lib/firebase/admin";
 import { lerCodigo, tokenConfere } from "@/lib/confirmacao";
+import { consumir, origemDaRequisicao } from "@/lib/ratelimit";
 import type { AgendamentoStatus } from "@/lib/types";
+
+// O token do link tem ~90 bits, então força bruta não é o risco. O freio existe contra o
+// resto: martelar a rota é leitura no Firestore por requisição, de graça, sem login.
+const LIMITE = { max: 30, janelaSeg: 600 };
 
 export interface Confirmacao {
   barbearia: string;
@@ -78,6 +84,9 @@ async function montarDados(tenantId: string, ag: FirebaseFirestore.DocumentData)
 }
 
 export async function carregarConfirmacao(codigo: string): Promise<ConfirmacaoResult> {
+  if (!(await consumir("confirmacao", origemDaRequisicao(await headers()), LIMITE))) {
+    return { ok: false, error: "Muitas tentativas. Aguarde alguns minutos e tente de novo." };
+  }
   try {
     const alvo = await resolver(codigo);
     if (!alvo) return { ok: false, error: LINK_INVALIDO };
@@ -95,6 +104,9 @@ export type Resposta = "confirmar" | "recusar";
  */
 export async function responderConfirmacao(codigo: string, resposta: Resposta): Promise<ConfirmacaoResult> {
   if (resposta !== "confirmar" && resposta !== "recusar") return { ok: false, error: LINK_INVALIDO };
+  if (!(await consumir("confirmacao", origemDaRequisicao(await headers()), LIMITE))) {
+    return { ok: false, error: "Muitas tentativas. Aguarde alguns minutos e tente de novo." };
+  }
 
   try {
     const alvo = await resolver(codigo);

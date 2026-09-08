@@ -9,7 +9,7 @@ import { Seal } from "@/components/ui/Seal";
 import { fieldInput, fieldLabel } from "@/components/ui/Field";
 import { auth, db } from "@/lib/firebase/config";
 import { signOutApp } from "@/lib/firebase/auth";
-import { bootstrapTenant } from "@/lib/firebase/bootstrap";
+import { acaoCriarBarbearia } from "./actions";
 import { useToast } from "@/components/ui/Toast";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -114,17 +114,22 @@ export default function LoginPage() {
       return;
     }
 
-    // Cria o tenant/catálogo. Se falhar, faz ROLLBACK da conta recém-criada para
-    // não deixar um usuário órfão (sem barbearia) que não consegue nem refazer o onboarding.
+    // A barbearia é criada NO SERVIDOR (app/login/actions.ts). O navegador não escolhe o
+    // próprio papel nem o próprio tenantId — escolher o vínculo era o que permitia a uma
+    // conta nova se declarar admin da barbearia de outra pessoa.
+    //
+    // Se falhar, faz ROLLBACK da conta recém-criada para não deixar um usuário órfão (sem
+    // barbearia) que não consegue nem refazer o onboarding.
     try {
-      await bootstrapTenant({
-        uid: cred.user.uid,
-        email: email.trim(),
+      const r = await acaoCriarBarbearia(await cred.user.getIdToken(), {
         nome: seuNome.trim() || "Administrador",
         barbeariaNome: novaBarbearia.trim() || "Minha Barbearia",
         telefone,
         plano,
       });
+      if (!r.ok) throw new Error(r.erro);
+      // O token novo carrega as custom claims (role/tenantId) gravadas pelo servidor.
+      await cred.user.getIdToken(true);
       toast("Sua barbearia foi criada. Teste grátis iniciado!");
       router.push("/dashboard");
     } catch {

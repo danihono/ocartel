@@ -9,8 +9,8 @@
 // 1º render do cliente) e vem VAZIO de propósito: o <AuthGuard> renderiza o
 // conteúdo de forma otimista (latch de sessão), então qualquer dado de exemplo
 // aqui apareceria de verdade na tela antes dos dados reais. Os mocks de
-// `lib/mock-data.ts` seguem servindo ao `seedDemoTenant` (lib/firebase/bootstrap.ts),
-// que é onde eles fazem sentido.
+// `lib/mock-data.ts` seguem servindo à barbearia de demonstração do superAdmin
+// (`criarBarbeariaDemo`, em lib/onboarding.ts), que é onde eles fazem sentido.
 
 import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type Dispatch, type ReactNode } from "react";
 import { addDias, hojeLocalISO } from "./date";
