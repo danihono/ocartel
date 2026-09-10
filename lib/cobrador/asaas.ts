@@ -219,15 +219,17 @@ export class CobradorAsaas implements Cobrador {
    */
   async lerCartaoDaCobranca(cobrancaId: string): Promise<CartaoTokenizado | null> {
     const r = await this.chamar<{
+      customer?: string;
       creditCard?: { creditCardNumber?: string; creditCardBrand?: string; creditCardToken?: string };
     }>(`/payments/${encodeURIComponent(cobrancaId)}`);
 
     const token = r.creditCard?.creditCardToken;
-    if (!token) return null;
+    if (!token || !r.customer) return null;
     return {
       token,
       bandeira: r.creditCard?.creditCardBrand ?? "Cartão",
       ultimosDigitos: r.creditCard?.creditCardNumber ?? "",
+      clienteExterno: r.customer,
     };
   }
 

@@ -86,6 +86,12 @@ export interface CartaoTokenizado {
   /** "VISA", "MASTERCARD". */
   bandeira: string;
   ultimosDigitos: string;
+  /**
+   * Id do cliente NO GATEWAY dono deste token. Viaja junto porque o token é por cliente:
+   * usá-lo com outro `customer` é recusa garantida, e reconstituir o id depois pelo CPF
+   * daria certo até o dia em que o CPF do cadastro fosse corrigido.
+   */
+  clienteExterno: string;
 }
 
 /** O que o gateway conhece por uma referência — a base da conciliação. */

@@ -33,6 +33,8 @@ import type { CartaoCliente } from "@/lib/types";
 export interface CartaoSalvo {
   provedor: "asaas";
   token: string;
+  /** Id do cliente no gateway dono deste token — o token não vale para outro. */
+  clienteExterno: string;
   bandeira: string;
   ultimosDigitos: string;
   cadastradoEm: string;
@@ -120,6 +122,7 @@ export async function registrarAutorizacao(
 
 export interface DadosNovoCartao {
   token: string;
+  clienteExterno: string;
   bandeira: string;
   ultimosDigitos: string;
   cobrancaId: string;
@@ -148,6 +151,7 @@ export async function salvarCartao(tenantId: string, clienteId: string, dados: D
   const privado: CartaoSalvo = {
     provedor: "asaas",
     token: dados.token,
+    clienteExterno: dados.clienteExterno,
     bandeira: dados.bandeira,
     ultimosDigitos: dados.ultimosDigitos,
     cadastradoEm: agora,

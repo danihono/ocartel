@@ -239,15 +239,28 @@ describe("CobradorAsaas.cobrarNoCartao", () => {
 });
 
 describe("CobradorAsaas.lerCartaoDaCobranca", () => {
-  it("extrai token, bandeira e final", async () => {
+  it("extrai token, bandeira, final e o cliente dono do token", async () => {
     stubFetch({
       "/payments/pay_1": {
+        customer: "cus_1",
         creditCard: { creditCardToken: "tok_abc", creditCardBrand: "VISA", creditCardNumber: "4444" },
       },
     });
     const cartao = await new CobradorAsaas(CRED).lerCartaoDaCobranca("pay_1");
 
-    expect(cartao).toEqual({ token: "tok_abc", bandeira: "VISA", ultimosDigitos: "4444" });
+    expect(cartao).toEqual({
+      token: "tok_abc",
+      bandeira: "VISA",
+      ultimosDigitos: "4444",
+      clienteExterno: "cus_1",
+    });
+  });
+
+  // O token do Asaas só vale para o cliente que o gerou. Salvá-lo sem saber de quem é
+  // daria um cartão que recusa todo mês, sem explicação nenhuma na tela.
+  it("devolve null quando não sabe de quem é o token", async () => {
+    stubFetch({ "/payments/pay_1": { creditCard: { creditCardToken: "tok_abc" } } });
+    expect(await new CobradorAsaas(CRED).lerCartaoDaCobranca("pay_1")).toBeNull();
   });
 
   // É o sintoma de tokenização não liberada na conta — e o que faz o ciclo avisar em vez
