@@ -40,3 +40,26 @@ export function lerCodigoCartao(codigo: string): CodigoCartao | null {
 export function linkCartao(origin: string, codigo: string): string {
   return `${origin.replace(/\/+$/, "")}/cartao/${codigo}`;
 }
+
+// ---- Autorização da recorrência ----
+
+/**
+ * Versão do texto de autorização. Muda quando o texto muda — é o que permite saber, um
+ * ano depois, exatamente o que a pessoa aceitou.
+ */
+export const VERSAO_AUTORIZACAO = "v1";
+
+/**
+ * O texto que a pessoa aceita antes de cadastrar o cartão.
+ *
+ * Mora aqui, num módulo puro, porque ele é ao mesmo tempo o que aparece na tela e o que
+ * fica gravado como prova de consentimento. Duas versões desse texto — uma para exibir,
+ * outra para registrar — divergiriam, e a divergência só apareceria num chargeback, que
+ * é o pior momento possível para descobrir que o registro não bate com o que foi lido.
+ */
+export function textoAutorizacao(barbearia: string, valorFormatado: string, dia: number): string {
+  return (
+    `Autorizo a ${barbearia} a cobrar minha mensalidade de ${valorFormatado} neste cartão ` +
+    `todo dia ${dia}. Sei que posso cancelar a qualquer momento por este mesmo link.`
+  );
+}

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { lerCodigoCartao, linkCartao, montarCodigoCartao, novoToken } from "@/lib/cartao-link";
+import {
+  lerCodigoCartao,
+  linkCartao,
+  montarCodigoCartao,
+  novoToken,
+  textoAutorizacao,
+  VERSAO_AUTORIZACAO,
+} from "@/lib/cartao-link";
 
 // A página /cartao/[codigo] é PÚBLICA e o código dela vira caminho de doc no Firestore.
 // O que chega ali não é confiável: um id com "../" dentro não pode encostar no banco.
@@ -42,5 +49,25 @@ describe("linkCartao", () => {
   it("monta a URL normalizando a barra final da origin", () => {
     expect(linkCartao("https://ocartel.app/", "t.c.tok")).toBe("https://ocartel.app/cartao/t.c.tok");
     expect(linkCartao("http://localhost:3000", "t.c.tok")).toBe("http://localhost:3000/cartao/t.c.tok");
+  });
+});
+
+describe("textoAutorizacao", () => {
+  // O mesmo texto vai para a tela E para o registro de consentimento. Se um dia forem
+  // dois textos diferentes, a diferença só apareceria num chargeback — que é o pior
+  // momento possível para descobrir que o registro não bate com o que a pessoa leu.
+  it("nomeia a barbearia, o valor e o dia da cobrança", () => {
+    const texto = textoAutorizacao("Barbearia do Rui", "R$ 140", 5);
+    expect(texto).toContain("Barbearia do Rui");
+    expect(texto).toContain("R$ 140");
+    expect(texto).toContain("todo dia 5");
+  });
+
+  it("diz como cancelar — é o que sustenta a recorrência", () => {
+    expect(textoAutorizacao("X", "R$ 1", 1)).toContain("cancelar a qualquer momento");
+  });
+
+  it("tem versão, para o registro dizer QUAL texto foi aceito", () => {
+    expect(VERSAO_AUTORIZACAO).toBeTruthy();
   });
 });
