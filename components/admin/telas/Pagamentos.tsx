@@ -26,6 +26,7 @@ import { useHoje } from "@/lib/useRelogio";
 import { useListaProgressiva } from "@/lib/useListaProgressiva";
 import { RegistrarPagamentoModal } from "@/components/admin/RegistrarPagamentoModal";
 import { NovaCobrancaModal } from "@/components/admin/NovaCobrancaModal";
+import { acaoEmitirBoleto } from "@/app/(admin)/pagamentos/actions";
 import type { Transacao, TransacaoStatus } from "@/lib/types";
 
 const FILTROS: FiltroTransacao[] = ["Todas", "Pagas", "Pendentes", "Atrasadas"];
@@ -82,6 +83,42 @@ function LinhaBoleto({ t }: { t: Transacao }) {
   );
 }
 
+/**
+ * Situação da cobrança no cartão salvo — irmã de `LinhaBoleto`.
+ *
+ * A RECUSA é o caso que precisa aparecer alto: por decisão de produto, quem tem cartão
+ * não recebe boleto automático, então uma recusa significa que o dinheiro não entrou e o
+ * sistema, de propósito, não fez mais nada. Se isso ficar discreto, a mensalidade some
+ * do radar até virar três meses de atraso.
+ */
+function LinhaCartao({ t }: { t: Transacao }) {
+  const cc = t.cartaoCobranca;
+  if (!cc) return null;
+
+  const digitos = cc.ultimosDigitos ? ` ••${cc.ultimosDigitos}` : "";
+  if (cc.situacao === "aprovada") {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 11.5, color: c.ink3 }}>
+        <span style={{ fontWeight: 700, color: c.greenText }}>Cobrado no cartão{digitos}</span>
+      </div>
+    );
+  }
+  if (cc.situacao === "enviando") {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 11.5, color: c.ink3 }}>
+        <span style={{ fontWeight: 700, color: c.amberText }}>Cobrança no cartão em andamento</span>
+        <span>conferindo com o Asaas</span>
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 11.5, color: c.ink3 }}>
+      <span style={{ fontWeight: 700, color: c.redText }}>Cartão recusado{digitos}</span>
+      {cc.motivo ? <span>{cc.motivo}</span> : null}
+    </div>
+  );
+}
+
 /** Data exibida: pagamento (se pago) ou vencimento (se em aberto). */
 function dataExibida(t: Transacao, hojeISO: string): string {
   if (statusCobranca(t, hojeISO) === "pago") return t.paidAt ? isoParaDiaMes(t.paidAt) : t.data;
@@ -90,7 +127,7 @@ function dataExibida(t: Transacao, hojeISO: string): string {
 
 export function TelaPagamentos() {
   const { state, dispatch, actions } = useStore();
-  const { profile } = useAuth();
+  const { profile, user, tenantId } = useAuth();
   const toast = useToast();
   const narrow = useIsNarrow();
   const hoje = useHoje();
@@ -105,6 +142,28 @@ export function TelaPagamentos() {
 
   const [novaOpen, setNovaOpen] = useState(false);
   const [pagar, setPagar] = useState<Transacao | null>(null);
+  const [emitindo, setEmitindo] = useState<string | null>(null);
+
+  /**
+   * O botão só aparece onde ele resolve algo: a cobrança foi ao cartão, não passou, e
+   * ainda não tem boleto. Quem nunca teve cartão é atendido pelo ciclo automático, e
+   * oferecer o botão ali seria convidar a um segundo boleto.
+   */
+  const podeEmitirBoletoAMao = (t: Transacao): boolean =>
+    t.cartaoCobranca?.situacao === "recusada" && !t.boleto && !t.paidAt;
+
+  async function emitirBoletoAMao(t: Transacao) {
+    if (!user || !tenantId || emitindo) return;
+    setEmitindo(t.id);
+    try {
+      const r = await acaoEmitirBoleto(await user.getIdToken(), tenantId, t.id);
+      toast(r.ok ? "Boleto emitido e enviado ao cliente." : (r.erro ?? "Não foi possível emitir."), r.ok ? undefined : "error");
+    } catch {
+      toast("Não foi possível emitir o boleto.", "error");
+    } finally {
+      setEmitindo(null);
+    }
+  }
 
   const resumo = selectResumoFinanceiro(state, hoje);
   const contagens = selectContagensTransacao(state, tipo, hoje);
@@ -265,9 +324,17 @@ export function TelaPagamentos() {
                     </span>
                   ) : null}
                 </div>
+                <LinhaCartao t={t} />
                 <LinhaBoleto t={t} />
                 {st !== "pago" ? (
-                  <Button variant="ghost" onClick={() => setPagar(t)} style={{ alignSelf: "flex-start" }}>Registrar pagamento</Button>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <Button variant="ghost" onClick={() => setPagar(t)}>Registrar pagamento</Button>
+                    {podeEmitirBoletoAMao(t) ? (
+                      <Button variant="ghost" onClick={() => emitirBoletoAMao(t)} disabled={emitindo === t.id}>
+                        {emitindo === t.id ? "Emitindo…" : "Emitir boleto agora"}
+                      </Button>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
             );
@@ -279,6 +346,7 @@ export function TelaPagamentos() {
               <span style={{ fontSize: 13.5, color: c.inkTitle, fontWeight: 600 }}>{t.clienteNome}</span>
               <span style={{ fontSize: 13, color: c.ink2 }}>
                 {t.servico}
+                <LinhaCartao t={t} />
                 <LinhaBoleto t={t} />
               </span>
               <span style={{ fontSize: 12.5, color: st === "atrasado" ? c.redText : c.ink2, fontWeight: 600 }}>{dataExibida(t, hoje)}</span>
@@ -303,11 +371,22 @@ export function TelaPagamentos() {
                   "—"
                 )}
               </span>
-              <span style={{ display: "flex", justifyContent: "flex-end" }}>
+              <span style={{ display: "flex", justifyContent: "flex-end", gap: 6, flexWrap: "wrap" }}>
                 {st !== "pago" ? (
-                  <button onClick={() => setPagar(t)} style={{ border: `1px solid ${c.borderInput}`, background: c.surface, cursor: "pointer", color: c.green, fontSize: 11.5, fontWeight: 700, borderRadius: 8, padding: "6px 11px", whiteSpace: "nowrap" }}>
-                    Registrar pagamento
-                  </button>
+                  <>
+                    {podeEmitirBoletoAMao(t) ? (
+                      <button
+                        onClick={() => emitirBoletoAMao(t)}
+                        disabled={emitindo === t.id}
+                        style={{ border: `1px solid ${c.borderInput}`, background: c.surface, cursor: emitindo === t.id ? "default" : "pointer", color: c.inkTitle, fontSize: 11.5, fontWeight: 700, borderRadius: 8, padding: "6px 11px", whiteSpace: "nowrap" }}
+                      >
+                        {emitindo === t.id ? "Emitindo…" : "Emitir boleto"}
+                      </button>
+                    ) : null}
+                    <button onClick={() => setPagar(t)} style={{ border: `1px solid ${c.borderInput}`, background: c.surface, cursor: "pointer", color: c.green, fontSize: 11.5, fontWeight: 700, borderRadius: 8, padding: "6px 11px", whiteSpace: "nowrap" }}>
+                      Registrar pagamento
+                    </button>
+                  </>
                 ) : (
                   <span style={{ fontSize: 12, color: c.ink4, fontWeight: 600 }}>✓ pago</span>
                 )}

@@ -46,6 +46,7 @@ export function TelaConfiguracoes() {
   const [cobrancaAtiva, setCobrancaAtiva] = useState(cob?.ativa ?? false);
   const [cobrancaHora, setCobrancaHora] = useState(cob?.hora ?? "09:00");
   const [diasAntesAlerta, setDiasAntesAlerta] = useState(cob?.diasAntesAlerta ?? PADRAO_DIAS_ANTES_ALERTA);
+  const [cobrarNoCartao, setCobrarNoCartao] = useState(cob?.cobrarNoCartao ?? false);
   const [emitirBoleto, setEmitirBoleto] = useState(cob?.emitirBoleto ?? false);
   const [diasVencimentoBoleto, setDiasVencimentoBoleto] = useState(
     cob?.diasVencimentoBoleto ?? PADRAO_DIAS_VENCIMENTO_BOLETO,
@@ -138,6 +139,7 @@ export function TelaConfiguracoes() {
     setCobrancaAtiva(cb?.ativa ?? false);
     setCobrancaHora(cb?.hora ?? "09:00");
     setDiasAntesAlerta(cb?.diasAntesAlerta ?? PADRAO_DIAS_ANTES_ALERTA);
+    setCobrarNoCartao(cb?.cobrarNoCartao ?? false);
     setEmitirBoleto(cb?.emitirBoleto ?? false);
     setDiasVencimentoBoleto(cb?.diasVencimentoBoleto ?? PADRAO_DIAS_VENCIMENTO_BOLETO);
   }, [state.config]);
@@ -162,6 +164,7 @@ export function TelaConfiguracoes() {
           diasAntesAlerta,
           // Boleto só liga junto com o ciclo: emitir cobrança sem o resto rodando não faz
           // sentido, e "ativa: false + emitirBoleto: true" seria um estado confuso de ler.
+          cobrarNoCartao: cobrancaAtiva && cobrarNoCartao,
           emitirBoleto: cobrancaAtiva && emitirBoleto,
           diasVencimentoBoleto,
         },
@@ -438,6 +441,45 @@ export function TelaConfiguracoes() {
               </Field>
             </div>
 
+            {/* O cartão vem antes do boleto porque é essa a ordem em que o ciclo roda:
+                quem tem cartão é debitado, e o boleto é o caminho de quem não tem. */}
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 9, cursor: "pointer", margin: "14px 0 12px" }}>
+              <input
+                type="checkbox"
+                checked={cobrarNoCartao}
+                onChange={(e) => setCobrarNoCartao(e.target.checked)}
+                disabled={!cobrancaAtiva}
+                style={{ marginTop: 3 }}
+              />
+              <span style={{ fontSize: 13, color: c.ink3, lineHeight: 1.45 }}>
+                No dia do vencimento, <b>cobrar no cartão cadastrado</b> de quem já deixou o cartão
+                salvo. O cliente cadastra numa página do próprio Asaas — o número do cartão nunca
+                passa pelo O Cartel. Quem não tem cartão continua no boleto. Se o cartão recusar,
+                a mensalidade fica pendente e aparece destacada no painel para você decidir; nada
+                de boleto automático por trás.
+              </span>
+            </label>
+
+            {cobrarNoCartao ? (
+              <div
+                style={{
+                  fontSize: 12.5,
+                  color: c.ink3,
+                  lineHeight: 1.5,
+                  background: c.surfaceAlt,
+                  border: `1px solid ${c.borderInput}`,
+                  borderRadius: 10,
+                  padding: "11px 13px",
+                  margin: "0 0 12px",
+                }}
+              >
+                Duas coisas antes de contar com isso: a <b>tokenização de cartão precisa estar
+                liberada</b> na sua conta do Asaas (peça ao gerente, ou o cartão é cobrado uma vez
+                e não fica salvo), e a <b>taxa de cartão é maior que a de boleto</b> — quem paga
+                é a barbearia.
+              </div>
+            ) : null}
+
             <label style={{ display: "flex", alignItems: "flex-start", gap: 9, cursor: "pointer", margin: "14px 0 12px" }}>
               <input
                 type="checkbox"
@@ -447,9 +489,10 @@ export function TelaConfiguracoes() {
                 style={{ marginTop: 3 }}
               />
               <span style={{ fontSize: 13, color: c.ink3, lineHeight: 1.45 }}>
-                No dia do vencimento, <b>emitir boleto no CPF</b> de quem ainda não pagou e mandar o
-                link. Quando o boleto for pago, a baixa é automática — ninguém precisa registrar
-                nada. Assinante sem CPF válido no cadastro é pulado e aparece no painel.
+                No dia do vencimento, <b>emitir boleto no CPF</b> de quem ainda não pagou{" "}
+                {cobrarNoCartao ? "e não tem cartão salvo" : ""} e mandar o link. Quando o boleto
+                for pago, a baixa é automática — ninguém precisa registrar nada. Assinante sem CPF
+                válido no cadastro é pulado e aparece no painel.
               </span>
             </label>
 
@@ -475,8 +518,8 @@ export function TelaConfiguracoes() {
                 Conta do Asaas
               </div>
               <div style={{ fontSize: 12.5, color: c.ink3, lineHeight: 1.45, marginBottom: 12 }}>
-                É por ela que o boleto é emitido e o dinheiro cai — use a conta da barbearia.
-                A chave fica guardada e não volta a aparecer nesta tela.
+                É por ela que o boleto é emitido, o cartão é cobrado e o dinheiro cai — use a
+                conta da barbearia. A chave fica guardada e não volta a aparecer nesta tela.
               </div>
 
               {gateway?.configurado ? (

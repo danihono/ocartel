@@ -2,14 +2,14 @@
 
 // Server actions do pareamento de WhatsApp.
 //
-// A verificação de quem pode mexer mora em lib/canal/autorizacao.ts, compartilhada com as
+// A verificação de quem pode mexer mora em lib/autorizacao.ts, compartilhada com as
 // actions da tela de WhatsApp — ver o comentário de lá.
 
 import {
   comoResultado,
   exigirQuemGerencia,
   type Resultado,
-} from "@/lib/canal/autorizacao";
+} from "@/lib/autorizacao";
 import {
   desconectarPareamento,
   iniciarPareamento,

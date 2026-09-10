@@ -291,7 +291,11 @@ function Renovacoes({ hojeISO }: { hojeISO: string }) {
   const r = selectRenovacoes(state, hojeISO);
 
   const nada =
-    r.vencemHoje.length === 0 && r.proximas.length === 0 && r.atrasadas.length === 0 && r.semCpf.length === 0;
+    r.vencemHoje.length === 0 &&
+    r.proximas.length === 0 &&
+    r.atrasadas.length === 0 &&
+    r.semCpf.length === 0 &&
+    r.cartaoRecusado.length === 0;
   if (nada) return null;
 
   const itens = [
@@ -299,6 +303,7 @@ function Renovacoes({ hojeISO }: { hojeISO: string }) {
     { n: r.vencemHoje.length, label: "vencem hoje", cor: c.amber, texto: c.amberText },
     { n: r.proximas.length, label: `vencem em ${DIAS_PROXIMAS_RENOVACOES} dias`, cor: c.brass, texto: c.inkTitle },
     { n: r.comBoleto.length, label: "com boleto emitido", cor: c.ink4, texto: c.ink2 },
+    { n: r.noCartao.length, label: "cobradas no cartão", cor: c.green, texto: c.greenText },
   ].filter((i) => i.n > 0);
 
   return (
@@ -320,6 +325,26 @@ function Renovacoes({ hojeISO }: { hojeISO: string }) {
           </div>
         ))}
       </div>
+
+      {/* A recusa de cartão é o único caso em que o dinheiro não entrou E o sistema, de
+          propósito, não fez mais nada — não sai boleto automático para quem tem cartão.
+          Se isto ficar discreto, a mensalidade some do radar até virar três meses de
+          atraso. Daí o aviso vir antes do de CPF. */}
+      {r.cartaoRecusado.length > 0 ? (
+        <div style={{ marginTop: 14, background: c.amberBg, border: `1px solid ${c.amber}`, borderRadius: 10, padding: "11px 14px" }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: c.amberText }}>
+            {r.cartaoRecusado.length} cobrança{r.cartaoRecusado.length === 1 ? "" : "s"} recusada
+            {r.cartaoRecusado.length === 1 ? "" : "s"} no cartão
+          </div>
+          <div style={{ fontSize: 12, color: c.ink2, marginTop: 3 }}>
+            Não emitimos boleto sozinho para quem tem cartão — a decisão é sua. Em{" "}
+            <LinkAba href="/pagamentos" style={{ color: c.brass, fontWeight: 600 }}>Pagamentos</LinkAba>{" "}
+            você emite o boleto na hora ou registra o pagamento:{" "}
+            {r.cartaoRecusado.slice(0, 3).map((t) => t.clienteNome).join(", ")}
+            {r.cartaoRecusado.length > 3 ? ` e mais ${r.cartaoRecusado.length - 3}` : ""}.
+          </div>
+        </div>
+      ) : null}
 
       {r.semCpf.length > 0 ? (
         <div style={{ marginTop: 14, background: c.redBg, border: `1px solid ${c.red}`, borderRadius: 10, padding: "11px 14px" }}>

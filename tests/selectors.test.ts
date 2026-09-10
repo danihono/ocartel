@@ -14,6 +14,7 @@ import {
   ordenarClientes,
   selectClientesFiltrados,
   selectResumoFinanceiro,
+  selectRenovacoes,
 } from "@/lib/selectors";
 import type { AppState } from "@/lib/store";
 import type { Cliente, Plano, Transacao } from "@/lib/types";
@@ -211,5 +212,85 @@ describe("selectClientesFiltrados: ordem + filtro juntos", () => {
   it("a busca recorta e a ordem vale no recorte", () => {
     const r = selectClientesFiltrados(state, "Todos", "n", "2026-06-23", "nome");
     expect(r.map((c) => c.nome)).toEqual(["Ana", "Bruno"]);
+  });
+});
+
+describe("selectRenovacoes com cartão", () => {
+  // O ciclo cobra o cartão e o webhook dá a baixa. Entre um e outro — e depois de uma
+  // recusa — é este seletor que decide o que a dona vê no Dashboard.
+  function cob(p: Partial<Transacao> & { id: string }): Transacao {
+    return {
+      data: "05 jul",
+      clienteNome: "Rui Alves",
+      clienteId: "cli1",
+      servico: "Mensal",
+      barbeiroNome: "",
+      valor: 140,
+      status: "pendente",
+      forma: "pix",
+      type: "mensalidade",
+      ...p,
+    };
+  }
+
+  const cartao = { provedor: "asaas" as const, tentadoEm: "2026-07-05T12:00:00.000Z" };
+  const estado = (transacoes: Transacao[]) => ({ transacoes, clientes: [] } as unknown as AppState);
+
+  it("separa aprovada e recusada", () => {
+    const r = selectRenovacoes(
+      estado([
+        cob({ id: "a", dueDate: "2026-07-05", cartaoCobranca: { ...cartao, situacao: "aprovada" } }),
+        cob({ id: "b", dueDate: "2026-07-05", cartaoCobranca: { ...cartao, situacao: "recusada" } }),
+      ]),
+      "2026-07-05",
+    );
+
+    expect(r.noCartao.map((t) => t.id)).toEqual(["a"]);
+    expect(r.cartaoRecusado.map((t) => t.id)).toEqual(["b"]);
+  });
+
+  // Uma recusa importa esteja ela vencendo hoje ou há duas semanas — os baldes de cartão
+  // são lidos independentemente da data.
+  it("vê a recusa mesmo em cobrança atrasada", () => {
+    const r = selectRenovacoes(
+      estado([cob({ id: "a", dueDate: "2026-06-20", cartaoCobranca: { ...cartao, situacao: "recusada" } })]),
+      "2026-07-05",
+    );
+
+    expect(r.cartaoRecusado.map((t) => t.id)).toEqual(["a"]);
+    expect(r.atrasadas.map((t) => t.id)).toEqual(["a"]);
+  });
+
+  /**
+   * "Sem CPF" é diagnóstico de quem depende do boleto. Quem tem cartão em jogo não
+   * precisa de CPF nenhum, e apontar isso mandaria a dona arrumar um cadastro que não
+   * está travando nada.
+   */
+  it("não cobra CPF de quem foi ao cartão", () => {
+    const comCartao = selectRenovacoes(
+      estado([cob({ id: "a", dueDate: "2026-06-20", cartaoCobranca: { ...cartao, situacao: "recusada" } })]),
+      "2026-07-05",
+    );
+    expect(comCartao.semCpf).toEqual([]);
+
+    // Regressão: sem cartão, o diagnóstico de CPF continua saindo como sempre.
+    const semCartao = selectRenovacoes(estado([cob({ id: "a", dueDate: "2026-06-20" })]), "2026-07-05");
+    expect(semCartao.semCpf.map((t) => t.id)).toEqual(["a"]);
+  });
+
+  it("ignora quem já pagou", () => {
+    const r = selectRenovacoes(
+      estado([
+        cob({
+          id: "a",
+          dueDate: "2026-07-05",
+          status: "pago",
+          paidAt: "2026-07-05",
+          cartaoCobranca: { ...cartao, situacao: "aprovada" },
+        }),
+      ]),
+      "2026-07-05",
+    );
+    expect(r.noCartao).toEqual([]);
   });
 });

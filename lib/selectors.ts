@@ -286,13 +286,30 @@ export interface Renovacoes {
   comBoleto: Transacao[];
   /** Venceu, não pagou e o cadastro não tem CPF válido: boleto impossível até arrumarem. */
   semCpf: Transacao[];
+  /** Quitada no cartão salvo, sem ninguém tocar em nada. */
+  noCartao: Transacao[];
+  /**
+   * O cartão recusou. É o balde que precisa aparecer alto: por decisão de produto, quem
+   * tem cartão não recebe boleto automático, então uma recusa significa que o dinheiro
+   * não entrou e o sistema, de propósito, parou ali esperando a dona decidir. Discreto,
+   * isso vira três meses de atraso que ninguém viu.
+   */
+  cartaoRecusado: Transacao[];
 }
 
 export const DIAS_PROXIMAS_RENOVACOES = 7;
 
 export function selectRenovacoes(state: AppState, hojeISO: string = HOJE_ISO): Renovacoes {
   const limite = addDias(hojeISO, DIAS_PROXIMAS_RENOVACOES);
-  const r: Renovacoes = { vencemHoje: [], proximas: [], atrasadas: [], comBoleto: [], semCpf: [] };
+  const r: Renovacoes = {
+    vencemHoje: [],
+    proximas: [],
+    atrasadas: [],
+    comBoleto: [],
+    semCpf: [],
+    noCartao: [],
+    cartaoRecusado: [],
+  };
 
   for (const t of state.transacoes) {
     if (tipoCobranca(t) !== "mensalidade") continue;
@@ -300,10 +317,18 @@ export function selectRenovacoes(state: AppState, hojeISO: string = HOJE_ISO): R
     const venc = t.dueDate;
     if (!venc) continue;
 
+    // O cartão é lido antes dos baldes de data: uma recusa importa esteja ela vencendo
+    // hoje ou há duas semanas.
+    if (t.cartaoCobranca?.situacao === "aprovada") r.noCartao.push(t);
+    else if (t.cartaoCobranca?.situacao === "recusada") r.cartaoRecusado.push(t);
+
     if (venc < hojeISO) {
       r.atrasadas.push(t);
       if (t.boleto) r.comBoleto.push(t);
-      else {
+      // "Sem CPF" só é diagnóstico de quem depende do boleto. Quem tem cartão em jogo
+      // não precisa de CPF nenhum, e apontar isso ali seria mandar a dona arrumar um
+      // cadastro que não está travando nada.
+      else if (!t.cartaoCobranca) {
         const cliente = state.clientes.find((cl) => ehDoCliente(t, cl));
         if (!cliente?.cpf || !validarCpf(cliente.cpf)) r.semCpf.push(t);
       }

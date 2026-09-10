@@ -1,18 +1,21 @@
-// Quem pode mexer no WhatsApp de uma barbearia.
+// Quem pode mexer nos dados de uma barbearia, do lado do servidor.
 //
 // ATENÇÃO: server action é ENDPOINT ACESSÍVEL. Sem verificação, bastaria mandar o
-// tenantId de outra barbearia para parear o WhatsApp dela, ler as conversas dela ou
-// derrubar a conexão dela. Toda action de WhatsApp passa por aqui antes de qualquer
-// efeito.
+// tenantId de outra barbearia para parear o WhatsApp dela, ler as conversas dela, ou
+// emitir boleto no CPF dos clientes dela. Toda action que causa efeito passa por aqui
+// primeiro.
 //
 // Fica num módulo comum, e não dentro de um arquivo de actions, porque um arquivo
 // `"use server"` só pode exportar função de action — duas telas precisando da mesma
 // checagem acabariam com duas cópias dela, e uma regra de segurança duplicada é uma regra
 // que um dia vai divergir.
+//
+// Saiu de `lib/canal/` quando a cobrança no cartão passou a usar a mesma guarda: a regra
+// nunca foi sobre WhatsApp, é o `canManage` do firestore.rules espelhado no servidor.
 
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
 
-export const NAO_AUTORIZADO = "Você não tem permissão para gerenciar o WhatsApp desta barbearia.";
+export const NAO_AUTORIZADO = "Você não tem permissão para gerenciar esta barbearia.";
 
 export interface Resultado {
   ok: boolean;

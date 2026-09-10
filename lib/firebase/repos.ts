@@ -29,6 +29,7 @@ import type {
   Agendamento,
   AgendamentoStatus,
   Barbeiro,
+  CartaoCliente,
   Cliente,
   ConfigBarbearia,
   FormaPagamento,
@@ -66,6 +67,22 @@ export const sugestoes = {
   subscribe(tenantId: string, cb: (rows: Sugestao[]) => void) {
     return onSnapshot(query(col(tenantId, "sugestoes"), where("status", "==", "pendente")), (s) =>
       cb(rows<Sugestao>(s)),
+    );
+  },
+};
+
+// ---- Cartões salvos (VITRINE) ----
+//
+// Só leitura, pela mesma razão de `sugestoes`: quem escreve é o servidor, e é de
+// propósito. O token do cartão NÃO está nesta coleção — mora em
+// `private/cartoes/clientes/{id}`, que o navegador não alcança nem sendo o dono da
+// barbearia. Aqui vem bandeira, quatro dígitos e o histórico de recusa, que é tudo que a
+// tela precisa mostrar.
+export const cartoes = {
+  subscribe(tenantId: string, cb: (rows: CartaoCliente[]) => void) {
+    return onSnapshot(col(tenantId, "cartoes"), (s) =>
+      // O id do doc É o id do cliente — é assim que a tela cruza cartão com ficha.
+      cb(s.docs.map((d) => ({ ...(d.data() as object), clienteId: d.id }) as CartaoCliente)),
     );
   },
 };

@@ -28,6 +28,11 @@ import { useListaProgressiva } from "@/lib/useListaProgressiva";
 import { ClienteModal } from "@/components/admin/ClienteModal";
 import { ImportarClientesModal } from "@/components/admin/ImportarClientesModal";
 import { NovoAgendamentoModal } from "@/components/admin/NovoAgendamentoModal";
+import { acaoLinkCartao, acaoRemoverCartao } from "@/app/(admin)/clientes/actions";
+import { useAuth } from "@/lib/firebase/auth";
+import { linkWhatsApp } from "@/lib/confirmacao";
+import { mensagemConviteCartao } from "@/lib/cobranca-mensagem";
+import { telefoneWhatsApp } from "@/lib/clientes-import";
 
 const eyebrow = { fontSize: 11, letterSpacing: 0.7, textTransform: "uppercase" as const, color: c.ink3, fontWeight: 600 };
 const FILTROS: FiltroCliente[] = ["Todos", "VIP", "Avulsos", "Inadimplentes"];
@@ -41,6 +46,7 @@ const HIST_INICIAL = 8;
 
 export function TelaClientes() {
   const { state, dispatch, actions } = useStore();
+  const { user, tenantId } = useAuth();
   const toast = useToast();
   const hoje = useHoje();
 
@@ -58,6 +64,7 @@ export function TelaClientes() {
   const [novoOpen, setNovoOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [cartaoBusy, setCartaoBusy] = useState<"link" | "remover" | null>(null);
   const [agendarOpen, setAgendarOpen] = useState(false);
   const [verTudo, setVerTudo] = useState(false);
 
@@ -122,6 +129,57 @@ export function TelaClientes() {
       setSelId("");
     } catch {
       toast("Não foi possível excluir o cliente.", "error");
+    }
+  }
+
+  /** A vitrine do cartão deste cliente. Nunca o token — aquele não sai do servidor. */
+  const cartaoDoSel = sel ? state.cartoes.find((k) => k.clienteId === sel.id) : undefined;
+  const temCartaoAtivo = !!cartaoDoSel && cartaoDoSel.ativo !== false;
+
+  /**
+   * Manda o convite por clique-para-conversar, como a confirmação de presença já faz.
+   * Sem rota nova e sem depender do WhatsApp estar vinculado: quem envia é a barbearia.
+   */
+  async function enviarLinkCartao() {
+    if (!sel || !user || !tenantId || cartaoBusy) return;
+    const telefone = telefoneWhatsApp(sel.telefone ?? "");
+    if (!telefone) {
+      toast("Este cliente não tem um telefone utilizável no cadastro.", "error");
+      return;
+    }
+    setCartaoBusy("link");
+    try {
+      const r = await acaoLinkCartao(await user.getIdToken(), tenantId, sel.id, window.location.origin);
+      if (!r.ok || !r.link) {
+        toast(r.erro ?? "Não foi possível gerar o link.", "error");
+        return;
+      }
+      const texto = mensagemConviteCartao({
+        cliente: sel.nome,
+        barbearia: state.config.nome,
+        plano: sel.plano,
+        valor: planoDoCliente(state.planos, sel)?.valor ?? 0,
+        link: r.link,
+      });
+      window.open(linkWhatsApp(telefone, texto), "_blank", "noreferrer");
+    } catch {
+      toast("Não foi possível gerar o link.", "error");
+    } finally {
+      setCartaoBusy(null);
+    }
+  }
+
+  async function removerCartaoDoCliente() {
+    if (!sel || !user || !tenantId || cartaoBusy) return;
+    if (!window.confirm(`Remover o cartão de ${sel.nome}? As próximas mensalidades voltam a ser cobradas como antes.`)) return;
+    setCartaoBusy("remover");
+    try {
+      const r = await acaoRemoverCartao(await user.getIdToken(), tenantId, sel.id);
+      toast(r.ok ? "Cartão removido." : (r.erro ?? "Não foi possível remover."), r.ok ? undefined : "error");
+    } catch {
+      toast("Não foi possível remover o cartão.", "error");
+    } finally {
+      setCartaoBusy(null);
     }
   }
 
@@ -301,6 +359,56 @@ export function TelaClientes() {
               {/avulso/i.test(sel.plano) ? "Sem plano ativo" : "Plano ativo"}
             </span>
           </div>
+
+          {/* Cartão salvo. Fica junto do plano porque é a mesma pergunta: como esta
+              mensalidade é paga. O estado "recusado" é amarelo de propósito — significa
+              que o dinheiro não entrou e o sistema, por decisão, não emitiu boleto
+              sozinho. */}
+          {!/avulso/i.test(sel.plano) ? (
+            <div style={{ border: `1px solid ${c.surfaceAlt}`, background: c.surface, borderRadius: 12, padding: 16, marginTop: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: c.inkTitle, flex: 1 }}>
+                  {temCartaoAtivo
+                    ? `Cartão · ${cartaoDoSel!.bandeira} ••${cartaoDoSel!.ultimosDigitos}`
+                    : "Cartão · não cadastrado"}
+                </span>
+                {temCartaoAtivo && (cartaoDoSel!.falhasSeguidas ?? 0) > 0 ? (
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: c.amberText }}>
+                    {cartaoDoSel!.falhasSeguidas === 1 ? "1 recusa" : `${cartaoDoSel!.falhasSeguidas} recusas`}
+                  </span>
+                ) : null}
+                {temCartaoAtivo ? (
+                  <span style={{ fontSize: 11.5, fontWeight: 600, color: c.green }}>Cobrança automática</span>
+                ) : cartaoDoSel ? (
+                  <span style={{ fontSize: 11.5, fontWeight: 600, color: c.ink3 }}>
+                    {cartaoDoSel.motivoRemocao === "recusas"
+                      ? "Removido após recusas"
+                      : cartaoDoSel.motivoRemocao === "chargeback"
+                        ? "Removido após contestação"
+                        : "Removido"}
+                  </span>
+                ) : null}
+              </div>
+              <div style={{ display: "flex", gap: 14, marginTop: 9 }}>
+                <button
+                  onClick={enviarLinkCartao}
+                  disabled={cartaoBusy !== null}
+                  style={{ border: "none", background: "transparent", cursor: cartaoBusy ? "default" : "pointer", color: c.brassDeep, fontSize: 12, fontWeight: 700, padding: 0 }}
+                >
+                  {cartaoBusy === "link" ? "Gerando…" : temCartaoAtivo ? "Enviar link do cartão →" : "Pedir cartão no WhatsApp →"}
+                </button>
+                {temCartaoAtivo ? (
+                  <button
+                    onClick={removerCartaoDoCliente}
+                    disabled={cartaoBusy !== null}
+                    style={{ border: "none", background: "transparent", cursor: cartaoBusy ? "default" : "pointer", color: c.ink3, fontSize: 12, fontWeight: 600, padding: 0, textDecoration: "underline" }}
+                  >
+                    {cartaoBusy === "remover" ? "Removendo…" : "Remover cartão"}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           {/* Próximo + Pagamento */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>

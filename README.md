@@ -46,8 +46,11 @@ tipos + testes + build a cada push/PR.
 | `/super-admin` | Console SaaS (dark): abas Visão geral/Barbearias/Billing/Suporte; linha de barbearia abre drawer (suspender/trocar plano) |
 | `/login` | Login + Onboarding (wizard de 3 passos) — botões navegam para o painel |
 | `/book/[slug]` | Agendamento público (mobile) — lê o catálogo da barbearia pelo slug e grava via server action; aparece na agenda/dashboard |
+| `/c/[codigo]` | Confirmação de presença pelo link do WhatsApp (público, autorizado por token) |
+| `/cartao/[codigo]` | Cartão da mensalidade: cadastrar, ver e remover (público, autorizado por token). Os dados do cartão são digitados na página do Asaas, nunca aqui — ver `docs/cobranca-automatica.md` |
 
-`/` redireciona para `/dashboard`. `/login`, `/super-admin` e `/book/...` não estão no menu lateral (personas distintas) — acesse pela URL. **Fonte única:** um agendamento feito em `/book/...` aparece na `/agenda` e no `/dashboard`; concluir um atendimento gera uma transação em `/pagamentos`; adicionar um barbeiro em `/configuracoes` cria uma coluna na `/agenda`.
+`/` redireciona para `/dashboard`. `/login`, `/super-admin`, `/book/...`, `/c/...` e
+`/cartao/...` não estão no menu lateral (personas distintas) — acesse pela URL. **Fonte única:** um agendamento feito em `/book/...` aparece na `/agenda` e no `/dashboard`; concluir um atendimento gera uma transação em `/pagamentos`; adicionar um barbeiro em `/configuracoes` cria uma coluna na `/agenda`.
 
 ## Estrutura
 

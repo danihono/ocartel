@@ -22,6 +22,7 @@ import type {
   Agendamento,
   AgendamentoStatus,
   Barbeiro,
+  CartaoCliente,
   Cliente,
   ConfigBarbearia,
   FormaPagamento,
@@ -68,6 +69,11 @@ export interface AppState {
   planos: Plano[];
   /** Agendamentos PROPOSTOS pelo atendente automático, esperando alguém confirmar. */
   sugestoes: Sugestao[];
+  /**
+   * Cartões salvos dos clientes — a VITRINE (bandeira e quatro dígitos), indexada pelo
+   * `clienteId`. Nunca o token: aquele não sai do servidor.
+   */
+  cartoes: CartaoCliente[];
   ui: { hidratado: boolean; visao: Role; barbeiroVisaoId: string | null; telas: TelasUi };
 }
 
@@ -93,6 +99,7 @@ export function buildSeedState(): AppState {
     planosTiers: [],
     planos: [],
     sugestoes: [],
+    cartoes: [],
     ui: { hidratado: false, visao: "admin", barbeiroVisaoId: null, telas: telasIniciais },
   };
 }
@@ -261,6 +268,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           tenants: [],
           planos: [],
           sugestoes: [],
+          cartoes: [],
           ui: { hidratado: false },
         },
       });
@@ -310,6 +318,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // Não entra em ESSENCIAIS: barbearia sem o atendente automático nunca terá
         // sugestão, e esperar por um snapshot que não vem travaria a hidratação.
         repo.sugestoes.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { sugestoes: rows } })),
+        // Fora dos ESSENCIAIS pelo mesmo motivo das sugestões: barbearia que não usa
+        // cartão nunca terá um doc aqui, e esperar por um snapshot que não vem travaria
+        // a hidratação da tela inteira.
+        repo.cartoes.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { cartoes: rows } })),
         repo.planos.subscribe(tenantId, (rows) => {
           dispatch({ type: "SET_DATA", patch: { planos: rows } });
           marcarChegada("planos");
