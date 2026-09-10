@@ -124,9 +124,93 @@ export function deveAlertar(t: Transacao, hojeISO: string, diasAntes: number = P
 export function deveEmitirBoleto(t: Transacao, hojeISO: string): boolean {
   if (!emAberto(t)) return false;
   if (t.boleto) return false;
+  // Quem tem cartão salvo não recebe boleto automático — nem quando o cartão recusa. A
+  // recusa é decisão da dona, não do sistema: ela aparece destacada no painel e o boleto
+  // sai pelo botão manual, se ela quiser. O boleto automático continua sendo o caminho
+  // de quem nunca cadastrou cartão, que é o comportamento de hoje.
+  if (t.cartaoCobranca) return false;
   if (tipoCobranca(t) !== "mensalidade") return false;
   if (!t.dueDate) return false;
   return t.dueDate <= hojeISO;
+}
+
+/**
+ * Quantas recusas seguidas aposentam um cartão.
+ *
+ * Insistir num cartão que o emissor já recusou três vezes não cobra ninguém: só queima
+ * a conta da barbearia na análise antifraude e enche o cliente de aviso inútil.
+ */
+export const MAX_RECUSAS_CARTAO = 3;
+
+/**
+ * Cobra esta mensalidade no cartão salvo hoje?
+ *
+ * Mesma forma de `deveEmitirBoleto` (`<=` e não `===`, para o dia perdido não ficar
+ * órfão), e a mesma disciplina de trava — porém mais severa: a presença de
+ * `cartaoCobranca` em QUALQUER situação, "enviando" inclusive, proíbe uma segunda
+ * passada. Boleto duplicado é constrangimento; cartão duplicado é dinheiro tirado da
+ * conta de alguém.
+ */
+export function deveCobrarNoCartao(t: Transacao, hojeISO: string): boolean {
+  if (!emAberto(t)) return false;
+  if (t.cartaoCobranca) return false;
+  // Já foi para o boleto (por exemplo, cadastro sem cartão no mês passado): não se abre
+  // um segundo caminho de cobrança em paralelo ao que já está na mão do cliente.
+  if (t.boleto) return false;
+  if (tipoCobranca(t) !== "mensalidade") return false;
+  if (!t.dueDate) return false;
+  return t.dueDate <= hojeISO;
+}
+
+/** O cartão deste cliente ainda pode ser tentado? */
+export function cartaoUtilizavel(
+  cartao: { ativo?: boolean; falhasSeguidas?: number } | null | undefined,
+): boolean {
+  if (!cartao || cartao.ativo === false) return false;
+  return (cartao.falhasSeguidas ?? 0) < MAX_RECUSAS_CARTAO;
+}
+
+/**
+ * Quanto tempo uma cobrança pode ficar em "enviando" antes de ser conferida no gateway.
+ *
+ * Curto demais conferiria cobranças ainda em voo; longo demais deixaria a mensalidade
+ * parada. O ciclo roda de hora em hora, então 20 minutos garante que a rodada seguinte
+ * sempre encontre as pendências da anterior já vencidas.
+ */
+export const JANELA_RECONCILIACAO_MIN = 20;
+
+/**
+ * Esta cobrança ficou pendurada em "enviando" e precisa ser conferida no gateway?
+ *
+ * É o que desatola o caso perigoso: um timeout no `POST /payments` pode ter debitado o
+ * cartão. A transação fica presa (nem cobra de novo, nem emite boleto) até alguém
+ * perguntar ao gateway o que realmente aconteceu.
+ */
+export function precisaReconciliarCartao(t: Transacao, agoraISO: string): boolean {
+  const c = t.cartaoCobranca;
+  if (!c || c.situacao !== "enviando") return false;
+  const tentado = Date.parse(c.tentadoEm ?? "");
+  const agora = Date.parse(agoraISO);
+  if (Number.isNaN(tentado) || Number.isNaN(agora)) return false;
+  return agora - tentado >= JANELA_RECONCILIACAO_MIN * 60_000;
+}
+
+/** Cobranças de cartão em que o dinheiro já é da barbearia. */
+const STATUS_PAGO_GATEWAY = new Set(["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH"]);
+
+/**
+ * Traduz o que o gateway devolveu na busca por referência para a situação final.
+ *
+ * Na dúvida, "recusada": é o lado seguro. Dizer que passou uma cobrança que não passou
+ * deixaria a mensalidade em aberto para sempre, sem ninguém olhando; dizer que não
+ * passou uma que passou faz a dona ver a recusa no painel e conferir — e a baixa do
+ * webhook corrige o registro de qualquer forma.
+ */
+export function situacaoReconciliada(
+  cobrancas: { status: string; billingType: string }[],
+): "aprovada" | "recusada" {
+  const doCartao = cobrancas.filter((c) => c.billingType === "CREDIT_CARD");
+  return doCartao.some((c) => STATUS_PAGO_GATEWAY.has(c.status)) ? "aprovada" : "recusada";
 }
 
 /** Vencimento do BOLETO: alguns dias de folga a partir de hoje, para dar tempo de pagar. */

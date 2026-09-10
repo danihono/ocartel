@@ -224,6 +224,20 @@ export interface Transacao {
    * impede uma segunda emissão — nunca cobre o mesmo cliente duas vezes.
    */
   boleto?: Boleto;
+  /**
+   * Tentativa de cobrança no cartão salvo do cliente. A PRESENÇA deste campo é o que
+   * impede uma segunda tentativa — mesma trava do `boleto`, e mais severa: a situação
+   * "enviando" também tranca, porque um timeout na chamada ao gateway pode ter debitado
+   * o cartão de verdade. Só a conciliação por `externalReference` desatola.
+   */
+  cartaoCobranca?: CobrancaCartao;
+  /**
+   * Estorno ou chargeback recebido pelo webhook: a baixa foi REVERTIDA e a cobrança
+   * voltou a ficar em aberto. Fica gravado porque "voltou a pendente sozinha" sem
+   * explicação é o tipo de coisa que ninguém consegue auditar depois.
+   */
+  estornadoEm?: string;
+  estornoMotivo?: string;
 }
 
 /** Boleto emitido no gateway (hoje só Asaas) para uma cobrança. */
@@ -238,6 +252,53 @@ export interface Boleto {
   /** Vencimento do BOLETO (ISO) — alguns dias à frente do vencimento da mensalidade. */
   vencimentoISO: string;
   emitidoEm: string;
+}
+
+/**
+ * Tentativa de cobrança no cartão salvo, gravada em duas fases.
+ *
+ * "enviando" é gravado ANTES da chamada ao gateway — o contrário da disciplina do resto
+ * do ciclo, e de propósito: o Asaas não tem header de idempotência, então um timeout
+ * pode significar dinheiro debitado. Uma transação presa em "enviando" é o estado
+ * SEGURO (não cobra de novo, não emite nada) e quem a resolve é a conciliação por
+ * `externalReference` no começo da rodada seguinte.
+ */
+export interface CobrancaCartao {
+  provedor: "asaas";
+  situacao: "enviando" | "aprovada" | "recusada";
+  /** Id da cobrança no provedor — existe a partir da resposta, não na fase "enviando". */
+  cobrancaId?: string;
+  bandeira?: string;
+  ultimosDigitos?: string;
+  /** Texto do emissor quando recusou ("Sem limite disponível"). Vai para a tela. */
+  motivo?: string;
+  codigo?: string;
+  tentadoEm: string;
+  resolvidoEm?: string;
+}
+
+/**
+ * VITRINE do cartão salvo de um cliente (`tenants/{t}/cartoes/{clienteId}`).
+ *
+ * O token NÃO está aqui: ele mora em `tenants/{t}/private/cartoes/clientes/{id}`, que
+ * nem o dono da barbearia alcança pelo navegador. Aqui fica só o que a tela precisa
+ * mostrar — bandeira e quatro últimos dígitos — pelo mesmo motivo de
+ * `repo.cobrador.subscribeStatus`: o que não sobe para o componente não vaza por print.
+ */
+export interface CartaoCliente {
+  /** = id do doc, e do cliente. */
+  clienteId: string;
+  provedor: "asaas";
+  bandeira: string;
+  ultimosDigitos: string;
+  cadastradoEm: string;
+  ativo: boolean;
+  /** Recusas seguidas. Ao bater MAX_RECUSAS_CARTAO o cartão é aposentado. */
+  falhasSeguidas?: number;
+  ultimaFalhaEm?: string;
+  ultimoErro?: string;
+  removidoEm?: string;
+  motivoRemocao?: "cliente" | "barbearia" | "recusas" | "chargeback";
 }
 
 export interface ConfigBarbearia {
@@ -315,7 +376,16 @@ export interface CobrancaAutomatica {
   hora: string;
   /** Quantos dias antes do vencimento sai o aviso de renovação. */
   diasAntesAlerta: number;
-  /** Emitir boleto automaticamente para quem venceu e não pagou. */
+  /**
+   * Cobrar no cartão salvo, no dia do vencimento, quem já cadastrou cartão. Ausente ⇒
+   * DESLIGADO: os docs de config em produção não têm o campo, e nenhuma barbearia
+   * existente pode começar a passar cartão de cliente sem alguém ter pedido.
+   */
+  cobrarNoCartao?: boolean;
+  /**
+   * Emitir boleto automaticamente para quem venceu e não pagou. Vale para quem NÃO tem
+   * cartão salvo: quem tem cartão e é recusado fica pendente para a dona decidir.
+   */
   emitirBoleto: boolean;
   /** Folga, em dias, entre a emissão do boleto e o vencimento DELE. */
   diasVencimentoBoleto: number;

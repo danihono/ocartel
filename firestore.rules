@@ -44,7 +44,11 @@ service cloud.firestore {
         // servidor (Admin SDK, que não passa por estas regras); apagá-las ou reescrevê-las
         // pelo navegador faria o próximo ciclo cobrar a mesma pessoa outra vez.
         && (!('boleto' in resource.data) || novo.boleto == resource.data.boleto)
-        && (!('alertaEnviadoEm' in resource.data) || novo.alertaEnviadoEm == resource.data.alertaEnviadoEm);
+        && (!('alertaEnviadoEm' in resource.data) || novo.alertaEnviadoEm == resource.data.alertaEnviadoEm)
+        // `cartaoCobranca` é a mesma trava, para o cartão. Aqui apagá-la pelo navegador
+        // não faria o cliente receber um segundo boleto: faria o próximo ciclo DEBITAR o
+        // cartão dele outra vez.
+        && (!('cartaoCobranca' in resource.data) || novo.cartaoCobranca == resource.data.cartaoCobranca);
     }
 
     // O espelho das conversas de WhatsApp vive em users/barbearia-{tenantId}/contacts/**,
@@ -99,6 +103,14 @@ service cloud.firestore {
       match /private/{doc} {
         allow read, write: if canManage(tenantId);
       }
+
+      // Cartões salvos — VITRINE: bandeira e quatro últimos dígitos, nada mais. O token
+      // NÃO está aqui; ele mora em `private/cartoes/clientes/{id}`, que não casa com
+      // `match /private/{doc}` (um segmento só) e portanto cai no deny padrão — nem o
+      // dono da barbearia o alcança pelo navegador, que é o nível certo para um
+      // instrumento de débito. Só leitura, mesma razão de `sugestoes`: quem escreve é o
+      // servidor, e é de propósito.
+      match /cartoes/{id} { allow read: if canManage(tenantId); }
 
       // Catálogo de leitura pública (a vitrine de /book/[slug]).
       match /servicos/{id}    { allow read: if true; allow write: if canManage(tenantId); }

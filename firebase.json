@@ -10,6 +10,7 @@
     "frameworksBackend": {
       "region": "us-central1",
       "secrets": [
+        "COBRANCAS_SECRET",
         "GEMINI_API_KEY",
         "IA_SECRET"
       ]

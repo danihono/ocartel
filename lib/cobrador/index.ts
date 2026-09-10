@@ -1,6 +1,6 @@
 // Cobrador — a porta trocável entre O Cartel e o gateway de pagamento.
 //
-// TUDO que emite boleto passa por aqui. Nada fora desta pasta pode saber COMO a cobrança
+// TUDO que emite boleto ou cobra cartão passa por aqui. Nada fora desta pasta pode saber COMO a cobrança
 // é criada: hoje é o Asaas, amanhã pode ser outro. Trocar significa escrever outro arquivo
 // nesta pasta e mudar a fábrica no fim — sem tocar em quem chama.
 //
@@ -38,6 +38,66 @@ export interface BoletoEmitido {
   vencimentoISO: string;
 }
 
+export interface PedidoLinkCartao {
+  /** Id do cliente NO GATEWAY, devolvido por `garantirCliente`. */
+  clienteExterno: string;
+  valor: number;
+  vencimentoISO: string;
+  descricao: string;
+  /** `montarReferencia(tenantId, transacaoId)` — é por ela que o webhook se acha. */
+  referencia: string;
+}
+
+export interface LinkCartao {
+  cobrancaId: string;
+  /**
+   * `invoiceUrl` — a página HOSPEDADA do gateway. É LÁ que o cartão é digitado, nunca
+   * numa tela nossa: o Asaas não oferece tokenização pelo navegador, então um formulário
+   * do O Cartel faria o número do cartão passar pelo nosso servidor e jogaria o produto
+   * inteiro dentro do PCI-DSS SAQ-D. Este campo é a fronteira.
+   */
+  url: string;
+  vencimentoISO: string;
+}
+
+export interface PedidoCobrancaCartao {
+  clienteExterno: string;
+  /** Token do cartão salvo. Não é o cartão: é um apelido dele, inútil fora deste cliente. */
+  cartaoToken: string;
+  valor: number;
+  vencimentoISO: string;
+  descricao: string;
+  referencia: string;
+  /** IP registrado no CADASTRO do cartão. O gateway exige `remoteIp` na recobrança. */
+  ipRemoto: string;
+}
+
+/**
+ * Recusa NÃO é erro: é resposta. O emissor negar por falta de limite é informação de
+ * negócio, e some se virar exceção junto com "o gateway caiu" — que é a mesma classe de
+ * `catch` e exige o oposto (retentar, não desistir).
+ */
+export type ResultadoCobrancaCartao =
+  | { situacao: "aprovada"; cobrancaId: string; bandeira?: string; ultimosDigitos?: string }
+  | { situacao: "recusada"; cobrancaId?: string; motivo: string; codigo?: string };
+
+export interface CartaoTokenizado {
+  token: string;
+  /** "VISA", "MASTERCARD". */
+  bandeira: string;
+  ultimosDigitos: string;
+}
+
+/** O que o gateway conhece por uma referência — a base da conciliação. */
+export interface CobrancaResumo {
+  id: string;
+  /** PENDING | CONFIRMED | RECEIVED | REFUNDED | ... */
+  status: string;
+  billingType: string;
+  value: number;
+  externalReference?: string;
+}
+
 export interface Cobrador {
   /**
    * Id do cliente no gateway, criando-o se ainda não existir. Idempotente por CPF: o
@@ -45,6 +105,29 @@ export interface Cobrador {
    */
   garantirCliente(dados: DadosClienteCobranca): Promise<string>;
   emitirBoleto(pedido: PedidoBoleto): Promise<BoletoEmitido>;
+
+  /**
+   * Cria a cobrança de cartão SEM cartão nenhum e devolve a página hospedada do gateway,
+   * onde o cliente digita os dados. É assim que o cartão é capturado sem encostar no
+   * nosso servidor.
+   */
+  pedirCartao(pedido: PedidoLinkCartao): Promise<LinkCartao>;
+
+  /**
+   * Cobra usando o token salvo, sem ninguém presente. NUNCA lança quando o emissor
+   * recusa — devolve `situacao: "recusada"`. Lança só quando o gateway falha, porque aí
+   * a cobrança precisa ser retentada, não abandonada.
+   */
+  cobrarNoCartao(pedido: PedidoCobrancaCartao): Promise<ResultadoCobrancaCartao>;
+
+  /** Lê o token que o gateway expõe depois da aprovação na página hospedada. */
+  lerCartaoDaCobranca(cobrancaId: string): Promise<CartaoTokenizado | null>;
+
+  /**
+   * O que existe no gateway com esta referência. Substitui o header de idempotência que
+   * o Asaas não tem: é como se descobre se um `POST` que deu timeout debitou ou não.
+   */
+  procurarCobrancas(referencia: string): Promise<CobrancaResumo[]>;
 }
 
 /** Credenciais do gateway desta barbearia. Mora em `private/` — nunca em `config/`. */
