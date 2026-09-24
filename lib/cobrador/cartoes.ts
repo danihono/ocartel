@@ -46,11 +46,23 @@ export interface CartaoSalvo {
    */
   ipCadastro: string;
   /**
-   * Prova de consentimento da recorrência: o texto exato que a pessoa aceitou, quando, e
-   * de qual navegador. É a defesa num chargeback — e é o que separa isto de cobrança
+   * Prova de consentimento da recorrência: o texto exato que foi aceito, quando, e de
+   * qual navegador. É a defesa num chargeback — e é o que separa isto de cobrança
    * indevida.
+   *
+   * `origem` diz QUEM aceitou, e isso muda o peso da prova: "cliente" é o titular
+   * marcando a caixinha na página do cartão; "balcao" é alguém da barbearia declarando
+   * que o titular autorizou. Ausente ⇒ "cliente" (docs anteriores ao balcão).
    */
-  autorizacao: { em: string; texto: string; versao: string; userAgent?: string };
+  autorizacao: {
+    em: string;
+    texto: string;
+    versao: string;
+    userAgent?: string;
+    origem?: "cliente" | "balcao";
+    /** Só no balcão: quem digitou. É a pessoa que responde pela declaração. */
+    registradoPor?: string;
+  };
   /** Token do link público deste cliente (`/cartao/[codigo]`). */
   linkToken: string;
 }
@@ -84,6 +96,8 @@ export interface Autorizacao {
   versao: string;
   ip: string;
   userAgent?: string;
+  origem?: "cliente" | "balcao";
+  registradoPor?: string;
 }
 
 export class SemAutorizacao extends Error {
@@ -113,6 +127,8 @@ export async function registrarAutorizacao(
         texto: a.texto,
         versao: a.versao,
         ...(a.userAgent ? { userAgent: a.userAgent.slice(0, 300) } : {}),
+        ...(a.origem ? { origem: a.origem } : {}),
+        ...(a.registradoPor ? { registradoPor: a.registradoPor } : {}),
       },
       ipCadastroPendente: a.ip,
     },
@@ -169,6 +185,7 @@ export async function salvarCartao(tenantId: string, clienteId: string, dados: D
     cadastradoEm: agora,
     ativo: true,
     falhasSeguidas: 0,
+    origem: autorizacao.origem ?? "cliente",
   };
   // `set` sem merge: um cadastro novo zera o histórico de falha e de remoção do cartão
   // anterior. Manter `removidoEm` de um cartão que já não existe faria a tela mostrar

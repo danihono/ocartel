@@ -50,6 +50,32 @@ export function linkCartao(origin: string, codigo: string): string {
 export const VERSAO_AUTORIZACAO = "v1";
 
 /**
+ * A declaração que a ATENDENTE assina quando cadastra o cartão pelo balcão.
+ *
+ * É texto diferente do do cliente, e de propósito. No balcão quem marca a caixinha não é
+ * o titular do cartão, então gravar "Autorizo a cobrar minha mensalidade" seria prova
+ * falsa — justamente a prova que a barbearia vai precisar apresentar se o cliente
+ * contestar no banco. Aqui o registro diz o que de fato aconteceu: uma pessoa da
+ * barbearia declarou que o titular autorizou, e é ela que responde por isso.
+ *
+ * A prova do lado do cliente é a confirmação que ele recebe no WhatsApp em seguida, com o
+ * link de remoção. Por isso o cadastro de balcão de quem não tem WhatsApp utilizável fica
+ * sem trilha nenhuma — e a tela avisa.
+ */
+export function textoAutorizacaoBalcao(
+  barbearia: string,
+  valorFormatado: string,
+  dia: number,
+  atendente: string,
+): string {
+  return (
+    `Cadastro feito no balcão por ${atendente || "equipe da barbearia"}. Declaro que o titular ` +
+    `do cartão autorizou a ${barbearia} a cobrar a mensalidade de ${valorFormatado} neste ` +
+    `cartão todo dia ${dia}, e que ele foi informado de que pode cancelar a qualquer momento.`
+  );
+}
+
+/**
  * O texto que a pessoa aceita antes de cadastrar o cartão.
  *
  * Mora aqui, num módulo puro, porque ele é ao mesmo tempo o que aparece na tela e o que

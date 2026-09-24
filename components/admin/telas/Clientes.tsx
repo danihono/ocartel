@@ -28,6 +28,7 @@ import { useListaProgressiva } from "@/lib/useListaProgressiva";
 import { ClienteModal } from "@/components/admin/ClienteModal";
 import { ImportarClientesModal } from "@/components/admin/ImportarClientesModal";
 import { NovoAgendamentoModal } from "@/components/admin/NovoAgendamentoModal";
+import { CadastrarCartaoModal } from "@/components/admin/CadastrarCartaoModal";
 import { acaoLinkCartao, acaoRemoverCartao } from "@/app/(admin)/clientes/actions";
 import { useAuth } from "@/lib/firebase/auth";
 import { linkWhatsApp } from "@/lib/confirmacao";
@@ -65,6 +66,7 @@ export function TelaClientes() {
   const [importOpen, setImportOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [cartaoBusy, setCartaoBusy] = useState<"link" | "remover" | null>(null);
+  const [cadastrarCartaoOpen, setCadastrarCartaoOpen] = useState(false);
   const [agendarOpen, setAgendarOpen] = useState(false);
   const [verTudo, setVerTudo] = useState(false);
 
@@ -378,7 +380,9 @@ export function TelaClientes() {
                   </span>
                 ) : null}
                 {temCartaoAtivo ? (
-                  <span style={{ fontSize: 11.5, fontWeight: 600, color: c.green }}>Cobrança automática</span>
+                  <span style={{ fontSize: 11.5, fontWeight: 600, color: c.green }}>
+                    {cartaoDoSel!.origem === "balcao" ? "Cadastrado no balcão" : "Cobrança automática"}
+                  </span>
                 ) : cartaoDoSel ? (
                   <span style={{ fontSize: 11.5, fontWeight: 600, color: c.ink3 }}>
                     {cartaoDoSel.motivoRemocao === "recusas"
@@ -389,13 +393,24 @@ export function TelaClientes() {
                   </span>
                 ) : null}
               </div>
-              <div style={{ display: "flex", gap: 14, marginTop: 9 }}>
+              <div style={{ display: "flex", gap: 14, marginTop: 9, flexWrap: "wrap" }}>
+                {/* O balcão vem primeiro: é o caminho do dia a dia, com o cliente na
+                    frente. O link do WhatsApp serve pra quem não está na barbearia. */}
+                {!temCartaoAtivo ? (
+                  <button
+                    onClick={() => setCadastrarCartaoOpen(true)}
+                    disabled={cartaoBusy !== null}
+                    style={{ border: "none", background: "transparent", cursor: cartaoBusy ? "default" : "pointer", color: c.brassDeep, fontSize: 12, fontWeight: 700, padding: 0 }}
+                  >
+                    Cadastrar cartão no balcão →
+                  </button>
+                ) : null}
                 <button
                   onClick={enviarLinkCartao}
                   disabled={cartaoBusy !== null}
-                  style={{ border: "none", background: "transparent", cursor: cartaoBusy ? "default" : "pointer", color: c.brassDeep, fontSize: 12, fontWeight: 700, padding: 0 }}
+                  style={{ border: "none", background: "transparent", cursor: cartaoBusy ? "default" : "pointer", color: temCartaoAtivo ? c.brassDeep : c.ink3, fontSize: 12, fontWeight: temCartaoAtivo ? 700 : 600, padding: 0 }}
                 >
-                  {cartaoBusy === "link" ? "Gerando…" : temCartaoAtivo ? "Enviar link do cartão →" : "Pedir cartão no WhatsApp →"}
+                  {cartaoBusy === "link" ? "Gerando…" : temCartaoAtivo ? "Enviar link do cartão →" : "Mandar link pelo WhatsApp"}
                 </button>
                 {temCartaoAtivo ? (
                   <button
@@ -488,6 +503,13 @@ export function TelaClientes() {
         </Card>
       )}
 
+      <CadastrarCartaoModal
+        open={cadastrarCartaoOpen}
+        onClose={() => setCadastrarCartaoOpen(false)}
+        cliente={sel ?? null}
+        valorMensalidade={sel ? (planoDoCliente(state.planos, sel)?.valor ?? 0) : 0}
+        diaVencimento={sel ? diaVencimentoCliente(sel, planoDoCliente(state.planos, sel)) : 5}
+      />
       <ClienteModal open={novoOpen} onClose={() => setNovoOpen(false)} onSaved={(id) => { setFiltro("Todos"); setBusca(""); setSelId(id); }} />
       <ImportarClientesModal open={importOpen} onClose={() => setImportOpen(false)} />
       {sel ? <ClienteModal open={editOpen} onClose={() => setEditOpen(false)} cliente={sel} /> : null}

@@ -285,3 +285,122 @@ describe("CobradorAsaas.procurarCobrancas", () => {
     expect(await new CobradorAsaas(CRED).procurarCobrancas("tenantA.tx9")).toEqual([]);
   });
 });
+
+// ---- Tokenização de balcão ----
+//
+// Este é o único método que recebe número de cartão. Os testes aqui existem para travar
+// o que não pode acontecer com ele: virar log, virar mensagem de erro, ou virar retorno.
+
+const CARTAO_TESTE = {
+  titular: "RUI A PEREIRA",
+  numero: "4111111111111111",
+  mesValidade: "12",
+  anoValidade: "2030",
+  ccv: "123",
+};
+
+const PEDIDO_TOKEN = {
+  clienteExterno: "cus_1",
+  cartao: CARTAO_TESTE,
+  titular: {
+    nome: "Rui Alves",
+    email: "rui@exemplo.com",
+    cpf: "52998224725",
+    cep: "89223005",
+    numeroEndereco: "100",
+    telefone: "5511990000000",
+  },
+  ipRemoto: "200.1.2.3",
+};
+
+describe("CobradorAsaas.tokenizarCartao", () => {
+  it("manda o cartão e o titular no formato do Asaas e devolve o token", async () => {
+    const chamadas = stubFetch({
+      "/creditCard/tokenizeCreditCard": {
+        creditCardNumber: "1111",
+        creditCardBrand: "VISA",
+        creditCardToken: "tok_abc",
+      },
+    });
+    const r = await new CobradorAsaas(CRED).tokenizarCartao(PEDIDO_TOKEN);
+
+    expect(r).toEqual({
+      situacao: "aprovada",
+      cartao: { token: "tok_abc", bandeira: "VISA", ultimosDigitos: "1111", clienteExterno: "cus_1" },
+    });
+
+    const corpo = JSON.parse(String(chamadas[0].init!.body));
+    expect(corpo.creditCard).toEqual({
+      holderName: "RUI A PEREIRA",
+      number: "4111111111111111",
+      expiryMonth: "12",
+      expiryYear: "2030",
+      ccv: "123",
+    });
+    expect(corpo.creditCardHolderInfo).toMatchObject({
+      cpfCnpj: "52998224725",
+      postalCode: "89223005",
+      addressNumber: "100",
+    });
+    expect(corpo.remoteIp).toBe("200.1.2.3");
+  });
+
+  /**
+   * O retorno é o que atravessa a server action até a tela. Se o número do cartão
+   * escapasse por aqui, ele apareceria no payload do navegador — e aí não teria adiantado
+   * nada não guardar no banco.
+   */
+  it("não devolve número nem CCV — só bandeira e quatro dígitos", async () => {
+    stubFetch({
+      "/creditCard/tokenizeCreditCard": {
+        creditCardNumber: "1111",
+        creditCardBrand: "VISA",
+        creditCardToken: "tok_abc",
+      },
+    });
+    const r = await new CobradorAsaas(CRED).tokenizarCartao(PEDIDO_TOKEN);
+
+    const serializado = JSON.stringify(r);
+    expect(serializado).not.toContain(CARTAO_TESTE.numero);
+    expect(serializado).not.toContain(CARTAO_TESTE.ccv);
+  });
+
+  // 200 sem token não é o cartão do cliente sendo recusado: é a conta da barbearia sem
+  // tokenização liberada. Confundir os dois faz a atendente culpar o cliente.
+  it("explica quando o gateway responde sem token", async () => {
+    stubFetch({ "/creditCard/tokenizeCreditCard": { creditCardBrand: "VISA" } });
+    const r = await new CobradorAsaas(CRED).tokenizarCartao(PEDIDO_TOKEN);
+
+    expect(r.situacao).toBe("recusada");
+    expect(r.situacao === "recusada" && r.motivo).toContain("tokenização");
+  });
+
+  it("traduz o 400 do emissor em recusa legível, sem lançar", async () => {
+    stubResposta(400, { errors: [{ code: "invalid_creditCard", description: "Cartão inválido" }] });
+    const r = await new CobradorAsaas(CRED).tokenizarCartao(PEDIDO_TOKEN);
+
+    expect(r).toEqual({ situacao: "recusada", motivo: "Cartão inválido", codigo: "invalid_creditCard" });
+  });
+
+  it("lança quando o problema é do gateway, não do cartão", async () => {
+    stubResposta(500, "Internal Server Error");
+    await expect(new CobradorAsaas(CRED).tokenizarCartao(PEDIDO_TOKEN)).rejects.toBeInstanceOf(AsaasErro);
+  });
+
+  /**
+   * `AsaasErro` guarda o corpo da RESPOSTA. Este teste é o que impede alguém de, um dia,
+   * acrescentar o corpo enviado à exceção "para facilitar o debug" — e com isso escrever
+   * número de cartão em todo log de erro do sistema.
+   */
+  it("a exceção do gateway não carrega o cartão enviado", async () => {
+    stubResposta(500, "Internal Server Error");
+    const erro = await new CobradorAsaas(CRED)
+      .tokenizarCartao(PEDIDO_TOKEN)
+      .then(() => null)
+      .catch((e: unknown) => e);
+
+    const texto = `${String(erro)} ${JSON.stringify(erro, Object.getOwnPropertyNames(erro))}`;
+    expect(texto).not.toContain(CARTAO_TESTE.numero);
+    expect(texto).not.toContain(CARTAO_TESTE.ccv);
+  });
+});

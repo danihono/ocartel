@@ -81,6 +81,53 @@ export type ResultadoCobrancaCartao =
   | { situacao: "aprovada"; cobrancaId: string; bandeira?: string; ultimosDigitos?: string }
   | { situacao: "recusada"; cobrancaId?: string; motivo: string; codigo?: string };
 
+/**
+ * Dados de cartão em trânsito, para a tokenização de balcão.
+ *
+ * ATENÇÃO: este é o ÚNICO tipo do sistema que carrega número de cartão, e ele existe só
+ * dentro de uma chamada — nasce no corpo do request e morre quando o gateway responde.
+ * Nunca persista, nunca logue, nunca devolva de server action, nunca coloque em mensagem
+ * de erro. O que fica guardado é o token que volta de `tokenizarCartao`.
+ *
+ * A existência deste tipo é o que coloca o O Cartel dentro do PCI-DSS SAQ-D — foi uma
+ * decisão de produto (a atendente digita pelo cliente, no balcão), não um acidente. O
+ * caminho sem esse ônus é o da página hospedada: `pedirCartao`.
+ */
+export interface DadosCartaoEmTransito {
+  /** Nome impresso no cartão. */
+  titular: string;
+  /** Só dígitos. */
+  numero: string;
+  /** "MM". */
+  mesValidade: string;
+  /** "AAAA". */
+  anoValidade: string;
+  ccv: string;
+}
+
+/**
+ * Dados do titular que o gateway exige junto do cartão. Não são persistidos: só o token
+ * sobrevive à chamada, e para recobrar o token basta ele.
+ */
+export interface DadosTitular {
+  nome: string;
+  email: string;
+  /** Só dígitos. */
+  cpf: string;
+  /** Só dígitos (8). */
+  cep: string;
+  numeroEndereco: string;
+  telefone?: string;
+}
+
+export interface PedidoTokenizacao {
+  clienteExterno: string;
+  cartao: DadosCartaoEmTransito;
+  titular: DadosTitular;
+  /** IP de quem está digitando — no balcão, o do aparelho da barbearia. */
+  ipRemoto: string;
+}
+
 export interface CartaoTokenizado {
   token: string;
   /** "VISA", "MASTERCARD". */
@@ -93,6 +140,15 @@ export interface CartaoTokenizado {
    */
   clienteExterno: string;
 }
+
+/**
+ * Tokenizar valida o cartão no emissor, então pode ser recusado — e recusa aqui é
+ * resposta, não erro, pela mesma razão de `cobrarNoCartao`: a atendente precisa ler
+ * "cartão inválido" na tela, e um gateway fora do ar não pode virar "cartão recusado".
+ */
+export type ResultadoTokenizacao =
+  | { situacao: "aprovada"; cartao: CartaoTokenizado }
+  | { situacao: "recusada"; motivo: string; codigo?: string };
 
 /** O que o gateway conhece por uma referência — a base da conciliação. */
 export interface CobrancaResumo {
@@ -128,6 +184,19 @@ export interface Cobrador {
 
   /** Lê o token que o gateway expõe depois da aprovação na página hospedada. */
   lerCartaoDaCobranca(cobrancaId: string): Promise<CartaoTokenizado | null>;
+
+  /**
+   * Troca dados de cartão por um token, SEM cobrar nada.
+   *
+   * É o caminho de balcão: a atendente digita o cartão do cliente presente. Diferente de
+   * `pedirCartao`, aqui o número passa pelo nosso servidor — é o que exige certificação
+   * PCI-DSS SAQ-D e a liberação de checkout transparente na conta do gateway.
+   *
+   * Não cobra de propósito: cadastrar cartão e cobrar mensalidade são coisas diferentes,
+   * e juntá-las faria um cadastro de balcão virar uma cobrança que ninguém pediu. A
+   * mensalidade em aberto é debitada pelo ciclo, na hora seguinte.
+   */
+  tokenizarCartao(pedido: PedidoTokenizacao): Promise<ResultadoTokenizacao>;
 
   /**
    * O que existe no gateway com esta referência. Substitui o header de idempotência que

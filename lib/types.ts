@@ -293,6 +293,12 @@ export interface CartaoCliente {
   ultimosDigitos: string;
   cadastradoEm: string;
   ativo: boolean;
+  /**
+   * Como o cartão entrou: o próprio cliente pela página (`cliente`) ou alguém da
+   * barbearia pelo balcão (`balcao`). Aparece na ficha porque muda o peso da prova de
+   * consentimento numa contestação. Ausente ⇒ `cliente`.
+   */
+  origem?: "cliente" | "balcao";
   /** Recusas seguidas. Ao bater MAX_RECUSAS_CARTAO o cartão é aposentado. */
   falhasSeguidas?: number;
   ultimaFalhaEm?: string;

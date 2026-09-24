@@ -6,10 +6,16 @@
 // Docs: https://docs.asaas.com — `POST /customers`, `POST /payments`,
 // `GET /payments/{id}`, `GET /payments/{id}/identificationField`, `GET /payments`
 //
-// O cartão nunca é digitado aqui. `pedirCartao` cria a cobrança e devolve a página do
-// próprio Asaas; a partir dela o que circula é o `creditCardToken`. Isso é deliberado: o
-// Asaas não tem tokenização pelo navegador, e mandar o número do cartão pelo nosso
-// servidor exigiria certificação PCI-DSS SAQ-D.
+// Dois caminhos para o cartão chegar aqui, e a diferença entre eles é regulatória:
+//
+//   `pedirCartao`      o cliente digita na página HOSPEDADA do Asaas. Nada de cartão
+//                      passa pelo nosso servidor. Escopo PCI-DSS SAQ-A.
+//   `tokenizarCartao`  a atendente digita no balcão, no formulário do O Cartel. O número
+//                      ATRAVESSA este arquivo. Escopo PCI-DSS SAQ-D, e exige checkout
+//                      transparente liberado na conta do Asaas.
+//
+// Os dois existem por decisão de produto. Depois da tokenização, o que circula é só o
+// `creditCardToken` — nenhum dos dois caminhos guarda número de cartão em lugar algum.
 
 import type {
   BoletoEmitido,
@@ -22,7 +28,9 @@ import type {
   PedidoBoleto,
   PedidoCobrancaCartao,
   PedidoLinkCartao,
+  PedidoTokenizacao,
   ResultadoCobrancaCartao,
+  ResultadoTokenizacao,
 } from "./index";
 
 const BASE = {
@@ -231,6 +239,80 @@ export class CobradorAsaas implements Cobrador {
       ultimosDigitos: r.creditCard?.creditCardNumber ?? "",
       clienteExterno: r.customer,
     };
+  }
+
+  /**
+   * Troca cartão por token, sem cobrar. `POST /creditCard/tokenizeCreditCard`.
+   *
+   * Este é o único método do sistema que recebe número de cartão. Regras que valem só
+   * aqui e não podem ser relaxadas:
+   *
+   *   - nada do `pedido.cartao` entra em log, em mensagem de erro ou no valor de retorno;
+   *   - `AsaasErro` guarda o CORPO DA RESPOSTA, não o do request, então deixá-lo subir é
+   *     seguro — mas nunca acrescente o corpo enviado a uma exceção;
+   *   - o `remoteIp` é o de quem digitou, e é ele que fica gravado com o token: é o que
+   *     permite, meses depois, dizer de onde saiu aquela autorização.
+   */
+  async tokenizarCartao(pedido: PedidoTokenizacao): Promise<ResultadoTokenizacao> {
+    try {
+      const r = await this.chamar<{
+        creditCardNumber?: string;
+        creditCardBrand?: string;
+        creditCardToken?: string;
+      }>("/creditCard/tokenizeCreditCard", {
+        method: "POST",
+        body: JSON.stringify({
+          customer: pedido.clienteExterno,
+          creditCard: {
+            holderName: pedido.cartao.titular,
+            number: pedido.cartao.numero,
+            expiryMonth: pedido.cartao.mesValidade,
+            expiryYear: pedido.cartao.anoValidade,
+            ccv: pedido.cartao.ccv,
+          },
+          creditCardHolderInfo: {
+            name: pedido.titular.nome,
+            email: pedido.titular.email,
+            cpfCnpj: pedido.titular.cpf,
+            postalCode: pedido.titular.cep,
+            addressNumber: pedido.titular.numeroEndereco,
+            ...(pedido.titular.telefone ? { mobilePhone: pedido.titular.telefone } : {}),
+          },
+          remoteIp: pedido.ipRemoto,
+        }),
+      });
+
+      if (!r.creditCardToken) {
+        // Resposta 200 sem token é o sintoma de tokenização não liberada na conta. Não é
+        // recusa do emissor, e tratá-la como tal faria a atendente culpar o cartão do
+        // cliente por um problema de configuração da barbearia.
+        return {
+          situacao: "recusada",
+          motivo: "O gateway não devolveu token. Confirme se a tokenização está liberada na conta do Asaas.",
+        };
+      }
+
+      return {
+        situacao: "aprovada",
+        cartao: {
+          token: r.creditCardToken,
+          bandeira: r.creditCardBrand ?? "Cartão",
+          ultimosDigitos: r.creditCardNumber ?? "",
+          clienteExterno: pedido.clienteExterno,
+        },
+      };
+    } catch (err) {
+      // Mesma divisão de `cobrarNoCartao`: 400 é o cartão, o resto é o gateway.
+      if (err instanceof AsaasErro && err.status === 400) {
+        const { code, description } = primeiroErro(err.corpo);
+        return {
+          situacao: "recusada",
+          motivo: description || "O cartão não foi aceito. Confira os dados e tente de novo.",
+          ...(code ? { codigo: code } : {}),
+        };
+      }
+      throw err;
+    }
   }
 
   async procurarCobrancas(referencia: string): Promise<CobrancaResumo[]> {

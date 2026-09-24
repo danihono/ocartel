@@ -22,14 +22,25 @@ export interface Resultado {
   erro?: string;
 }
 
+/** Quem está do outro lado da action, para o que precisar registrar autoria. */
+export interface QuemGerencia {
+  uid: string;
+  nome: string;
+  role: string;
+}
+
 /**
  * Espelha no servidor a mesma regra do Firestore (`canManage` em firestore.rules):
  * o dono daquele tenant, ou um superAdmin.
  *
  * Lança em vez de devolver booleano para não haver caminho em que o chamador esqueça de
  * checar o retorno e siga adiante.
+ *
+ * Devolve QUEM passou porque algumas ações precisam registrar autoria — o cadastro de
+ * cartão no balcão grava uma declaração de que o titular autorizou, e uma declaração sem
+ * autor não vale nada numa contestação. Quem só precisa da checagem ignora o retorno.
  */
-export async function exigirQuemGerencia(idToken: string, tenantId: string): Promise<void> {
+export async function exigirQuemGerencia(idToken: string, tenantId: string): Promise<QuemGerencia> {
   if (!idToken || !tenantId) throw new Error(NAO_AUTORIZADO);
 
   // verifyIdToken já recusa token expirado, adulterado ou de outro projeto.
@@ -39,8 +50,15 @@ export async function exigirQuemGerencia(idToken: string, tenantId: string): Pro
   const perfil = await adminDb.doc(`users/${decoded.uid}`).get();
   if (!perfil.exists) throw new Error(NAO_AUTORIZADO);
 
-  if (perfil.get("role") === "superAdmin") return;
-  if (perfil.get("tenantId") === tenantId) return;
+  const role = String(perfil.get("role") ?? "");
+  const quem: QuemGerencia = {
+    uid: decoded.uid,
+    nome: String(perfil.get("nome") ?? perfil.get("email") ?? ""),
+    role,
+  };
+
+  if (role === "superAdmin") return quem;
+  if (perfil.get("tenantId") === tenantId) return quem;
 
   throw new Error(NAO_AUTORIZADO);
 }

@@ -453,10 +453,10 @@ export function TelaConfiguracoes() {
               />
               <span style={{ fontSize: 13, color: c.ink3, lineHeight: 1.45 }}>
                 No dia do vencimento, <b>cobrar no cartão cadastrado</b> de quem já deixou o cartão
-                salvo. O cliente cadastra numa página do próprio Asaas — o número do cartão nunca
-                passa pelo O Cartel. Quem não tem cartão continua no boleto. Se o cartão recusar,
-                a mensalidade fica pendente e aparece destacada no painel para você decidir; nada
-                de boleto automático por trás.
+                salvo. O cartão pode ser cadastrado no balcão, na ficha do cliente, ou pelo próprio
+                cliente por um link no WhatsApp. Quem não tem cartão continua no boleto. Se o cartão
+                recusar, a mensalidade fica pendente e aparece destacada no painel para você decidir;
+                nada de boleto automático por trás.
               </span>
             </label>
 
@@ -473,10 +473,12 @@ export function TelaConfiguracoes() {
                   margin: "0 0 12px",
                 }}
               >
-                Duas coisas antes de contar com isso: a <b>tokenização de cartão precisa estar
-                liberada</b> na sua conta do Asaas (peça ao gerente, ou o cartão é cobrado uma vez
-                e não fica salvo), e a <b>taxa de cartão é maior que a de boleto</b> — quem paga
-                é a barbearia.
+                Três coisas antes de contar com isso. A <b>tokenização e o checkout transparente
+                precisam estar liberados</b> na sua conta do Asaas (peça ao gerente, senão o cadastro
+                de cartão não funciona). A <b>taxa de cartão é maior que a de boleto</b> — quem paga
+                é a barbearia. E o dinheiro do cartão <b>cai em cerca de 32 dias</b>, contra 1 dia
+                útil do boleto: migrar todos os assinantes de uma vez abre um buraco no caixa do
+                primeiro mês.
               </div>
             ) : null}
 

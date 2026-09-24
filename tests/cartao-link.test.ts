@@ -5,6 +5,7 @@ import {
   montarCodigoCartao,
   novoToken,
   textoAutorizacao,
+  textoAutorizacaoBalcao,
   VERSAO_AUTORIZACAO,
 } from "@/lib/cartao-link";
 
@@ -69,5 +70,36 @@ describe("textoAutorizacao", () => {
 
   it("tem versão, para o registro dizer QUAL texto foi aceito", () => {
     expect(VERSAO_AUTORIZACAO).toBeTruthy();
+  });
+});
+
+describe("textoAutorizacaoBalcao", () => {
+  /**
+   * É texto diferente do do cliente, e essa diferença é o ponto: no balcão quem marca a
+   * caixinha não é o titular. Gravar "Autorizo a cobrar MINHA mensalidade" ali seria prova
+   * falsa — e é justamente essa prova que a barbearia apresenta numa contestação.
+   */
+  it("registra que foi a barbearia declarando, não o titular", () => {
+    const texto = textoAutorizacaoBalcao("Barbearia do Rui", "R$ 140", 5, "Carla");
+    expect(texto).toContain("Carla");
+    expect(texto).toContain("balcão");
+    expect(texto).toContain("titular do cartão autorizou");
+    // Nada de primeira pessoa: quem assina não é o dono do cartão.
+    expect(texto).not.toContain("Autorizo a");
+    expect(texto).not.toContain("minha mensalidade");
+  });
+
+  it("diz valor e dia, como o texto do cliente", () => {
+    const texto = textoAutorizacaoBalcao("Barbearia do Rui", "R$ 140", 5, "Carla");
+    expect(texto).toContain("R$ 140");
+    expect(texto).toContain("todo dia 5");
+  });
+
+  it("não deixa a declaração sem autor quando o perfil não tem nome", () => {
+    expect(textoAutorizacaoBalcao("X", "R$ 1", 1, "")).toContain("equipe da barbearia");
+  });
+
+  it("menciona o direito de cancelar, como o do cliente", () => {
+    expect(textoAutorizacaoBalcao("X", "R$ 1", 1, "Carla")).toContain("cancelar");
   });
 });

@@ -66,18 +66,43 @@ dessa pasta sabe que existe um Asaas do outro lado.
 
 ## Cartão
 
-### O cartão nunca passa pelo O Cartel
+### Dois caminhos, e a diferença entre eles é regulatória
 
-O cliente abre `/cartao/[codigo]`, vê o plano e o valor, marca a autorização — e o passo
-de digitar o cartão acontece na **página hospedada do Asaas**. A gente guarda só o
-`creditCardToken`, que é um apelido inútil fora daquele cliente.
+| | quem digita | por onde passa o cartão | escopo PCI |
+|---|---|---|---|
+| **Página** `/cartao/[codigo]` | o próprio cliente | só o Asaas | **SAQ-A** |
+| **Balcão** (modal na ficha do cliente) | a atendente | **o nosso servidor** | **SAQ-D** |
 
-Isso não é preferência de arquitetura: o Asaas **não oferece tokenização pelo navegador**.
-Um formulário nosso faria o número do cartão trafegar pelo nosso servidor, e aí o produto
-precisaria de certificação **PCI-DSS SAQ-D** (varredura trimestral por scanner aprovado,
-pentest anual, política formal de segurança). Do jeito que está, o questionário aplicável
-é o **SAQ-A**. `tests/cobrador-asaas.test.ts` tem um teste que quebra se alguém mandar
-dado de cartão naquela chamada — é o guarda-corpo dessa decisão.
+Os dois existem por decisão de produto, e os dois continuam ligados: o balcão é o caminho
+do dia a dia (cliente na frente, atendente digitando), e a página é para quem não aparece
+na barbearia — e é também por ela que o cliente **remove** o cartão sozinho.
+
+**O caminho da página.** O cliente abre `/cartao/[codigo]`, vê plano e valor, marca a
+autorização — e o passo de digitar o cartão acontece na página hospedada do Asaas. A gente
+guarda só o `creditCardToken`. `tests/cobrador-asaas.test.ts` tem um teste que quebra se
+alguém mandar dado de cartão naquela chamada.
+
+**O caminho do balcão.** `tokenizarCartao` (`POST /creditCard/tokenizeCreditCard`) recebe
+o número do cartão, troca por token e não cobra nada. É o **único** ponto do sistema que
+toca em número de cartão, e é ele que coloca o O Cartel dentro do **PCI-DSS SAQ-D**:
+varredura trimestral por scanner aprovado (ASV), pentest anual, política formal de
+segurança. Enquanto essa função existir, essa obrigação existe.
+
+Regras que valem só nele e não podem ser relaxadas:
+
+- nada do cartão entra em log, em mensagem de erro, no retorno da server action, em
+  `localStorage`, na URL ou no store — a resposta carrega bandeira e quatro dígitos;
+- `AsaasErro` guarda o corpo da RESPOSTA, nunca o do request. Há um teste que quebra se
+  alguém acrescentar o corpo enviado à exceção "para facilitar o debug";
+- o modal limpa os campos ao abrir e ao fechar, e usa `autoComplete="off"` em tudo —
+  cartão de cliente salvo no navegador da barbearia é o mesmo dado vazando por outra porta;
+- `validarCamposCartao` (`lib/cartao-campos.ts`, com Luhn) roda **antes** do envio: erro
+  de digitação pego no navegador não faz o número sair de lá, e a mensagem é melhor que o
+  400 genérico do gateway.
+
+O balcão **não cobra**. Cadastrar cartão e cobrar mensalidade são coisas diferentes, e
+juntá-las faria um cadastro virar uma cobrança que ninguém pediu. A mensalidade em aberto
+é debitada pelo ciclo, na hora seguinte.
 
 ### Onde o token mora
 
@@ -105,14 +130,29 @@ token de cartão apagado é o cliente saindo da recorrência sem ninguém perceb
 ### O consentimento
 
 A página do Asaas cobra **aquela fatura** — ela não pergunta nada sobre as próximas. Quem
-recorre é o O Cartel, então o aceite é colhido na nossa tela, com o texto de
-`textoAutorizacao` (em `lib/cartao-link.ts`, versionado), e gravado com data, IP e
-user-agent **antes** do redirect. `salvarCartao` se recusa a salvar cartão sem esse
-registro no doc.
+recorre é o O Cartel, então o aceite é sempre colhido por nós, gravado com data, IP e
+user-agent **antes** da chamada ao gateway. `salvarCartao` se recusa a salvar cartão sem
+esse registro no doc, e esse é o único caminho para um token entrar no banco.
 
-Isso é a defesa num chargeback. E é por isso que o link de remoção vai em **toda** mensagem
-de cartão: a saída fácil é a condição para debitar a conta de alguém todo mês ser
-defensável.
+São **dois textos diferentes**, em `lib/cartao-link.ts`, ambos versionados:
+
+- `textoAutorizacao` — o cliente, em primeira pessoa: *"Autorizo a {barbearia} a cobrar
+  minha mensalidade…"*. Gravado com `origem: "cliente"`.
+- `textoAutorizacaoBalcao` — a atendente, em nome dela: *"Cadastro feito no balcão por
+  {nome}. Declaro que o titular do cartão autorizou…"*. Gravado com `origem: "balcao"` e
+  `registradoPor`.
+
+A diferença não é cosmética. No balcão quem marca a caixinha não é o titular; gravar
+"Autorizo a cobrar minha mensalidade" ali seria **prova falsa**, e é exatamente essa prova
+que a barbearia apresenta se o cliente contestar no banco. Por isso o texto do balcão tem
+autor, e por isso `exigirQuemGerencia` passou a devolver quem chamou.
+
+E é por isso que, no balcão, a **confirmação no WhatsApp é a única prova do lado do
+cliente** — o que faz de cliente sem telefone no cadastro um caso a evitar. A tela avisa
+em vermelho antes, e o resultado da action diz se a mensagem saiu.
+
+O link de remoção vai em **toda** mensagem de cartão: a saída fácil é a condição para
+debitar a conta de alguém todo mês ser defensável.
 
 ### O timeout — o caso perigoso
 
@@ -159,7 +199,10 @@ Vem desligado, e depende de duas coisas fora do código:
 
 1. **Tokenização liberada** na conta do Asaas (peça ao gerente de contas). Sem isso o cartão
    é cobrado uma vez e **não fica salvo** — o ciclo registra
-   `sem token devolvido` nos avisos, em vez de degradar em silêncio.
+   `sem token devolvido` nos avisos, em vez de degradar em silêncio. Para o **balcão**, é
+   preciso também **checkout transparente** liberado; sem ele o
+   `POST /creditCard/tokenizeCreditCard` responde 200 sem token, e a tela diz isso em vez
+   de culpar o cartão do cliente.
 2. **Eventos novos no webhook** do Asaas, além dos dois que já existiam:
    `PAYMENT_CREDIT_CARD_CAPTURE_REFUSED`, `PAYMENT_REPROVED_BY_RISK_ANALYSIS`,
    `PAYMENT_REFUNDED`, `PAYMENT_CHARGEBACK_REQUESTED`, `PAYMENT_CHARGEBACK_DISPUTE`,
@@ -167,15 +210,22 @@ Vem desligado, e depende de duas coisas fora do código:
 
 E lembre à barbearia que **a taxa de cartão é maior que a de boleto** — quem paga é ela.
 
-### Como o cliente cadastra
+### Como o cartão entra
 
-- Sozinho: o aviso de renovação (D-N) já leva o link, para quem ainda não tem cartão.
-- A pedido: *Clientes* → ficha do cliente → **Pedir cartão no WhatsApp**, que abre o
-  `wa.me` com a mensagem pronta (mesmo clique-para-conversar da confirmação).
-- O cadastro é sempre amarrado a uma **mensalidade em aberto**: a página do Asaas cobra a
-  fatura, não existe tokenizar com R$ 0,00. Sem mensalidade aberta a tela diz isso.
+- **No balcão**, com o cliente na frente: *Clientes* → ficha → **Cadastrar cartão no
+  balcão**. A atendente digita o cartão e marca a declaração; nada é cobrado na hora.
+  Exige CPF do titular, CEP e número do endereço — o gateway pede, e eles **não ficam
+  guardados**: só o token sobrevive à chamada.
+- **Sozinho**, pelo link: o aviso de renovação (D-N) já leva o link para quem ainda não
+  tem cartão, e *Clientes* → **Mandar link pelo WhatsApp** abre o `wa.me` com a mensagem
+  pronta (mesmo clique-para-conversar da confirmação).
+- Pelo link, o cadastro é amarrado a uma **mensalidade em aberto**: a página do Asaas cobra
+  a fatura, não existe tokenizar com R$ 0,00 por ali. Sem mensalidade aberta a tela diz
+  isso. No balcão não há essa restrição — a tokenização é à parte da cobrança.
 - Para sair: botão na própria página (`motivoRemocao: "cliente"`), ou na ficha do cliente
   (`"barbearia"`).
+- A ficha mostra **como** o cartão entrou (`origem`), porque isso muda o peso da prova
+  numa contestação.
 
 ## Ligar numa barbearia
 
@@ -311,3 +361,6 @@ A rota devolve o que fez, por barbearia:
 | Cobrança parada em "Cobrança no cartão em andamento" | Aguarda a janela de conciliação (20 min); se persistir, ver os `avisos` |
 | `cartão sem IP de cadastro` nos avisos | Cartão salvo antes do registro de IP — o cliente precisa recadastrar |
 | Recusa no cartão e nenhum boleto | É o esperado: quem tem cartão não recebe boleto sozinho. Botão em `/pagamentos` |
+| Balcão: "gateway não devolveu token" | Checkout transparente/tokenização não liberados na conta do Asaas |
+| Balcão: "Cartão inválido" com cartão bom | Confira CEP e número do endereço do titular — o gateway recusa por eles também |
+| Cartão cadastrado e cliente não recebeu nada | Cadastro de balcão sem telefone utilizável: ficou sem prova do lado do cliente |

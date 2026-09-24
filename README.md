@@ -47,7 +47,13 @@ tipos + testes + build a cada push/PR.
 | `/login` | Login + Onboarding (wizard de 3 passos) — botões navegam para o painel |
 | `/book/[slug]` | Agendamento público (mobile) — lê o catálogo da barbearia pelo slug e grava via server action; aparece na agenda/dashboard |
 | `/c/[codigo]` | Confirmação de presença pelo link do WhatsApp (público, autorizado por token) |
-| `/cartao/[codigo]` | Cartão da mensalidade: cadastrar, ver e remover (público, autorizado por token). Os dados do cartão são digitados na página do Asaas, nunca aqui — ver `docs/cobranca-automatica.md` |
+| `/cartao/[codigo]` | Cartão da mensalidade: cadastrar, ver e remover (público, autorizado por token). Por aqui os dados do cartão são digitados na página do Asaas, nunca no O Cartel |
+
+**Cartão de crédito e PCI:** existem dois caminhos para um cartão entrar, e eles têm ônus
+regulatório diferente — pela página pública o número só toca o Asaas (SAQ-A); pelo modal do
+balcão, em *Clientes*, ele atravessa o nosso servidor (**SAQ-D**: scan trimestral, pentest
+anual, política formal). Antes de mexer em `lib/cobrador/` ou no modal
+`CadastrarCartaoModal`, leia a seção **Cartão** de `docs/cobranca-automatica.md`.
 
 `/` redireciona para `/dashboard`. `/login`, `/super-admin`, `/book/...`, `/c/...` e
 `/cartao/...` não estão no menu lateral (personas distintas) — acesse pela URL. **Fonte única:** um agendamento feito em `/book/...` aparece na `/agenda` e no `/dashboard`; concluir um atendimento gera uma transação em `/pagamentos`; adicionar um barbeiro em `/configuracoes` cria uma coluna na `/agenda`.
