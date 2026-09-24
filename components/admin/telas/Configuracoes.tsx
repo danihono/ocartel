@@ -10,6 +10,7 @@ import { useStore, makeId } from "@/lib/store";
 import * as repo from "@/lib/firebase/repos";
 import { novoToken } from "@/lib/confirmacao";
 import { PADRAO_DIAS_ANTES_ALERTA, PADRAO_DIAS_VENCIMENTO_BOLETO } from "@/lib/cobranca-ciclo";
+import { pctDoBarbeiro } from "@/lib/comissao";
 import { signOutApp, useAuth } from "@/lib/firebase/auth";
 import { useToast } from "@/components/ui/Toast";
 import { PAPEL_LABEL, iniciaisDe } from "@/lib/pessoa";
@@ -26,6 +27,62 @@ const PALETA = ["#0EA37A", "#0FB6C8", "#7C5CFC", "#E0A21A", "#F0476A"];
 const HORAS = Array.from({ length: 15 }, (_, i) => `${String(7 + i).padStart(2, "0")}:00`);
 const DIAS_ALERTA = [1, 2, 3, 5, 7];
 const DIAS_BOLETO = [1, 2, 3, 5, 7];
+
+/**
+ * Campo de percentual (0..100). Guarda texto enquanto se digita — com número puro, apagar
+ * o conteúdo viraria 0 na hora e gravaria "sem comissão" no meio da digitação.
+ */
+function PctInput({
+  valor,
+  onChange,
+  onLimpar,
+  placeholder,
+}: {
+  valor: number | null;
+  onChange: (n: number) => void;
+  onLimpar?: () => void;
+  placeholder?: string;
+}) {
+  const [texto, setTexto] = useState(valor === null ? "" : String(valor));
+
+  // Segue o valor gravado quando ele muda por fora (outro dispositivo, ou o reset do "usar padrão").
+  useEffect(() => {
+    setTexto(valor === null ? "" : String(valor));
+  }, [valor]);
+
+  function confirmar() {
+    const limpo = texto.trim().replace(",", ".");
+    if (limpo === "") {
+      onLimpar?.();
+      return;
+    }
+    const n = Number(limpo);
+    if (!Number.isFinite(n) || n < 0 || n > 100) {
+      setTexto(valor === null ? "" : String(valor));
+      return;
+    }
+    if (n !== valor) onChange(n);
+  }
+
+  return (
+    <div style={{ position: "relative" }}>
+      <TextInput
+        value={texto}
+        onChange={(e) => setTexto(e.target.value)}
+        onBlur={confirmar}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+        }}
+        inputMode="decimal"
+        placeholder={placeholder ?? "0"}
+        style={{ paddingRight: 30 }}
+      />
+      <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: c.ink3, pointerEvents: "none" }}>
+        %
+      </span>
+    </div>
+  );
+}
 
 export function TelaConfiguracoes() {
   const { state, actions } = useStore();
@@ -50,6 +107,23 @@ export function TelaConfiguracoes() {
   const [diasVencimentoBoleto, setDiasVencimentoBoleto] = useState(
     cob?.diasVencimentoBoleto ?? PADRAO_DIAS_VENCIMENTO_BOLETO,
   );
+
+  // Regra de comissão: salva na hora (como os campos da Equipe), sem botão próprio. Vive em
+  // `private/comissao` — ver repo.regraComissao e o comentário lá sobre por que não em config.
+  const regra = state.regraComissao;
+  function salvarRegra(patch: Parameters<typeof actions.comissoes.salvarRegra>[0]) {
+    void actions.comissoes
+      .salvarRegra(patch)
+      .then(() => toast("Comissão atualizada."))
+      .catch(() => toast("Não foi possível salvar a comissão.", "error"));
+  }
+  /** Campo esvaziado = "usa o padrão da casa". Apaga a chave, não grava 0. */
+  function limparPct(barbeiroId: string) {
+    void actions.comissoes
+      .limparPctBarbeiro(barbeiroId)
+      .then(() => toast("Voltou para o percentual padrão."))
+      .catch(() => toast("Não foi possível salvar a comissão.", "error"));
+  }
 
   // Status do gateway. A CHAVE não entra no componente — só o "está configurado" e o
   // ambiente. Ver `repo.cobrador.subscribeStatus`.
@@ -535,6 +609,56 @@ export function TelaConfiguracoes() {
           <div style={{ display: "flex", gap: 10, marginTop: 14, borderTop: `1px solid ${c.borderSoft}`, paddingTop: 14 }}>
             <TextInput value={novoBarbeiro} onChange={(e) => setNovoBarbeiro(e.target.value)} placeholder="Nome do novo barbeiro" />
             <Button onClick={adicionarBarbeiro}>Adicionar</Button>
+          </div>
+        </Card>
+
+        {/* Comissões */}
+        <Card>
+          <CardTitle sub="Percentual sobre o valor recebido de cada atendimento">Comissões</CardTitle>
+
+          <div style={{ marginTop: 16 }}>
+            <Field label="Percentual padrão da casa" style={{ maxWidth: 200 }}>
+              <PctInput valor={regra.pctPadrao} onChange={(n) => salvarRegra({ pctPadrao: n })} />
+            </Field>
+            <div style={{ fontSize: 11.5, color: c.ink3, marginTop: 6 }}>
+              Vale para quem não tiver um percentual próprio abaixo.
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16, borderTop: `1px solid ${c.borderSoft}`, paddingTop: 14 }}>
+            {state.barbeiros.length === 0 ? (
+              <div style={{ fontSize: 12.5, color: c.ink3 }}>Cadastre a equipe acima para definir percentuais individuais.</div>
+            ) : (
+              state.barbeiros.map((b) => {
+                const proprio = regra.pctPorBarbeiro?.[b.id];
+                return (
+                  <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 11 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: b.cor, color: c.darkText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flex: "none" }}>
+                      {b.iniciais}
+                    </div>
+                    <span style={{ flex: 1, fontSize: 13.5, color: c.inkTitle, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {b.nome}
+                    </span>
+                    <div style={{ width: 110, flex: "none" }}>
+                      <PctInput
+                        valor={typeof proprio === "number" ? proprio : null}
+                        placeholder={`${regra.pctPadrao}% (padrão)`}
+                        onChange={(n) => salvarRegra({ pctPorBarbeiro: { ...(regra.pctPorBarbeiro ?? {}), [b.id]: n } })}
+                        onLimpar={() => limparPct(b.id)}
+                      />
+                    </div>
+                    <span style={{ fontSize: 11.5, color: c.ink3, width: 42, flex: "none", textAlign: "right" }}>
+                      {pctDoBarbeiro(regra, b.id)}%
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div style={{ fontSize: 11.5, color: c.ink3, marginTop: 14, borderTop: `1px solid ${c.borderSoft}`, paddingTop: 12, lineHeight: 1.5 }}>
+            Mudar um percentual afeta a apuração dos meses <strong>ainda abertos</strong>. Mês já fechado
+            guarda a regra usada no dia do fechamento e não muda — reabra em Comissões se quiser refazer.
           </div>
         </Card>
       </div>

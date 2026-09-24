@@ -16,6 +16,8 @@ import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type
 import { addDias, hojeLocalISO } from "./date";
 import { ORDEM_CLIENTE_PADRAO, type FiltroCliente, type FiltroTipoCobranca, type FiltroTransacao, type OrdemCliente } from "./selectors";
 import type { NovaMensalidade } from "./cobranca-ciclo";
+import { REGRA_PADRAO } from "./comissao";
+import type { FiltroSolicitacao } from "./estoque";
 import { useAuth } from "./firebase/auth";
 import * as repo from "./firebase/repos";
 import type {
@@ -24,11 +26,14 @@ import type {
   Barbeiro,
   Cliente,
   ConfigBarbearia,
+  FechamentoComissao,
   FormaPagamento,
   Plano,
   PlanoTier,
+  RegraComissao,
   Role,
   Servico,
+  SolicitacaoProduto,
   Sugestao,
   Tenant,
   Transacao,
@@ -45,6 +50,13 @@ export interface TelasUi {
   whatsapp: { busca: string; conversaId: string | null };
   pagamentos: { busca: string; filtro: FiltroTransacao; tipo: FiltroTipoCobranca };
   planos: { aba: "servicos" | "planos" };
+  /**
+   * `mes: null` = mês corrente, resolvido no render pelo relógio. Guardar "2026-06" aqui
+   * faria a tela envelhecer: quem deixasse o painel aberto na virada do mês continuaria
+   * vendo junho. Mesma decisão do `dateISO: null` da agenda.
+   */
+  comissoes: { mes: string | null; barbeiroId: string | null };
+  estoque: { mes: string | null; filtro: FiltroSolicitacao; busca: string };
 }
 
 export const telasIniciais: TelasUi = {
@@ -53,6 +65,8 @@ export const telasIniciais: TelasUi = {
   whatsapp: { busca: "", conversaId: null },
   pagamentos: { busca: "", filtro: "Todas", tipo: "todos" },
   planos: { aba: "servicos" },
+  comissoes: { mes: null, barbeiroId: null },
+  estoque: { mes: null, filtro: "Pendentes", busca: "" },
 };
 
 export interface AppState {
@@ -68,6 +82,12 @@ export interface AppState {
   planos: Plano[];
   /** Agendamentos PROPOSTOS pelo atendente automático, esperando alguém confirmar. */
   sugestoes: Sugestao[];
+  /** Fechamentos de comissão já gravados (o histórico do módulo de Comissões). */
+  fechamentos: FechamentoComissao[];
+  /** Regra de comissão vigente; `REGRA_PADRAO` enquanto ninguém configurou. */
+  regraComissao: RegraComissao;
+  /** Produtos em falta pedidos para compra (módulo Estoque). */
+  solicitacoes: SolicitacaoProduto[];
   ui: { hidratado: boolean; visao: Role; barbeiroVisaoId: string | null; telas: TelasUi };
 }
 
@@ -93,6 +113,9 @@ export function buildSeedState(): AppState {
     planosTiers: [],
     planos: [],
     sugestoes: [],
+    fechamentos: [],
+    regraComissao: REGRA_PADRAO,
+    solicitacoes: [],
     ui: { hidratado: false, visao: "admin", barbeiroVisaoId: null, telas: telasIniciais },
   };
 }
@@ -166,6 +189,18 @@ export interface StoreActions {
   planosTiers: { update: (tier: PlanoTier) => Promise<void> };
   planos: { add: (p: Plano) => Promise<Ref>; update: (p: Plano) => Promise<void>; remove: (id: string) => Promise<void> };
   tenants: { update: (tenantId: string, patch: Partial<Tenant>) => Promise<void> };
+  comissoes: {
+    salvarRegra: (patch: Partial<RegraComissao>) => Promise<void>;
+    limparPctBarbeiro: (barbeiroId: string) => Promise<void>;
+    fechar: (f: FechamentoComissao) => Promise<void>;
+    registrarPagamento: (id: string, patch: { pagoEm: string; pagoPor: string }) => Promise<void>;
+    reabrir: (id: string) => Promise<void>;
+  };
+  solicitacoes: {
+    add: (s: SolicitacaoProduto) => Promise<Ref>;
+    update: (id: string, patch: Partial<SolicitacaoProduto>) => Promise<void>;
+    remove: (id: string) => Promise<void>;
+  };
 }
 
 function buildActions(tenantId: string): StoreActions {
@@ -212,6 +247,18 @@ function buildActions(tenantId: string): StoreActions {
       remove: (id) => repo.planos.remove(tenantId, id),
     },
     tenants: { update: (tid, patch) => repo.tenants.update(tid, patch) },
+    comissoes: {
+      salvarRegra: (patch) => repo.regraComissao.update(tenantId, patch),
+      limparPctBarbeiro: (barbeiroId) => repo.regraComissao.limparPctBarbeiro(tenantId, barbeiroId),
+      fechar: (f) => repo.fechamentos.fechar(tenantId, f),
+      registrarPagamento: (id, patch) => repo.fechamentos.registrarPagamento(tenantId, id, patch),
+      reabrir: (id) => repo.fechamentos.reabrir(tenantId, id),
+    },
+    solicitacoes: {
+      add: (s) => repo.solicitacoes.add(tenantId, s),
+      update: (id, patch) => repo.solicitacoes.update(tenantId, id, patch),
+      remove: (id) => repo.solicitacoes.remove(tenantId, id),
+    },
   };
 }
 
@@ -261,6 +308,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           tenants: [],
           planos: [],
           sugestoes: [],
+          fechamentos: [],
+          regraComissao: REGRA_PADRAO,
+          solicitacoes: [],
           ui: { hidratado: false },
         },
       });
@@ -314,6 +364,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           dispatch({ type: "SET_DATA", patch: { planos: rows } });
           marcarChegada("planos");
         }),
+        // Comissões e Estoque ficam FORA de ESSENCIAIS pelo mesmo motivo das sugestões:
+        // uma barbearia que nunca fechou um mês nem pediu um produto não tem doc nenhum
+        // nessas coleções, e esperar por um snapshot que nunca vem travaria a hidratação
+        // do painel inteiro em "Carregando…".
+        repo.fechamentos.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { fechamentos: rows } })),
+        repo.solicitacoes.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { solicitacoes: rows } })),
+        // Regra ausente = ninguém configurou comissão ainda; REGRA_PADRAO (0%) é a
+        // resposta certa, não "carregando" — nenhuma barbearia começa a dever comissão
+        // sozinha, mesma decisão da confirmação e do ciclo de cobrança.
+        repo.regraComissao.subscribe(tenantId, (regra) =>
+          dispatch({ type: "SET_DATA", patch: { regraComissao: regra ?? REGRA_PADRAO } }),
+        ),
         // `cfg` nulo = a barbearia ainda não tem doc de config; é uma resposta
         // válida, não "carregando". Mantém a config atual e segue.
         repo.config.subscribe(tenantId, (cfg) => {

@@ -7,6 +7,7 @@ import {
   addDoc,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDocs,
   increment,
@@ -31,10 +32,13 @@ import type {
   Barbeiro,
   Cliente,
   ConfigBarbearia,
+  FechamentoComissao,
   FormaPagamento,
   Plano,
   PlanoTier,
+  RegraComissao,
   Servico,
+  SolicitacaoProduto,
   Sugestao,
   Tenant,
   Transacao,
@@ -374,5 +378,79 @@ export const tenants = {
   },
   update(tenantId: string, patch: Partial<Tenant>) {
     return updateDoc(doc(db, "tenants", tenantId), patch as DocumentData);
+  },
+};
+
+// ---- Comissões: regra vigente + fechamentos mensais ----
+//
+// A REGRA mora em `private/comissao`, ao lado das credenciais do Asaas, e não em
+// `config/main` nem em `barbeiros`: esses dois são `allow read: if true` nas regras para
+// alimentar a vitrine pública de /book/[slug]. Percentual de comissão ali seria legível
+// por qualquer pessoa na internet.
+export const regraComissao = {
+  subscribe(tenantId: string, cb: (regra: RegraComissao | null) => void) {
+    return onSnapshot(sub(tenantId, "private/comissao"), (s) =>
+      cb(s.exists() ? (s.data() as RegraComissao) : null),
+    );
+  },
+  update(tenantId: string, patch: Partial<RegraComissao>) {
+    return setDoc(sub(tenantId, "private/comissao"), patch, { merge: true });
+  },
+  /**
+   * Volta um barbeiro para o percentual padrão da casa.
+   *
+   * Precisa de `deleteField()` e não de um `update` com o mapa sem a chave: `merge: true`
+   * mescla mapa por CHAVE, então reescrever `pctPorBarbeiro` sem o barbeiro deixaria o
+   * valor antigo dele no doc — o campo pareceria limpo na tela e continuaria valendo no
+   * cálculo. O sentinela apaga a chave de verdade.
+   */
+  limparPctBarbeiro(tenantId: string, barbeiroId: string) {
+    return setDoc(
+      sub(tenantId, "private/comissao"),
+      { pctPorBarbeiro: { [barbeiroId]: deleteField() } },
+      { merge: true },
+    );
+  },
+};
+
+export const fechamentos = {
+  subscribe(tenantId: string, cb: (rows: FechamentoComissao[]) => void) {
+    return onSnapshot(col(tenantId, "fechamentos"), (s) => cb(rows<FechamentoComissao>(s)));
+  },
+  /**
+   * Grava o fechamento do mês de um barbeiro.
+   *
+   * O id é determinístico (`{mes}_{barbeiroId}`, vindo de `idFechamento`), então clicar
+   * duas vezes em "Fechar mês" reescreve o mesmo doc em vez de criar um segundo — a mesma
+   * ideia de idempotência do ciclo de cobrança, aqui aplicada à chave em vez de a um campo.
+   *
+   * Sem `merge`: o fechamento é um retrato inteiro do momento, não um acúmulo de patches.
+   */
+  fechar(tenantId: string, f: FechamentoComissao) {
+    return setDoc(sub(tenantId, "fechamentos/" + f.id), { ...semId(f), fechadoEmServidor: serverTimestamp() });
+  },
+  /** Registra que a comissão saiu para o barbeiro. É o único campo editável depois. */
+  registrarPagamento(tenantId: string, id: string, patch: { pagoEm: string; pagoPor: string }) {
+    return updateDoc(sub(tenantId, "fechamentos/" + id), patch as DocumentData);
+  },
+  /** Reabre o mês (apaga o fechamento) — ação explícita, nunca efeito colateral. */
+  reabrir(tenantId: string, id: string) {
+    return deleteDoc(sub(tenantId, "fechamentos/" + id));
+  },
+};
+
+// ---- Estoque: solicitações de produto em falta ----
+export const solicitacoes = {
+  subscribe(tenantId: string, cb: (rows: SolicitacaoProduto[]) => void) {
+    return onSnapshot(col(tenantId, "solicitacoes"), (s) => cb(rows<SolicitacaoProduto>(s)));
+  },
+  add(tenantId: string, s: SolicitacaoProduto) {
+    return addDoc(col(tenantId, "solicitacoes"), { ...semId(s), createdAt: serverTimestamp() });
+  },
+  update(tenantId: string, id: string, patch: Partial<SolicitacaoProduto>) {
+    return updateDoc(sub(tenantId, "solicitacoes/" + id), patch as DocumentData);
+  },
+  remove(tenantId: string, id: string) {
+    return deleteDoc(sub(tenantId, "solicitacoes/" + id));
   },
 };

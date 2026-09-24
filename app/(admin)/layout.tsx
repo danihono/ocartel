@@ -17,6 +17,8 @@ import { TelaConfiguracoes } from "@/components/admin/telas/Configuracoes";
 import { TelaWhatsapp } from "@/components/admin/telas/Whatsapp";
 import { TelaDashboard } from "@/components/admin/telas/Dashboard";
 import { TelaPagamentos } from "@/components/admin/telas/Pagamentos";
+import { TelaComissoes } from "@/components/admin/telas/Comissoes";
+import { TelaEstoque } from "@/components/admin/telas/Estoque";
 import { TelaPlanos } from "@/components/admin/telas/Planos";
 
 // O título do /dashboard é montado no render (saudação + quem está logado),
@@ -27,6 +29,8 @@ const titles: Record<string, [string, string]> = {
   "/whatsapp": ["Relacionamento", "WhatsApp"],
   "/planos": ["Catálogo", "Planos & Serviços"],
   "/pagamentos": ["Financeiro", "Pagamentos"],
+  "/comissoes": ["Financeiro", "Comissões"],
+  "/estoque": ["Operação", "Estoque"],
   "/configuracoes": ["Conta", "Configurações"],
 };
 
@@ -84,6 +88,12 @@ function PainelAdmin({ children }: { children: React.ReactNode }) {
             </Tela>
             <Tela ativa={path === "/pagamentos"}>
               <TelaPagamentos />
+            </Tela>
+            <Tela ativa={path === "/comissoes"}>
+              <TelaComissoes />
+            </Tela>
+            <Tela ativa={path === "/estoque"}>
+              <TelaEstoque />
             </Tela>
             <Tela ativa={path === "/configuracoes"}>
               <TelaConfiguracoes />
