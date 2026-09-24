@@ -68,6 +68,11 @@ export function FinalizarAtendimentoModal({
       clienteId,
       servico: ag.servico,
       barbeiroNome: barbeiroNomePorId(state, ag.barbeiroId),
+      // Vínculos fortes para a apuração de comissão: `barbeiroNome` é texto e não
+      // sobrevive a uma renomeação, e sem `agendamentoId` a apuração teria que adivinhar
+      // qual cobrança é deste corte (é o que ela faz com os docs antigos, e avisa).
+      agendamentoId: ag.id,
+      barbeiroId: ag.barbeiroId,
       valor,
       status: "pago",
       forma: coberto ? "pix" : forma, // no coberto a forma não é exibida nem conta como preferida

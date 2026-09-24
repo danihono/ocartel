@@ -183,6 +183,19 @@ export interface Transacao {
   clienteNome: string;
   /** Vínculo robusto ao cliente (preenchido na conclusão; ausente em lançamentos manuais/legados). */
   clienteId?: string;
+  /**
+   * Agendamento que gerou esta cobrança (preenchido na conclusão do atendimento).
+   *
+   * É o que liga o dinheiro ao corte na apuração de comissão. Ausente nas mensalidades
+   * (que não nascem de agendamento), nos lançamentos manuais e nos docs legados — nesses
+   * a apuração cai num casamento por nome+serviço+data e marca a linha como inferida.
+   */
+  agendamentoId?: string;
+  /**
+   * Barbeiro que fez o atendimento, por id. `barbeiroNome` é texto e não sobrevive a uma
+   * renomeação — comissão amarrada em nome erra de pessoa. Ausente ⇒ doc legado.
+   */
+  barbeiroId?: string;
   servico: string; // nome do item cobrado (plano ou serviço)
   barbeiroNome: string;
   valor: number;
@@ -421,4 +434,146 @@ export interface Plano {
    */
   diaVencimento?: number;
   ativo?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Comissões
+// ---------------------------------------------------------------------------
+
+/**
+ * Regra de cálculo da comissão vigente na barbearia.
+ *
+ * Vive em `tenants/{t}/private/comissao` — e NÃO em `config/main` nem em `barbeiros`,
+ * que são `allow read: if true` nas regras para alimentar a vitrine pública de
+ * /book/[slug]. Percentual de comissão ali seria legível pela internet inteira.
+ *
+ * Esta é a regra PROVISÓRIA (percentual sobre o valor do atendimento). A fórmula real
+ * de cada barbearia — que depende de plano, de ter sido pago na hora, de quantidade —
+ * entra depois trocando `comissaoDaLinha` em lib/comissao.ts. Por isso a apuração
+ * carrega todos esses fatos em `LinhaComissao` desde já: quando a fórmula mudar, o
+ * dado de que ela precisa já está lá, sem migração.
+ */
+export interface RegraComissao {
+  /** Percentual (0..100) aplicado a quem não tem um próprio. */
+  pctPadrao: number;
+  /** Percentual por barbeiro (`barbeiroId` → 0..100). Ausente ⇒ usa `pctPadrao`. */
+  pctPorBarbeiro?: Record<string, number>;
+}
+
+/** De onde a linha da apuração veio. */
+export type OrigemComissao = "atendimento" | "mensalidade";
+
+/**
+ * Como a linha achou a cobrança correspondente.
+ * - `forte`: pelo `agendamentoId` gravado na transação (o caminho novo).
+ * - `inferido`: casado por nome do barbeiro + serviço + data (transações antigas, que
+ *   não têm `agendamentoId`). A tela avisa quando um mês tem linhas assim — fechar em
+ *   cima de vínculo adivinhado é como um erro de comissão entra no sistema.
+ * - `sem-cobranca`: atendimento concluído sem transação encontrada.
+ */
+export type VinculoComissao = "forte" | "inferido" | "sem-cobranca";
+
+/**
+ * Uma linha da apuração do mês. DERIVADA — nunca gravada no Firestore.
+ *
+ * Carrega de propósito mais fatos do que a regra provisória usa: é o contrato que
+ * permite trocar a fórmula sem mexer em schema, tela ou fechamento já gravado.
+ */
+export interface LinhaComissao {
+  /** Id do agendamento (atendimento) ou da transação (mensalidade). */
+  id: string;
+  origem: OrigemComissao;
+  /** "YYYY-MM-DD" — data do atendimento, ou do vencimento da mensalidade. */
+  dataISO: string;
+  /** Vazio nas mensalidades: elas não têm barbeiro. */
+  barbeiroId: string;
+  barbeiroNome: string;
+  clienteNome: string;
+  servico: string;
+  /** Uma linha = um atendimento. Existe para a fórmula futura poder somar quantidade. */
+  quantidade: number;
+  /** Atendimento coberto pela assinatura do cliente (não cobrou o corte). */
+  cobertoPorPlano: boolean;
+  tipoCobranca: TipoCobranca;
+  /** Ausente ⇒ não há cobrança vinculada. */
+  forma?: FormaPagamento;
+  /** Status DERIVADO da cobrança (ver selectors.statusCobranca). */
+  status: TransacaoStatus;
+  /** Pago no mesmo dia do atendimento — o "pagou na hora" da regra futura. */
+  pagoNoAto: boolean;
+  valorCobrado: number;
+  valorRecebido: number;
+  vinculo: VinculoComissao;
+  /** O que `comissaoDaLinha` devolveu para esta linha, em R$. */
+  comissao: number;
+}
+
+/**
+ * Fechamento do mês de um barbeiro — o único registro GRAVADO deste módulo.
+ *
+ * O relatório é sempre recalculado dos atendimentos; o fechamento é o que congela o
+ * valor acordado. Guarda um retrato da regra usada (`regra`) justamente porque a
+ * fórmula vai mudar: sem isso, mudar o percentual reescreveria o passado.
+ *
+ * Id determinístico `{mes}_{barbeiroId}` — fechar duas vezes não duplica.
+ */
+export interface FechamentoComissao {
+  id: string;
+  /** "YYYY-MM". */
+  mes: string;
+  barbeiroId: string;
+  /** Nome no momento do fechamento (o barbeiro pode ser renomeado ou sair depois). */
+  barbeiroNome: string;
+  /** Comissão apurada, em R$. Imutável depois de gravada (ver firestore.rules). */
+  total: number;
+  /** Faturamento que gerou essa comissão, em R$ — contexto para conferência. */
+  faturamento: number;
+  qtdLinhas: number;
+  /** Retrato da regra aplicada. Imutável depois de gravada. */
+  regra: RegraComissao;
+  fechadoPor: string;
+  /** ISO datetime. */
+  fechadoEm: string;
+  /** Quando a comissão foi efetivamente paga ao barbeiro (ISO). Ausente ⇒ a pagar. */
+  pagoEm?: string;
+  pagoPor?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Estoque — solicitações de produto
+// ---------------------------------------------------------------------------
+
+export type StatusSolicitacao = "pendente" | "comprado" | "cancelado";
+export type UrgenciaSolicitacao = "normal" | "urgente";
+
+/**
+ * Um produto que faltou e precisa ser comprado.
+ *
+ * Esta fase NÃO controla saldo: não há quantidade em mãos, estoque mínimo nem baixa de
+ * consumo. O fluxo é o que a barbearia já faz no papel — faltou, alguém anota; comprou,
+ * alguém dá baixa.
+ *
+ * `status` é GRAVADO (e não derivado da presença de `compradoEm`) porque "cancelado" é
+ * um terceiro estado que nenhuma data expressa: um pedido pode morrer sem compra.
+ */
+export interface SolicitacaoProduto {
+  id: string;
+  produto: string;
+  quantidade: number;
+  /** "un", "cx", "L"… Ausente ⇒ unidade avulsa. */
+  unidade?: string;
+  urgencia: UrgenciaSolicitacao;
+  observacoes?: string;
+  solicitadoPor: string;
+  /** "YYYY-MM-DD" — base do filtro por mês. */
+  solicitadoEm: string;
+  status: StatusSolicitacao;
+  compradoPor?: string;
+  /** "YYYY-MM-DD". */
+  compradoEm?: string;
+  /** Quanto custou de fato, em R$. Ausente ⇒ não informado. */
+  custo?: number;
+  /** "YYYY-MM-DD". */
+  canceladoEm?: string;
+  motivo?: string;
 }

@@ -51,6 +51,20 @@ service cloud.firestore {
         && (!('cartaoCobranca' in resource.data) || novo.cartaoCobranca == resource.data.cartaoCobranca);
     }
 
+    // Fechamento de comissão: o valor apurado e o retrato da regra usada são IMUTÁVEIS
+    // depois de gravados. Não é preciosismo — é o que impede que mudar o percentual hoje
+    // reescreva quanto se combinou de pagar em maio. Mesma disciplina de `amount` nas
+    // transações. O que continua editável é só o registro de que a comissão foi paga.
+    function fechamentoUpdateValido() {
+      let novo = request.resource.data;
+      let velho = resource.data;
+      return novo.total == velho.total
+        && novo.regra == velho.regra
+        && novo.mes == velho.mes
+        && novo.barbeiroId == velho.barbeiroId
+        && novo.fechadoEm == velho.fechadoEm;
+    }
+
     // O espelho das conversas de WhatsApp vive em users/barbearia-{tenantId}/contacts/**,
     // escrito pelo daemon (Baileys) com o Admin SDK. "barbearia-{t}" NÃO é um usuário do
     // Firebase Auth: é só a chave de caminho que o daemon usa por sessão.
@@ -145,6 +159,26 @@ service cloud.firestore {
       match /planos/{id} {
         allow read, delete: if canManage(tenantId);
         allow create, update: if canManage(tenantId) && request.resource.data.valor is number;
+      }
+
+      // Fechamentos mensais de comissão. Privados: quanto cada barbeiro recebe não é
+      // dado de vitrine. `delete` é a reabertura do mês, feita de propósito na tela.
+      match /fechamentos/{id} {
+        allow read, delete: if canManage(tenantId);
+        allow create: if canManage(tenantId)
+          && request.resource.data.total is number
+          && request.resource.data.mes is string
+          && request.resource.data.barbeiroId is string;
+        allow update: if canManage(tenantId) && fechamentoUpdateValido();
+      }
+
+      // Solicitações de produto em falta (Estoque). Também privadas — nada aqui alimenta
+      // a vitrine pública de /book/[slug].
+      match /solicitacoes/{id} {
+        allow read, delete: if canManage(tenantId);
+        allow create, update: if canManage(tenantId)
+          && request.resource.data.produto is string
+          && request.resource.data.quantidade is number;
       }
     }
   }
