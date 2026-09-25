@@ -143,7 +143,7 @@ export default function LoginPage() {
       {/* Left — brand */}
       <div style={{ flex: "0 0 44%", background: "linear-gradient(165deg, #103029 0%, #071714 72%)", color: c.darkText, padding: "60px 56px", display: "flex", flexDirection: "column", justifyContent: "space-between", position: "relative", overflow: "hidden", boxShadow: "inset -60px 0 120px rgba(0,0,0,.4)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
-          <Seal size={46} fontSize={16} />
+          <Seal size={46} />
           <div>
             <div style={{ fontFamily: font.cinzel, fontWeight: 600, fontSize: 18, letterSpacing: 3, color: "#FFFFFF" }}>O CARTEL</div>
             <div style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", color: "#7E938D", marginTop: 2 }}>Clube de barbearia</div>
@@ -159,17 +159,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div>
-          <div style={{ fontSize: 10, letterSpacing: 2, textTransform: "uppercase", color: "#7E938D", marginBottom: 14 }}>Monograma · estudo</div>
-          <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-            <Seal size={44} />
-            <div style={{ width: 44, height: 44, transform: "rotate(45deg)", border: "1.4px solid #2F4A44", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ transform: "rotate(-45deg)", fontFamily: font.cinzel, fontWeight: 700, fontSize: 12, color: "#7E938D" }}>OC</span>
-            </div>
-            <div style={{ width: 40, height: 46, border: "1.4px solid #2F4A44", borderRadius: "6px 6px 18px 18px", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: font.cinzel, fontWeight: 700, fontSize: 15, color: "#7E938D" }}>C</div>
-            <div style={{ width: 44, height: 44, border: "1.4px solid #2F4A44", outline: "1.4px solid #2F4A44", outlineOffset: 3, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: font.cinzel, fontWeight: 600, fontSize: 11, letterSpacing: 1, color: "#7E938D" }}>OC</div>
-          </div>
-        </div>
       </div>
 
       {/* Right — form */}

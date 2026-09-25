@@ -1,36 +1,31 @@
-import { c, font } from "@/lib/theme";
+import Image from "next/image";
+import { c } from "@/lib/theme";
 
-/** Monogram seal — the "OC" club mark. */
-export function Seal({
-  size = 40,
-  label = "OC",
-  color = c.brass,
-  fontSize,
-}: {
-  size?: number;
-  label?: string;
-  color?: string;
-  fontSize?: number;
-}) {
+/**
+ * A marca do O Cartel — a navalha, na versão redonda da folha de marca.
+ *
+ * Era um selo desenhado em CSS com o monograma "OC" em Cinzel. Virou o símbolo de
+ * verdade, e a versão CIRCULAR é de propósito: mantém a silhueta redonda que já estava
+ * em todos os dez lugares onde isto aparece (sidebar, login, guarda de sessão, console
+ * do super admin, agendamento público, links de confirmação e de cartão), então nenhum
+ * layout precisou mudar de forma para receber a marca nova.
+ *
+ * O símbolo é claro sobre fundo verde escuro, então ele se resolve sozinho tanto no
+ * escuro (sidebar, login) quanto no claro (páginas públicas) — não precisa de variante.
+ */
+export function Seal({ size = 40, alt = "" }: { size?: number; alt?: string }) {
   return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        border: `1.5px solid ${color}`,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontFamily: font.cinzel,
-        fontWeight: 700,
-        fontSize: fontSize ?? Math.round(size * 0.33),
-        color,
-        flex: "none",
-      }}
-    >
-      {label}
-    </div>
+    <Image
+      src="/marca/simbolo-circulo.png"
+      width={size}
+      height={size}
+      alt={alt}
+      // `alt` vazio = decorativo: o nome da marca já vem escrito ao lado em quase todos
+      // os usos, e o leitor de tela não deve dizê-lo duas vezes.
+      aria-hidden={alt === "" ? true : undefined}
+      style={{ display: "block", flex: "none", borderRadius: "50%" }}
+      priority
+    />
   );
 }
 
