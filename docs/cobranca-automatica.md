@@ -37,7 +37,7 @@ vencem em 7 dias, com boleto emitido) e pela lista em `/pagamentos`.
 ## Como funciona
 
 ```
-timer externo (de hora em hora)
+Cloud Function `cicloCobranca` (de hora em hora, minuto 5)
         │  POST /api/cobrancas/ciclo   (header x-cobrancas-secret)
         ▼
    a rota decide QUAIS barbearias rodam nesta hora
@@ -53,8 +53,13 @@ timer externo (de hora em hora)
    cobrança vira "pago" sozinha
 ```
 
-O agendador é externo e **burro de propósito**, igual ao das confirmações: ele bate na rota
-toda hora e a rota é que sabe quem dispara. Uma barbearia nova não exige mexer em cron nenhum.
+O agendador é **burro de propósito**: a função `cicloCobranca` (em `functions/src/index.ts`)
+só bate na rota toda hora, e a rota é que sabe quem dispara. Uma barbearia nova, ou uma que
+muda a hora do ciclo, não exige redeploy nem mexer em cron nenhum.
+
+Ele mora no Firebase, e não num timer em máquina externa, porque o site não tem relógio — só
+roda quando alguém acessa — e um timer numa máquina que pode desligar faria a cobrança parar
+calada.
 
 As decisões (quem cobrar, quando avisar, quando emitir) vivem em `lib/cobranca-ciclo.ts`, sem
 HTTP e sem Firestore — é a parte em que errar custa dinheiro, então ela é testável sozinha
@@ -278,10 +283,18 @@ O site vai ao ar pelo **Firebase Hosting com `frameworksBackend`** (ver README, 
 o SSR roda numa Cloud Function, então o segredo mora no Secret Manager:
 
 ```bash
-firebase functions:secrets:set COBRANCAS_SECRET
+# gera uma senha longa e aleatória — ninguém digita, é só um aperto de mão entre as partes
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+firebase functions:secrets:set COBRANCAS_SECRET   # cole o valor acima quando pedir
+firebase functions:secrets:access COBRANCAS_SECRET  # confere
 ```
 
-e é declarado no `firebase.json` para a função enxergá-lo:
+É **um** segredo, lido pelos **dois** lados: o site (que confere o header) e a função
+`cicloCobranca` (que o envia, via `defineSecret`). Não há como os valores divergirem. E ele
+**nunca** vai para o `.env.production` — aquele arquivo é versionado.
+
+O site o enxerga porque ele é declarado no `firebase.json`:
 
 ```json
 "frameworksBackend": {
@@ -298,11 +311,25 @@ mas é config de outro produto (App Hosting) e o `firebase deploy` ignora, vari�
 
 ### 5. Agendador
 
-Na mesma máquina que já bate nas confirmações, de hora em hora:
+É a função `cicloCobranca`, e ela sobe **no deploy das funções** — que é separado do deploy
+do site. O `npm run deploy` da raiz publica só o hosting. Para subir as duas coisas:
+
+```bash
+firebase deploy --only hosting,functions
+```
+
+Ela usa o `SITE_URL` de `functions/.env` (já versionado) e o `COBRANCAS_SECRET` do passo 4 —
+então o segredo tem que existir **antes** desse deploy.
+
+Para ver se está rodando: console do Firebase → *Functions* → `cicloCobranca` → *Logs*. A cada
+hora aparece a resposta da rota, por barbearia (o JSON do *Diagnóstico*, abaixo). Uma
+execução que falha aparece como erro, nunca como sucesso mudo.
+
+Para rodar na hora, sem esperar o minuto 5 — útil no primeiro teste:
 
 ```bash
 curl -fsS -X POST https://<app>/api/cobrancas/ciclo \
-  -H "x-cobrancas-secret: $COBRANCAS_SECRET"
+  -H "x-cobrancas-secret: <o valor do segredo>"
 ```
 
 ### 6. Ligar no painel
@@ -344,7 +371,9 @@ A rota devolve o que fez, por barbearia:
 | Sintoma | Causa provável |
 |---|---|
 | `401` no ciclo | Segredo ausente ou errado no header |
-| `500` com "COBRANCAS_SECRET não configurado" | Variável faltando no App Hosting |
+| Nada nos logs de `cicloCobranca` | A função não subiu: faltou `firebase deploy --only functions` |
+| `SITE_URL não configurada` nos logs | O `functions/.env` não foi junto no deploy |
+| `500` com "COBRANCAS_SECRET não configurado" | Segredo não criado no Secret Manager, ou deploy do site feito antes de criá-lo |
 | `tenants: []` | Nenhuma barbearia com `cobranca.ativa` nesta hora — confira o fuso |
 | `mensalidadesGeradas: 0` sempre | Já foram geradas neste mês (é o esperado) |
 | `semPlano > 0` | Cliente marcado como assinante com plano que não existe mais em `/planos` |
