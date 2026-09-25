@@ -172,14 +172,6 @@ service cloud.firestore {
         allow update: if canManage(tenantId) && fechamentoUpdateValido();
       }
 
-      // Solicitações de produto em falta (Estoque). Também privadas — nada aqui alimenta
-      // a vitrine pública de /book/[slug].
-      match /solicitacoes/{id} {
-        allow read, delete: if canManage(tenantId);
-        allow create, update: if canManage(tenantId)
-          && request.resource.data.produto is string
-          && request.resource.data.quantidade is number;
-      }
     }
   }
 }

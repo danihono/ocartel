@@ -39,7 +39,6 @@ import type {
   PlanoTier,
   RegraComissao,
   Servico,
-  SolicitacaoProduto,
   Sugestao,
   Tenant,
   Transacao,
@@ -453,21 +452,5 @@ export const fechamentos = {
   /** Reabre o mês (apaga o fechamento) — ação explícita, nunca efeito colateral. */
   reabrir(tenantId: string, id: string) {
     return deleteDoc(sub(tenantId, "fechamentos/" + id));
-  },
-};
-
-// ---- Estoque: solicitações de produto em falta ----
-export const solicitacoes = {
-  subscribe(tenantId: string, cb: (rows: SolicitacaoProduto[]) => void) {
-    return onSnapshot(col(tenantId, "solicitacoes"), (s) => cb(rows<SolicitacaoProduto>(s)));
-  },
-  add(tenantId: string, s: SolicitacaoProduto) {
-    return addDoc(col(tenantId, "solicitacoes"), { ...semId(s), createdAt: serverTimestamp() });
-  },
-  update(tenantId: string, id: string, patch: Partial<SolicitacaoProduto>) {
-    return updateDoc(sub(tenantId, "solicitacoes/" + id), patch as DocumentData);
-  },
-  remove(tenantId: string, id: string) {
-    return deleteDoc(sub(tenantId, "solicitacoes/" + id));
   },
 };

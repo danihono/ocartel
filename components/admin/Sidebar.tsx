@@ -10,7 +10,6 @@ import { slug } from "@/lib/selectors";
 import { useToast } from "@/components/ui/Toast";
 import { PAPEL_LABEL, iniciaisDe } from "@/lib/pessoa";
 import { LinkAba } from "@/components/admin/navegacao";
-import { urgentesPendentes } from "@/lib/estoque";
 
 const items: { label: string; href: string }[] = [
   { label: "Dashboard", href: "/dashboard" },
@@ -20,7 +19,6 @@ const items: { label: string; href: string }[] = [
   { label: "Planos", href: "/planos" },
   { label: "Pagamentos", href: "/pagamentos" },
   { label: "Comissões", href: "/comissoes" },
-  { label: "Estoque", href: "/estoque" },
   { label: "Configurações", href: "/configuracoes" },
 ];
 
@@ -80,13 +78,7 @@ export default function Sidebar({ active }: { active: string }) {
           const isActive = it.href === active;
           // O mesmo contador nas duas abas onde a sugestão pode ser resolvida: quem está
           // na Agenda não deveria precisar lembrar de olhar o WhatsApp, e vice-versa.
-          // O que acabou não pode depender de alguém abrir a aba de Estoque para lembrar.
-          const pendentes =
-            it.href === "/whatsapp" || it.href === "/agenda"
-              ? state.sugestoes.length
-              : it.href === "/estoque"
-                ? urgentesPendentes(state.solicitacoes).length
-                : 0;
+          const pendentes = it.href === "/whatsapp" || it.href === "/agenda" ? state.sugestoes.length : 0;
           return (
             <LinkAba key={it.label} href={it.href}>
               <span
@@ -109,11 +101,7 @@ export default function Sidebar({ active }: { active: string }) {
                   <>
                     <span style={{ flex: 1 }} />
                     <span
-                      title={
-                        it.href === "/estoque"
-                          ? `${pendentes} produto(s) em falta urgente`
-                          : `${pendentes} sugestão(ões) do atendente esperando confirmação`
-                      }
+                      title={`${pendentes} sugestão(ões) do atendente esperando confirmação`}
                       style={{ background: c.brass, color: "#fff", borderRadius: 999, fontSize: 10.5, fontWeight: 700, padding: "1px 7px" }}
                     >
                       {pendentes}
