@@ -39,7 +39,7 @@ export default function BarbeiroPage() {
 
 function BarbeiroMobile() {
   const { state, actions } = useStore();
-  const { profile } = useAuth();
+  const { profile, role } = useAuth();
   const toast = useToast();
   const searchParams = useSearchParams();
   const bParam = searchParams.get("b");
@@ -57,12 +57,20 @@ function BarbeiroMobile() {
 
   // Qual barbeiro é o "dono" desta tela: ?b= (preview do admin) → vínculo do
   // perfil → casamento por nome → 1º barbeiro (fallback).
+  // O `?b=` é o PREVIEW de quem administra (o link "Tela do barbeiro ↗" da sidebar).
+  // Para um barbeiro ele é ignorado: antes tinha precedência sobre o perfil, então
+  // bastava trocar o id na barra de endereço para abrir a agenda de um colega — junto
+  // com a base de clientes e o faturamento do dia, que esta tela também mostra.
+  const gerencia = role === "admin" || role === "superAdmin";
   const barbId = useMemo(() => {
-    if (bParam && state.barbeiros.some((b) => b.id === bParam)) return bParam;
+    if (gerencia && bParam && state.barbeiros.some((b) => b.id === bParam)) return bParam;
     if (profile?.barbeiroId && state.barbeiros.some((b) => b.id === profile.barbeiroId)) return profile.barbeiroId;
     const porNome = profile?.nome ? state.barbeiros.find((b) => slugify(b.nome) === slugify(profile.nome)) : undefined;
-    return porNome?.id ?? state.barbeiros[0]?.id ?? null;
-  }, [bParam, profile?.barbeiroId, profile?.nome, state.barbeiros]);
+    if (porNome) return porNome.id;
+    // Sem vínculo, um barbeiro NÃO cai no primeiro da lista: isso abria a agenda de um
+    // colega qualquer. Quem administra pode cair, porque está só pré-visualizando.
+    return gerencia ? (state.barbeiros[0]?.id ?? null) : null;
+  }, [gerencia, bParam, profile?.barbeiroId, profile?.nome, state.barbeiros]);
 
   const barbeiro = state.barbeiros.find((b) => b.id === barbId) ?? null;
 
@@ -90,6 +98,10 @@ function BarbeiroMobile() {
       <div style={{ flex: 1, overflow: "auto", padding: "16px 16px 18px" }}>
         {carregando ? (
           <Vazio texto="Carregando…" />
+        ) : !barbId ? (
+          // Conta de barbeiro sem vínculo com um cadastro da equipe. Sem isso a tela
+          // ficaria muda: agenda vazia, botões desligados e nenhuma pista do motivo.
+          <Vazio texto="Sua conta ainda não está ligada a um barbeiro da equipe. Peça para a barbearia fazer esse vínculo." />
         ) : tab === "agenda" ? (
           <>
             {/* navegação de dia */}

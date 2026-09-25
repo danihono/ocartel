@@ -19,8 +19,32 @@ service cloud.firestore {
     function owns(tenantId) {
       return signedIn() && uDoc().tenantId == tenantId;
     }
-    function canManage(tenantId) {
+
+    /**
+     * Pertence à barbearia — a dona OU um barbeiro dela. É o nível de LEITURA do
+     * operacional (agenda, clientes, serviços): o barbeiro precisa disso para a
+     * própria tela funcionar.
+     */
+    function noTenant(tenantId) {
       return owns(tenantId) || isSuper();
+    }
+
+    /**
+     * ADMINISTRA a barbearia: a dona (`admin`) ou o super admin. Um `barbeiro` NÃO
+     * administra.
+     *
+     * Antes esta função era `owns() || isSuper()`, isto é, comparava só o tenant e
+     * ignorava o papel — na prática um barbeiro tinha o mesmo poder da dona: escrevia
+     * em clientes e transações, lia os fechamentos de comissão dos colegas e alcançava
+     * `private/**`, onde mora a chave de API do gateway de cobrança. O papel agora pesa.
+     */
+    function canManage(tenantId) {
+      return isSuper() || (owns(tenantId) && uDoc().role != 'barbeiro');
+    }
+
+    /** O barbeiro ao qual este usuário está vinculado ("" quando não é barbeiro). */
+    function meuBarbeiroId() {
+      return uDoc().get('barbeiroId', '');
     }
 
     // ---- Validações de shape/valor (escritas financeiras e de agenda) ----
@@ -134,19 +158,28 @@ service cloud.firestore {
 
       // Dados privados do tenant.
       match /clientes/{id} {
-        allow read, delete: if canManage(tenantId);
+        // O barbeiro LÊ a ficha de quem ele atende; quem cadastra e edita é a dona.
+        allow read: if noTenant(tenantId);
+        allow delete: if canManage(tenantId);
         allow create, update: if canManage(tenantId) && request.resource.data.nome is string;
       }
       match /transacoes/{id} {
-        allow read, delete: if canManage(tenantId);
-        allow create: if canManage(tenantId) && transacaoCreateValida();
+        // Leitura liberada ao barbeiro porque a tela dele fecha o atendimento e mostra o
+        // resumo do dia. Dinheiro só é LANÇADO por quem administra.
+        allow read: if noTenant(tenantId);
+        allow delete: if canManage(tenantId);
+        allow create: if noTenant(tenantId) && transacaoCreateValida();
         allow update: if canManage(tenantId) && transacaoUpdateValida();
       }
       match /agendamentos/{id} {
-        allow read, delete: if canManage(tenantId);
-        allow create, update: if canManage(tenantId)
+        allow read: if noTenant(tenantId);
+        allow delete: if canManage(tenantId);
+        allow create, update: if noTenant(tenantId)
           && statusAgendamentoValido(request.resource.data.status)
-          && request.resource.data.duracaoMin is number;
+          && request.resource.data.duracaoMin is number
+          // O barbeiro mexe só na PRÓPRIA coluna: marca, conclui e bloqueia o horário
+          // dele. A agenda dos colegas é leitura.
+          && (canManage(tenantId) || request.resource.data.barbeiroId == meuBarbeiroId());
       }
       // Agendamentos PROPOSTOS pelo atendente automático, e o estado de cada conversa
       // (pausa da IA, contadores). Só leitura: quem escreve é o servidor, e é de propósito
@@ -157,7 +190,8 @@ service cloud.firestore {
 
       // Planos de assinatura do cliente (mensalidade) — privados do tenant.
       match /planos/{id} {
-        allow read, delete: if canManage(tenantId);
+        allow read: if noTenant(tenantId);
+        allow delete: if canManage(tenantId);
         allow create, update: if canManage(tenantId) && request.resource.data.valor is number;
       }
 

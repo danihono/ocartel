@@ -273,6 +273,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // de tenant / deslogar.
   useEffect(() => {
     const isSuper = role === "superAdmin";
+    // Quem ADMINISTRA a barbearia (a dona ou o super admin) — o barbeiro não.
+    // Espelha `canManage()` do firestore.rules; as duas precisam concordar.
+    const gerencia = role !== "barbeiro";
     if (!tenantId && !isSuper) {
       tenantCarregado.current = null; // logout: o próximo login recarrega do zero
       return;
@@ -347,28 +350,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           marcarChegada("agendamentos");
         }),
         repo.planosTiers.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { planosTiers: rows } })),
-        // Não entra em ESSENCIAIS: barbearia sem o atendente automático nunca terá
-        // sugestão, e esperar por um snapshot que não vem travaria a hidratação.
-        repo.sugestoes.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { sugestoes: rows } })),
-        // Fora dos ESSENCIAIS pelo mesmo motivo das sugestões: barbearia que não usa
-        // cartão nunca terá um doc aqui, e esperar por um snapshot que não vem travaria
-        // a hidratação da tela inteira.
-        repo.cartoes.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { cartoes: rows } })),
         repo.planos.subscribe(tenantId, (rows) => {
           dispatch({ type: "SET_DATA", patch: { planos: rows } });
           marcarChegada("planos");
         }),
-        // Fechamentos ficam FORA de ESSENCIAIS pelo mesmo motivo das sugestões: uma
-        // barbearia que nunca fechou um mês não tem doc nenhum nessa coleção, e esperar
-        // por um snapshot que nunca vem travaria a hidratação do painel inteiro em
-        // "Carregando…".
-        repo.fechamentos.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { fechamentos: rows } })),
-        // Regra ausente = ninguém configurou comissão ainda; REGRA_PADRAO (0%) é a
-        // resposta certa, não "carregando" — nenhuma barbearia começa a dever comissão
-        // sozinha, mesma decisão da confirmação e do ciclo de cobrança.
-        repo.regraComissao.subscribe(tenantId, (regra) =>
-          dispatch({ type: "SET_DATA", patch: { regraComissao: regra ?? REGRA_PADRAO } }),
-        ),
         // `cfg` nulo = a barbearia ainda não tem doc de config; é uma resposta
         // válida, não "carregando". Mantém a config atual e segue.
         repo.config.subscribe(tenantId, (cfg) => {
@@ -379,6 +364,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           marcarChegada("config");
         }),
       );
+
+      // Coleções de GESTÃO. O barbeiro não as alcança mais nas regras do Firestore
+      // (sugestões e conversas do atendente, cartões salvos, fechamentos de comissão e a
+      // regra de comissão em `private/`), então nem abrimos o listener: um `onSnapshot`
+      // sem permissão não devolve lista vazia, ele ESTOURA — e a tela dele encheria de
+      // erro por dados que não são para ele ver.
+      //
+      // Nenhuma delas entra em ESSENCIAIS: uma barbearia que nunca usou o atendente,
+      // nunca salvou cartão e nunca fechou um mês não tem doc algum nessas coleções, e
+      // esperar por um snapshot que não vem travaria a hidratação do painel inteiro.
+      if (gerencia) {
+        unsubs.push(
+          repo.sugestoes.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { sugestoes: rows } })),
+          repo.cartoes.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { cartoes: rows } })),
+          repo.fechamentos.subscribe(tenantId, (rows) => dispatch({ type: "SET_DATA", patch: { fechamentos: rows } })),
+          // Regra ausente = ninguém configurou comissão ainda; REGRA_PADRAO (0%) é a
+          // resposta certa, não "carregando" — nenhuma barbearia começa a dever comissão
+          // sozinha, mesma decisão da confirmação e do ciclo de cobrança.
+          repo.regraComissao.subscribe(tenantId, (regra) =>
+            dispatch({ type: "SET_DATA", patch: { regraComissao: regra ?? REGRA_PADRAO } }),
+          ),
+        );
+      }
     } else {
       // superAdmin sem tenant próprio: nada de coleções por tenant.
       dispatch({ type: "SET_DATA", patch: { ui: { hidratado: true } } });
