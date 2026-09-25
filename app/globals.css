@@ -66,6 +66,11 @@ button {
 .oc-card {
   transition: box-shadow 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
 }
+/* Bloco de agendamento na grade da agenda. Só a sombra muda no hover: um `transform`
+   deslocaria o bloco no meio do arraste, que posiciona por pixel. */
+.oc-bloco:hover {
+  box-shadow: 0 8px 24px rgba(15, 27, 25, 0.12);
+}
 .oc-input {
   transition: border-color 0.14s ease, box-shadow 0.14s ease;
 }

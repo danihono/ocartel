@@ -36,16 +36,34 @@ const legenda = (["agendado", "confirmado", "atendimento", "noshow", "bloqueio"]
   cor: blocoMeta[s].bar,
 }));
 
-function gridBg(colH: number): React.CSSProperties {
+// Altura de uma hora e de meia hora na grade (PX_PER_MIN = 44/30 → 88px e 44px).
+const H_HORA = 60 * PX_PER_MIN;
+const H_MEIA = 30 * PX_PER_MIN;
+
+/**
+ * Fundo de uma coluna de barbeiro.
+ *
+ * Dois pesos de linha, e só dois: a HORA CHEIA marcada e a meia hora leve. Antes eram 30 e
+ * 15 min com o mesmo tipo de traço e nada distinguindo a hora — sem ponto de apoio, a grade
+ * lia como papel milimetrado. A subdivisão de 15 min saiu junto; o arraste continua
+ * encaixando de 15 em 15 (SNAP_MIN), ele só não precisa da linha desenhada para isso.
+ *
+ * A hora vem PRIMEIRO na lista porque em y=87 as duas caem no mesmo pixel, e em CSS o
+ * primeiro gradiente é o de cima.
+ *
+ * `faixa` alterna um tom quase imperceptível entre as colunas: com três ou quatro barbeiros
+ * lado a lado, é o que impede o olho de trocar de coluna ao descer a grade.
+ */
+function gridBg(colH: number, indice: number): React.CSSProperties {
   return {
     position: "relative",
     height: colH,
     backgroundImage: [
-      // 30 min: linha mais marcada, alinhada aos rótulos (pintada por cima)
-      `repeating-linear-gradient(to bottom,transparent 0,transparent 43px,${c.border} 43px,${c.border} 44px)`,
-      // 15 min: subdivisão mais leve
-      `repeating-linear-gradient(to bottom,transparent 0,transparent 21px,${c.surfaceAlt} 21px,${c.surfaceAlt} 22px)`,
+      `repeating-linear-gradient(to bottom,transparent 0,transparent ${H_HORA - 1}px,${c.border} ${H_HORA - 1}px,${c.border} ${H_HORA}px)`,
+      `repeating-linear-gradient(to bottom,transparent 0,transparent ${H_MEIA - 1}px,${c.borderSoft} ${H_MEIA - 1}px,${c.borderSoft} ${H_MEIA}px)`,
     ].join(","),
+    backgroundColor: indice % 2 === 0 ? "rgba(237,241,243,.40)" : undefined,
+    borderLeft: indice === 0 ? "none" : `1px solid ${c.borderSoft}`,
     cursor: "copy",
   };
 }
@@ -195,10 +213,11 @@ function Bloco({
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      className="oc-bloco"
       style={{
         position: "absolute",
-        left: 6,
-        right: 6,
+        left: 5,
+        right: 5,
         top,
         height,
         background: m.bg,
@@ -208,8 +227,8 @@ function Bloco({
         borderRight: "none",
         borderBottom: "none",
         borderLeft: `3px solid ${m.bar}`,
-        borderRadius: 7,
-        padding: "8px 10px",
+        borderRadius: 8,
+        padding: "7px 9px",
         overflow: "hidden",
         textAlign: "left",
         cursor: fixo ? "pointer" : arrastando ? "grabbing" : "grab",
@@ -222,10 +241,10 @@ function Bloco({
         transition: "opacity .12s ease-out",
       }}
     >
-      <div style={{ fontSize: 12, fontWeight: 700, color: m.title }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700, lineHeight: 1.25, color: m.title, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
         {horaPreview} · {cliente}
       </div>
-      <div style={{ fontSize: 11, color: m.sub, marginTop: 2 }}>{servico}</div>
+      <div style={{ fontSize: 11, fontWeight: 500, color: m.sub, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{servico}</div>
       {!fixo ? (
         <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 10, cursor: "ns-resize", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ width: 22, height: 3, borderRadius: 2, background: m.bar, opacity: 0.45 }} />
@@ -306,8 +325,10 @@ export function TelaAgenda() {
   const fecha = state.config.horario.fecha || "19:00";
   const janelaMin = Math.max(60, minutosDesde(fecha, abre));
   const colH = janelaMin * PX_PER_MIN;
+  // Só as horas cheias. Com 09:30/10:30 no meio, a régua competia com ela mesma e o olho
+  // não achava a hora — que é a única coisa que se procura ali.
   const gutterMarks = useMemo(
-    () => Array.from({ length: Math.floor(janelaMin / 30) + 1 }, (_, i) => i * 30),
+    () => Array.from({ length: Math.floor(janelaMin / 60) + 1 }, (_, i) => i * 60),
     [janelaMin],
   );
 
@@ -333,6 +354,8 @@ export function TelaAgenda() {
   const buscaNorm = norm(busca.trim());
   const matchCliente = (nome: string) => norm(nome).includes(buscaNorm);
   const colunasDia = buscaAtiva ? colunas.filter((col) => col.blocos.some((b) => matchCliente(b.cliente))) : colunas;
+  // Dia realmente vazio — não confundir com "a busca não achou nada", que já tem aviso próprio.
+  const diaVazio = !buscaAtiva && colunasDia.length > 0 && colunasDia.every((col) => col.blocos.length === 0);
 
   function passo(delta: number) {
     if (view === "dia") setDateISO(addDias(dateISO, delta));
@@ -384,11 +407,11 @@ export function TelaAgenda() {
       {/* Toolbar */}
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button style={btnNav} onClick={() => passo(-1)}>‹</button>
+          <button className="oc-btn oc-btn-ghost" style={btnNav} onClick={() => passo(-1)}>‹</button>
           <div style={{ fontFamily: font.serif, fontSize: 19, fontWeight: 600, color: c.inkTitle, minWidth: 190, textAlign: "center" }}>
             {tituloCentral}
           </div>
-          <button style={btnNav} onClick={() => passo(1)}>›</button>
+          <button className="oc-btn oc-btn-ghost" style={btnNav} onClick={() => passo(1)}>›</button>
           <button
             onClick={() => setTela({ dateISO: null })}
             style={{ border: "none", fontSize: 12, fontWeight: 700, color: c.brassDeep, background: c.brassSoft, borderRadius: 999, padding: "6px 13px", cursor: "pointer" }}
@@ -486,13 +509,14 @@ export function TelaAgenda() {
       ) : null}
 
       {/* Calendário */}
-      <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 14, overflow: "auto", flex: 1, boxShadow: shadow.card }}>
+      <div style={{ position: "relative", background: c.surface, border: `1px solid ${c.border}`, borderRadius: 14, overflow: "auto", flex: 1, boxShadow: shadow.card }}>
         {view === "dia" ? (
           buscaAtiva && colunasDia.length === 0 ? (
             <div style={{ padding: 48, textAlign: "center", color: c.ink3, fontSize: 13 }}>
               Nenhum agendamento para “{busca.trim()}”.
             </div>
           ) : (
+          <>
           <div style={{ display: "grid", gridTemplateColumns: `64px repeat(${colunasDia.length},1fr)`, minWidth: 740 }}>
             {/* header row — fica grudado no topo enquanto o dia rola (e o canto,
                 também na esquerda, por cima da régua de horas) */}
@@ -510,37 +534,77 @@ export function TelaAgenda() {
                   padding: "0 16px",
                 }}
               >
-                <div style={{ width: 28, height: 28, borderRadius: "50%", background: barbeiro.cor, color: c.darkText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>
+                <div style={{ width: 30, height: 30, flex: "none", borderRadius: "50%", background: barbeiro.cor, color: c.darkText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, fontWeight: 700 }}>
                   {barbeiro.iniciais}
                 </div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: c.inkTitle }}>{barbeiro.nome}</div>
-                  <div style={{ fontSize: 10.5, color: c.ink3 }}>{selectAtendimentosHoje(state, barbeiro.id, dateISO)} hoje</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: c.inkTitle, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{barbeiro.nome}</div>
+                  {/* "hoje" só quando a data na tela É hoje — antes dizia "3 hoje" olhando
+                      para a agenda de semana que vem, o que não queria dizer nada. */}
+                  {(() => {
+                    const n = selectAtendimentosHoje(state, barbeiro.id, dateISO);
+                    return (
+                      <div style={{ fontSize: 11, color: n === 0 ? c.ink4 : c.ink3, marginTop: 1, whiteSpace: "nowrap" }}>
+                        {n === 0 ? "nenhum atendimento" : `${n} atendimento${n === 1 ? "" : "s"}${ehHoje ? " hoje" : ""}`}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             ))}
 
             {/* gutter — fixo à esquerda: com muitos barbeiros a grade rola na horizontal */}
             <div style={{ ...reguaHoras, height: colH, borderRight: `1px solid ${c.borderSoft}` }}>
+              {/* O rótulo fica logo ABAIXO da sua linha, não centrado nela: centrado, o
+                  primeiro (a hora de abertura) ficava metade cortado pelo cabeçalho grudado. */}
               {gutterMarks.map((min) => (
-                <div key={min} style={{ position: "absolute", top: min * PX_PER_MIN - 7, right: 10, fontSize: 11, color: c.ink4, fontWeight: min % 60 === 0 ? 500 : 400 }}>
+                <div
+                  key={min}
+                  style={{
+                    position: "absolute",
+                    top: min * PX_PER_MIN + 3,
+                    right: 10,
+                    fontSize: 11.5,
+                    fontWeight: 500,
+                    color: c.ink3,
+                    fontVariantNumeric: "tabular-nums",
+                    letterSpacing: ".2px",
+                  }}
+                >
                   {horaDesde(min, abre)}
                 </div>
               ))}
               {ehHoje && nowTop >= 0 && nowTop <= colH ? (
-                <>
-                  <div style={{ position: "absolute", top: nowTop - 7, right: 8, fontSize: 10, color: c.red, fontWeight: 700, background: c.surface, padding: "1px 0" }}>
-                    {agora}
-                  </div>
-                  <div style={{ position: "absolute", top: nowTop - 4, right: -4, width: 8, height: 8, borderRadius: "50%", background: c.red, zIndex: 4 }} />
-                </>
+                <div
+                  style={{
+                    position: "absolute",
+                    top: nowTop,
+                    right: 6,
+                    transform: "translateY(-50%)",
+                    zIndex: 7,
+                    background: c.red,
+                    color: "#FFFFFF",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    lineHeight: 1,
+                    padding: "3px 6px",
+                    borderRadius: 5,
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {agora}
+                </div>
               ) : null}
             </div>
 
             {/* barber columns */}
-            {colunasDia.map(({ barbeiro, blocos }) => (
-              <div key={barbeiro.id} style={gridBg(colH)} onClick={(e) => criarNoHorario(e, barbeiro.id)}>
-                {ehHoje && nowTop >= 0 && nowTop <= colH ? <div style={{ position: "absolute", left: 0, right: 0, top: nowTop, height: 2, background: c.red, zIndex: 3 }} /> : null}
+            {colunasDia.map(({ barbeiro, blocos }, i) => (
+              <div key={barbeiro.id} style={gridBg(colH, i)} onClick={(e) => criarNoHorario(e, barbeiro.id)}>
+                {ehHoje && nowTop >= 0 && nowTop <= colH ? (
+                  <div style={{ position: "absolute", left: 0, right: 0, top: nowTop, height: 1.5, background: c.red, zIndex: 3 }}>
+                    <div style={{ position: "absolute", left: -3, top: -2.25, width: 6, height: 6, borderRadius: "50%", background: c.red }} />
+                  </div>
+                ) : null}
                 {blocos.map((b) => (
                   <Bloco key={b.id} id={b.id} inicio={b.inicio} dur={b.duracaoMin} cliente={b.cliente} servico={b.servico} status={b.status} base={abre} colH={colH} atenuado={buscaAtiva && !matchCliente(b.cliente)} onClick={setAgSel} onMove={moverAgendamento} onResize={redimensionar} />
                 ))}
@@ -552,6 +616,27 @@ export function TelaAgenda() {
               </div>
             ))}
           </div>
+          {/* Dia sem nada marcado. A grade nua não é resposta: ela não diz se o dia está
+              vazio, se ainda está carregando ou se o filtro escondeu tudo. `pointerEvents:
+              none` deixa o clique passar para a coluna por baixo — criar agendamento
+              clicando num horário continua funcionando com o aviso na tela. A altura é
+              fixa (e não `inset: 0`) porque o container ROLA: centrado nos 880px da grade,
+              o aviso nasceria fora da área visível. */}
+          {diaVazio ? (
+            <div style={{ position: "absolute", top: 62, left: 64, right: 0, height: 330, display: "grid", placeItems: "center", pointerEvents: "none", padding: 24, zIndex: 4 }}>
+              <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 14, boxShadow: shadow.pop, padding: "22px 26px", textAlign: "center", maxWidth: 330 }}>
+                <div style={{ width: 38, height: 38, margin: "0 auto 11px", borderRadius: 10, background: c.brassTint, display: "grid", placeItems: "center" }}>
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={c.brassDeep} strokeWidth="1.9" strokeLinecap="round" aria-hidden="true">
+                    <rect x="3" y="5" width="18" height="16" rx="3" />
+                    <path d="M8 3v4M16 3v4M3 10h18" />
+                  </svg>
+                </div>
+                <div style={{ fontSize: 14.5, fontWeight: 700, color: c.inkTitle }}>Nenhum agendamento neste dia</div>
+                <div style={{ fontSize: 12.5, color: c.ink2, marginTop: 4 }}>Clique em um horário na coluna do barbeiro para marcar.</div>
+              </div>
+            </div>
+          ) : null}
+          </>
           )
         ) : view === "semana" ? (
           <SemanaView dateISO={dateISO} hoje={hoje} state={state} onSelect={setAgSel} barbeiroId={barbId} />
