@@ -7,6 +7,8 @@ import Sidebar from "@/components/admin/Sidebar";
 import Topbar from "@/components/admin/Topbar";
 import { Tela } from "@/components/admin/Tela";
 import AuthGuard from "@/components/auth/AuthGuard";
+import { AguardandoAprovacao } from "@/components/auth/AguardandoAprovacao";
+import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/firebase/auth";
 import { useRelogio } from "@/lib/useRelogio";
 import { NavegacaoProvider, useNavegacao } from "@/components/admin/navegacao";
@@ -46,6 +48,7 @@ function PainelAdmin({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { role, profile } = useAuth();
   const { agora } = useRelogio();
+  const { state } = useStore();
 
   // O barbeiro é mobile-only: nunca cai no painel desktop — vai para /barbeiro.
   useEffect(() => {
@@ -58,6 +61,14 @@ function PainelAdmin({ children }: { children: React.ReactNode }) {
       : (titles[path] ?? ["", ""]);
 
   if (role === "barbeiro") return <div style={{ height: "100vh", background: c.bg }} />;
+
+  // Barbearia cadastrada e ainda não aprovada: o painel inteiro fica atrás da espera.
+  // O super admin não passa por aqui — ele entra por impersonação justamente para
+  // conferir a barbearia ANTES de aprovar.
+  const tenant = state.tenants[0];
+  if (role !== "superAdmin" && tenant?.status === "pendente") {
+    return <AguardandoAprovacao barbearia={tenant.nome} email={profile?.email} />;
+  }
 
   return (
     <AuthGuard need="tenant">

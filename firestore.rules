@@ -47,6 +47,26 @@ service cloud.firestore {
       return uDoc().get('barbeiroId', '');
     }
 
+    /** Barbearia já liberada pelo super admin (nasce `pendente` no cadastro). */
+    function aprovado(tenantId) {
+      return get(/databases/$(database)/documents/tenants/$(tenantId)).data.status != 'pendente';
+    }
+
+    /**
+     * Administra uma barbearia JÁ APROVADA — o portão do dia a dia.
+     *
+     * A espera pela aprovação é mostrada pelo painel, mas a tela sozinha não segura
+     * ninguém: sem isto, quem se cadastrasse poderia cadastrar cliente e lançar dinheiro
+     * pela API antes de alguém ter olhado o cadastro.
+     *
+     * Config e catálogo (serviços, barbeiros, tiers) ficam de fora deste portão de
+     * propósito: são escritos pelo próprio `bootstrapTenant` no momento do cadastro,
+     * quando a barbearia ainda é — e tem que ser — `pendente`.
+     */
+    function podeOperar(tenantId) {
+      return canManage(tenantId) && aprovado(tenantId);
+    }
+
     // ---- Validações de shape/valor (escritas financeiras e de agenda) ----
     function statusAgendamentoValido(s) {
       return s in ['agendado', 'confirmado', 'atendimento', 'concluido', 'noshow', 'cancelado', 'bloqueio'];
@@ -132,14 +152,24 @@ service cloud.firestore {
     match /tenants/{tenantId} {
       // Doc público (nome, slug, endereco, plano) — NÃO guardar segredos aqui.
       allow read: if true;
-      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
-      allow update, delete: if canManage(tenantId);
+      // Toda barbearia nasce PENDENTE. Quem se cadastra não escolhe o próprio status.
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.status == 'pendente';
+      // `status` (e portanto a aprovação) e `plano` são exclusivos do super admin —
+      // senão aprovar a si mesmo seria uma requisição, não uma decisão.
+      allow update: if isSuper()
+        || (canManage(tenantId)
+            && request.resource.data.status == resource.data.status
+            && request.resource.data.plano == resource.data.plano);
+      allow delete: if canManage(tenantId);
 
       // Dados sensíveis (billing, vínculo do WhatsApp, chave do gateway de cobrança)
       // ficam isolados e nunca são públicos. NÃO mover nada disto para `config/`, que é
       // `allow read: if true` para alimentar a vitrine de /book/[slug].
       match /private/{doc} {
-        allow read, write: if canManage(tenantId);
+        allow read: if canManage(tenantId);
+        allow write: if podeOperar(tenantId);
       }
 
       // Cartões salvos — VITRINE: bandeira e quatro últimos dígitos, nada mais. O token
@@ -160,21 +190,21 @@ service cloud.firestore {
       match /clientes/{id} {
         // O barbeiro LÊ a ficha de quem ele atende; quem cadastra e edita é a dona.
         allow read: if noTenant(tenantId);
-        allow delete: if canManage(tenantId);
-        allow create, update: if canManage(tenantId) && request.resource.data.nome is string;
+        allow delete: if podeOperar(tenantId);
+        allow create, update: if podeOperar(tenantId) && request.resource.data.nome is string;
       }
       match /transacoes/{id} {
         // Leitura liberada ao barbeiro porque a tela dele fecha o atendimento e mostra o
         // resumo do dia. Dinheiro só é LANÇADO por quem administra.
         allow read: if noTenant(tenantId);
-        allow delete: if canManage(tenantId);
-        allow create: if noTenant(tenantId) && transacaoCreateValida();
-        allow update: if canManage(tenantId) && transacaoUpdateValida();
+        allow delete: if podeOperar(tenantId);
+        allow create: if noTenant(tenantId) && aprovado(tenantId) && transacaoCreateValida();
+        allow update: if podeOperar(tenantId) && transacaoUpdateValida();
       }
       match /agendamentos/{id} {
         allow read: if noTenant(tenantId);
-        allow delete: if canManage(tenantId);
-        allow create, update: if noTenant(tenantId)
+        allow delete: if podeOperar(tenantId);
+        allow create, update: if noTenant(tenantId) && aprovado(tenantId)
           && statusAgendamentoValido(request.resource.data.status)
           && request.resource.data.duracaoMin is number
           // O barbeiro mexe só na PRÓPRIA coluna: marca, conclui e bloqueia o horário
@@ -191,19 +221,20 @@ service cloud.firestore {
       // Planos de assinatura do cliente (mensalidade) — privados do tenant.
       match /planos/{id} {
         allow read: if noTenant(tenantId);
-        allow delete: if canManage(tenantId);
-        allow create, update: if canManage(tenantId) && request.resource.data.valor is number;
+        allow delete: if podeOperar(tenantId);
+        allow create, update: if podeOperar(tenantId) && request.resource.data.valor is number;
       }
 
       // Fechamentos mensais de comissão. Privados: quanto cada barbeiro recebe não é
       // dado de vitrine. `delete` é a reabertura do mês, feita de propósito na tela.
       match /fechamentos/{id} {
-        allow read, delete: if canManage(tenantId);
-        allow create: if canManage(tenantId)
+        allow read: if canManage(tenantId);
+        allow delete: if podeOperar(tenantId);
+        allow create: if podeOperar(tenantId)
           && request.resource.data.total is number
           && request.resource.data.mes is string
           && request.resource.data.barbeiroId is string;
-        allow update: if canManage(tenantId) && fechamentoUpdateValido();
+        allow update: if podeOperar(tenantId) && fechamentoUpdateValido();
       }
 
     }

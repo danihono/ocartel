@@ -26,6 +26,7 @@ export function TenantDrawer({ open, onClose, tenant }: { open: boolean; onClose
   if (!open || !tenant) return null;
   const sm = tenantStatusMeta[tenant.status];
   const ativo = tenant.status === "ativo";
+  const pendente = tenant.status === "pendente";
   const pro = tenant.plano === "Pro";
 
   async function alternarStatus() {
@@ -36,6 +37,27 @@ export function TenantDrawer({ open, onClose, tenant }: { open: boolean; onClose
       toast(ativo ? "Barbearia suspensa." : "Barbearia reativada.");
     } catch {
       toast("Não foi possível atualizar a barbearia.", "error");
+    }
+  }
+
+  /** Libera a barbearia. É o único caminho de `pendente` para dentro do sistema. */
+  async function aprovar() {
+    if (!tenant?.id) return;
+    try {
+      await actions.tenants.update(tenant.id, { status: "ativo" });
+      toast(`${tenant.nome} aprovada. O painel dela libera na hora.`);
+    } catch {
+      toast("Não foi possível aprovar.", "error");
+    }
+  }
+
+  async function recusar() {
+    if (!tenant?.id) return;
+    try {
+      await actions.tenants.update(tenant.id, { status: "atrasado" });
+      toast("Cadastro recusado. A barbearia segue sem acesso.");
+    } catch {
+      toast("Não foi possível recusar.", "error");
     }
   }
 
@@ -84,13 +106,21 @@ export function TenantDrawer({ open, onClose, tenant }: { open: boolean; onClose
         Você entra como super admin e vê todas as telas dela.
       </div>
 
-      <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-        <Button variant="dark" onClick={alternarPlano}>{pro ? "Mudar para Básico" : "Mudar para Pro"}</Button>
-        <div style={{ flex: 1 }} />
-        <Button onClick={alternarStatus} style={ativo ? { background: c.red } : undefined}>
-          {ativo ? "Suspender" : "Reativar"}
-        </Button>
-      </div>
+      {pendente ? (
+        <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+          <Button variant="dark" onClick={recusar}>Recusar</Button>
+          <div style={{ flex: 1 }} />
+          <Button onClick={aprovar}>Aprovar barbearia</Button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+          <Button variant="dark" onClick={alternarPlano}>{pro ? "Mudar para Básico" : "Mudar para Pro"}</Button>
+          <div style={{ flex: 1 }} />
+          <Button onClick={alternarStatus} style={ativo ? { background: c.red } : undefined}>
+            {ativo ? "Suspender" : "Reativar"}
+          </Button>
+        </div>
+      )}
     </Modal>
   );
 }

@@ -37,7 +37,6 @@ export default function LoginPage() {
   const toast = useToast();
 
   const [tab, setTab] = useState<"entrar" | "criar">("entrar");
-  const [plano, setPlano] = useState<"Básico" | "Pro">("Pro");
   const [carregando, setCarregando] = useState(false);
 
   // entrar
@@ -46,9 +45,7 @@ export default function LoginPage() {
 
   // criar (wizard)
   const [step, setStep] = useState(1);
-  const [novaBarbearia, setNovaBarbearia] = useState("Barbearia Cartel");
-  const [seuNome, setSeuNome] = useState("");
-  const [telefone, setTelefone] = useState("");
+  const [novaBarbearia, setNovaBarbearia] = useState("");
 
   async function esqueciSenha() {
     if (!email.trim()) {
@@ -102,6 +99,10 @@ export default function LoginPage() {
       setStep(1);
       return;
     }
+    if (novaBarbearia.trim().length < 2) {
+      toast("Informe o nome da barbearia.", "error");
+      return;
+    }
     setCarregando(true);
 
     // Cria a conta — erros aqui são de credencial (e-mail em uso, senha fraca…).
@@ -120,12 +121,14 @@ export default function LoginPage() {
       await bootstrapTenant({
         uid: cred.user.uid,
         email: email.trim(),
-        nome: seuNome.trim() || "Administrador",
-        barbeariaNome: novaBarbearia.trim() || "Minha Barbearia",
-        telefone,
-        plano,
+        // Sem campo de nome próprio no cadastro: o dono ajusta em Configurações.
+        nome: email.trim().split("@")[0],
+        barbeariaNome: novaBarbearia.trim(),
       });
-      toast("Sua barbearia foi criada. Teste grátis iniciado!");
+      toast("Cadastro enviado. Assim que for aprovado, a barbearia libera.");
+      // Vai para o painel de propósito: quem manda na espera é o próprio painel,
+      // que mostra a tela de "aguardando aprovação" enquanto o status for pendente.
+      // Assim o dono vê a mesma coisa se fechar e entrar de novo depois.
       router.push("/dashboard");
     } catch {
       try {
@@ -197,12 +200,11 @@ export default function LoginPage() {
           ) : (
             <div>
               <h1 style={{ fontFamily: font.serif, fontSize: 27, fontWeight: 600, margin: "0 0 4px", color: c.inkTitle }}>Crie sua barbearia</h1>
-              <p style={{ fontSize: 13.5, color: c.ink2, margin: "0 0 22px" }}>14 dias grátis. Sem cartão.</p>
+              <p style={{ fontSize: 13.5, color: c.ink2, margin: "0 0 22px" }}>Seu cadastro passa por aprovação antes de liberar.</p>
               <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
                 {[
                   { n: "1 · Conta" },
                   { n: "2 · Barbearia" },
-                  { n: "3 · Plano" },
                 ].map((s, i) => {
                   const done = i + 1 <= step;
                   return (
@@ -222,53 +224,22 @@ export default function LoginPage() {
                   <input type="password" style={{ ...fieldInput, marginBottom: 22 }} value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="Crie uma senha" />
                   <button onClick={() => { if (validarPasso1()) setStep(2); }} style={{ width: "100%", border: "none", cursor: "pointer", background: c.primaryBtnBg, color: c.primaryBtnText, padding: 14, borderRadius: 11, fontSize: 14.5, fontWeight: 700 }}>Continuar</button>
                 </>
-              ) : step === 2 ? (
-                <>
-                  <label style={fieldLabel}>Nome da barbearia</label>
-                  <input style={{ ...fieldInput, marginBottom: 14 }} value={novaBarbearia} onChange={(e) => setNovaBarbearia(e.target.value)} />
-                  <div style={{ display: "flex", gap: 12, marginBottom: 22 }}>
-                    <div style={{ flex: 1 }}>
-                      <label style={fieldLabel}>Seu nome</label>
-                      <input style={fieldInput} value={seuNome} onChange={(e) => setSeuNome(e.target.value)} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <label style={fieldLabel}>Telefone</label>
-                      <input style={fieldInput} value={telefone} onChange={(e) => setTelefone(e.target.value)} />
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <button onClick={() => setStep(1)} style={{ flex: "0 0 auto", border: `1px solid ${c.borderInput}`, cursor: "pointer", background: c.surface, color: c.inkTitle, padding: "14px 20px", borderRadius: 11, fontSize: 14, fontWeight: 600 }}>Voltar</button>
-                    <button onClick={() => setStep(3)} style={{ flex: 1, border: "none", cursor: "pointer", background: c.primaryBtnBg, color: c.primaryBtnText, padding: 14, borderRadius: 11, fontSize: 14.5, fontWeight: 700 }}>Continuar</button>
-                  </div>
-                </>
               ) : (
                 <>
-                  <label style={fieldLabel}>Escolha o plano</label>
-                  <div style={{ display: "flex", gap: 12, marginBottom: 22, marginTop: 6 }}>
-                    {([
-                      { id: "Básico", preco: "R$ 129", desc: "1 unidade · até 3 barbeiros" },
-                      { id: "Pro", preco: "R$ 249", desc: "Multi-unidade · ilimitado" },
-                    ] as const).map((p) => {
-                      const on = plano === p.id;
-                      return (
-                        <button
-                          key={p.id}
-                          onClick={() => setPlano(p.id)}
-                          style={{ flex: 1, textAlign: "left", cursor: "pointer", background: on ? c.brassTint : c.surface, border: `1.5px solid ${on ? c.brass : c.borderInput}`, borderRadius: 12, padding: "13px 14px" }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                            <span style={{ fontSize: 13.5, fontWeight: 700, color: c.inkTitle }}>{p.id}</span>
-                            <span style={{ width: 16, height: 16, borderRadius: "50%", border: `1.5px solid ${on ? c.brass : c.borderInput}`, background: on ? c.brass : "transparent" }} />
-                          </div>
-                          <div style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.inkTitle, marginTop: 4 }}>{p.preco}<span style={{ fontSize: 11, fontFamily: font.sans, color: c.ink3, fontWeight: 500 }}>/mês</span></div>
-                          <div style={{ fontSize: 11, color: c.ink2, marginTop: 4 }}>{p.desc}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <label style={fieldLabel}>Nome da barbearia</label>
+                  <input
+                    style={{ ...fieldInput, marginBottom: 8 }}
+                    value={novaBarbearia}
+                    onChange={(e) => setNovaBarbearia(e.target.value)}
+                    placeholder="Ex.: Barbearia Cartel"
+                    autoFocus
+                  />
+                  <p style={{ fontSize: 12.5, color: c.ink3, margin: "0 0 22px", lineHeight: 1.5 }}>
+                    É o nome que aparece para os seus clientes. Dá para mudar depois.
+                  </p>
                   <div style={{ display: "flex", gap: 10 }}>
-                    <button onClick={() => setStep(2)} style={{ flex: "0 0 auto", border: `1px solid ${c.borderInput}`, cursor: "pointer", background: c.surface, color: c.inkTitle, padding: "14px 20px", borderRadius: 11, fontSize: 14, fontWeight: 600 }}>Voltar</button>
-                    <button onClick={concluirOnboarding} disabled={carregando} style={{ flex: 1, border: "none", cursor: carregando ? "default" : "pointer", opacity: carregando ? 0.7 : 1, background: c.primaryBtnBg, color: c.primaryBtnText, padding: 14, borderRadius: 11, fontSize: 14.5, fontWeight: 700 }}>{carregando ? "Criando…" : "Começar teste grátis"}</button>
+                    <button onClick={() => setStep(1)} style={{ flex: "0 0 auto", border: `1px solid ${c.borderInput}`, cursor: "pointer", background: c.surface, color: c.inkTitle, padding: "14px 20px", borderRadius: 11, fontSize: 14, fontWeight: 600 }}>Voltar</button>
+                    <button onClick={concluirOnboarding} disabled={carregando} style={{ flex: 1, border: "none", cursor: carregando ? "default" : "pointer", opacity: carregando ? 0.7 : 1, background: c.primaryBtnBg, color: c.primaryBtnText, padding: 14, borderRadius: 11, fontSize: 14.5, fontWeight: 700 }}>{carregando ? "Enviando…" : "Enviar cadastro"}</button>
                   </div>
                 </>
               )}

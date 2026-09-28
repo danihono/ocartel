@@ -15,7 +15,11 @@ export type AgendamentoStatus =
 export type ClienteTag = "VIP" | "Novo" | "Inadimplente" | "";
 
 export type PlanoSaaS = "Básico" | "Pro";
-export type TenantStatus = "ativo" | "trial" | "atrasado";
+/**
+ * `pendente` = cadastro feito, esperando o super admin aprovar. É o estado em que
+ * TODA barbearia nasce: quem se cadastra não entra sozinho no sistema.
+ */
+export type TenantStatus = "pendente" | "ativo" | "trial" | "atrasado";
 
 export interface Barbeiro {
   id: string;

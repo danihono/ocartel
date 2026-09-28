@@ -30,6 +30,7 @@ function iniciaisDe(nome: string): string {
 
 const filtrosStatus: { label: string; status: TenantStatus | "todas" }[] = [
   { label: "Todas", status: "todas" },
+  { label: "Pendentes", status: "pendente" },
   { label: "Ativas", status: "ativo" },
   { label: "Trial", status: "trial" },
   { label: "Atrasadas", status: "atrasado" },
@@ -60,6 +61,7 @@ export default function SuperAdminPage() {
     }
   }
 
+  const pendentes = state.tenants.filter((t) => t.status === "pendente").length;
   const ativas = state.tenants.filter((t) => t.status === "ativo").length;
   const trials = state.tenants.filter((t) => t.status === "trial").length;
   const mrrTotal = state.tenants.reduce((acc, t) => acc + parseMrr(t.mrr), 0);
@@ -155,6 +157,27 @@ export default function SuperAdminPage() {
             <AtividadeCard />
           </>
         ) : aba === "Barbearias" ? (
+          <>
+          {/* Cadastros esperando decisão. Fica acima da lista porque é a única coisa aqui
+              que trava alguém do outro lado: enquanto ninguém aprova, a barbearia não entra. */}
+          {pendentes > 0 ? (
+            <button
+              onClick={() => setFiltro("pendente")}
+              style={{ width: "100%", textAlign: "left", marginTop: 16, display: "flex", alignItems: "center", gap: 12, background: "rgba(231,192,120,.12)", border: `1px solid ${c.darkAmber}`, borderRadius: 14, padding: "14px 18px", cursor: "pointer" }}
+            >
+              <span style={{ width: 9, height: 9, borderRadius: "50%", background: c.darkAmber, flex: "none" }} />
+              <span style={{ flex: 1 }}>
+                <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, color: c.darkAmber }}>
+                  {pendentes} barbearia{pendentes === 1 ? "" : "s"} esperando aprovação
+                </span>
+                <span style={{ display: "block", fontSize: 12.5, color: c.darkMuted, marginTop: 2 }}>
+                  Sem a sua aprovação, quem se cadastrou não entra no sistema.
+                </span>
+              </span>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: c.darkAmber }}>Ver →</span>
+            </button>
+          ) : null}
+
           <div style={{ background: c.darkSurface, border: `1px solid ${c.darkLine}`, borderRadius: 14, marginTop: 16, overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", padding: "18px 22px 12px", gap: 12 }}>
               <span style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.darkText, flex: 1 }}>Barbearias</span>
@@ -197,6 +220,7 @@ export default function SuperAdminPage() {
               </div>
             ) : null}
           </div>
+          </>
         ) : aba === "Billing" ? (
           <>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginTop: 16 }}>

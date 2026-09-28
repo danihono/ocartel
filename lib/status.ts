@@ -48,6 +48,7 @@ export function tagMeta(tag: ClienteTag): { fg: string; bg: string } | null {
 }
 
 export const tenantStatusMeta: Record<TenantStatus, { label: string; fg: string; bg: string }> = {
+  pendente: { label: "Aguardando aprovação", fg: c.darkAmber, bg: "rgba(231,192,120,.18)" },
   ativo: { label: "Ativo", fg: c.darkGreen, bg: "rgba(52,214,166,.18)" },
   trial: { label: "Trial", fg: c.darkAmber, bg: "rgba(231,192,120,.18)" },
   atrasado: { label: "Atrasado", fg: c.darkRed, bg: "rgba(240,151,138,.20)" },

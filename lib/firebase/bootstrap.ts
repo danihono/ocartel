@@ -54,8 +54,6 @@ export interface BootstrapParams {
   email: string;
   nome: string; // nome do dono
   barbeariaNome: string;
-  telefone: string;
-  plano: PlanoSaaS;
 }
 
 export async function bootstrapTenant(params: BootstrapParams): Promise<{ tenantId: string; slug: string }> {
@@ -74,9 +72,12 @@ export async function bootstrapTenant(params: BootstrapParams): Promise<{ tenant
     slug,
     cidade: "",
     monograma: monograma(params.barbeariaNome),
-    plano: params.plano,
-    status: "trial",
-    mrr: params.plano === "Pro" ? "R$ 249" : "R$ 129",
+    // Plano e cobrança são decididos DEPOIS, pelo super admin: o cadastro é só um
+    // pedido. Por isso nasce `pendente` — e as regras não deixam o próprio dono
+    // mudar esse campo, senão aprovar a si mesmo seria um PATCH.
+    plano: "Básico" as PlanoSaaS,
+    status: "pendente",
+    mrr: "—",
     agendamentosMes: "0",
     ownerUid: params.uid,
     createdAt: serverTimestamp(),
@@ -103,7 +104,7 @@ export async function bootstrapTenant(params: BootstrapParams): Promise<{ tenant
   catalogo.set(doc(db, "tenants", tenantId, "config", "main"), {
     nome: params.barbeariaNome,
     endereco: "",
-    telefone: params.telefone,
+    telefone: "",
     horario: { abre: "09:00", fecha: "19:00", diasAtivos: [true, true, true, true, true, true, false] },
   });
 
