@@ -6,7 +6,7 @@ import { c, font } from "@/lib/theme";
 import { Seal } from "@/components/ui/Seal";
 import { tenantStatusMeta } from "@/lib/status";
 import { useStore } from "@/lib/store";
-import { useAuth } from "@/lib/firebase/auth";
+import { signOutApp, useAuth } from "@/lib/firebase/auth";
 import { seedDemoTenant } from "@/lib/firebase/bootstrap";
 import { useToast } from "@/components/ui/Toast";
 import { TenantDrawer } from "@/components/admin/TenantDrawer";
@@ -99,6 +99,15 @@ export default function SuperAdminPage() {
    * eventos. O console mostrava quatro linhas fixas no código ("Studio Navalha assinou
    * o plano Pro"), barbearias que nunca existiram em banco nenhum.
    */
+  const [menuConta, setMenuConta] = useState(false);
+
+  // O console não tinha saída: quem entrava aqui só saía limpando o navegador.
+  async function sair() {
+    await signOutApp();
+    toast("Sessão encerrada.");
+    router.push("/login");
+  }
+
   const pendencias = [
     ...state.tenants
       .filter((t) => t.status === "pendente")
@@ -142,12 +151,37 @@ export default function SuperAdminPage() {
           })}
         </div>
         <div style={{ flex: 1 }} />
-        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: c.darkText }}>{nomeSuper}</div>
-            <div style={{ fontSize: 10.5, color: c.darkMuted }}>Super Admin</div>
-          </div>
-          <div style={{ width: 32, height: 32, borderRadius: "50%", background: c.leather, color: c.darkText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>{iniciaisDe(nomeSuper)}</div>
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setMenuConta((m) => !m)}
+            style={{ display: "flex", alignItems: "center", gap: 9, border: "none", background: "transparent", cursor: "pointer", padding: 0, font: "inherit" }}
+          >
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: c.darkText }}>{nomeSuper}</div>
+              <div style={{ fontSize: 10.5, color: c.darkMuted }}>Super Admin</div>
+            </div>
+            <div style={{ width: 32, height: 32, borderRadius: "50%", background: c.leather, color: c.darkText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>{iniciaisDe(nomeSuper)}</div>
+            <span style={{ color: c.darkMuted, fontSize: 11 }}>{menuConta ? "▴" : "▾"}</span>
+          </button>
+
+          {menuConta ? (
+            <>
+              {/* Captura o clique fora para fechar — sem isso o menu só fecharia pelo botão. */}
+              <div onClick={() => setMenuConta(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+              <div style={{ position: "absolute", right: 0, top: "100%", marginTop: 10, minWidth: 190, zIndex: 41, background: c.darkSurface, border: `1px solid ${c.darkLine}`, borderRadius: 11, overflow: "hidden", boxShadow: "0 12px 32px rgba(0,0,0,.45)" }}>
+                <div style={{ padding: "11px 14px", borderBottom: `1px solid ${c.darkLine}` }}>
+                  <div style={{ fontSize: 11.5, color: c.darkMuted }}>Conectado como</div>
+                  <div style={{ fontSize: 12.5, color: c.darkText, fontWeight: 600, marginTop: 2, wordBreak: "break-all" }}>{profile?.email ?? nomeSuper}</div>
+                </div>
+                <button
+                  onClick={sair}
+                  style={{ width: "100%", textAlign: "left", border: "none", background: "transparent", cursor: "pointer", padding: "11px 14px", fontSize: 13, fontWeight: 600, color: c.darkRed }}
+                >
+                  Sair
+                </button>
+              </div>
+            </>
+          ) : null}
         </div>
       </header>
 
