@@ -120,12 +120,6 @@ export interface Tenant {
   agendamentosMes: string;
 }
 
-export interface AtividadeSaaS {
-  cor: string;
-  texto: string;
-  quando: string;
-}
-
 export interface DesempenhoBarbeiro {
   nome: string;
   iniciais: string;

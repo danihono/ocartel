@@ -4,8 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { c, font } from "@/lib/theme";
 import { Seal } from "@/components/ui/Seal";
-import { LineChart } from "@/components/ui/LineChart";
-import { atividadeSaas, mrr12m, saasKpis } from "@/lib/mock-data";
 import { tenantStatusMeta } from "@/lib/status";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/firebase/auth";
@@ -45,7 +43,6 @@ export default function SuperAdminPage() {
   const [filtro, setFiltro] = useState<TenantStatus | "todas">("todas");
   const [drawer, setDrawer] = useState<Tenant | null>(null);
   const [criando, setCriando] = useState(false);
-  const [resolvidos, setResolvidos] = useState<number[]>([]);
 
   async function criarDemo() {
     if (!user || criando) return;
@@ -82,12 +79,34 @@ export default function SuperAdminPage() {
 
   const tenantsFiltrados = filtro === "todas" ? state.tenants : state.tenants.filter((t) => t.status === filtro);
 
-  function kpiValor(label: string, original: string): string {
-    if (label === "Barbearias ativas") return String(ativas);
-    if (label === "MRR") return brl(mrrTotal);
-    if (label === "Em trial") return String(trials);
-    return original;
-  }
+  const atrasadas = state.tenants.filter((t) => t.status === "atrasado").length;
+  const pro = state.tenants.filter((t) => t.plano === "Pro").length;
+
+  // Os quatro números do topo, todos vindos das barbearias de verdade.
+  //
+  // O quarto era "Churn 2,1% ▼ 0,4 p.p." — e nunca foi medido: churn precisa de
+  // histórico, que o sistema não guarda. No lugar entra o que realmente exige ação
+  // sua: quantos cadastros estão parados esperando aprovação.
+  const kpis = [
+    { label: "Barbearias ativas", valor: String(ativas), sub: `${state.tenants.length} no total`, alerta: false },
+    { label: "MRR", valor: brl(mrrTotal), sub: `${pro} no Pro · ${ativas - pro < 0 ? 0 : ativas - pro} no Básico`, alerta: false },
+    { label: "Em trial", valor: String(trials), sub: trials === 0 ? "nenhuma em teste" : "em período de teste", alerta: false },
+    { label: "Aguardando aprovação", valor: String(pendentes), sub: pendentes === 0 ? "nada na fila" : "esperando sua decisão", alerta: pendentes > 0 },
+  ];
+
+  /**
+   * A fila de coisas que pedem ação sua, derivada das barbearias — não uma lista de
+   * eventos. O console mostrava quatro linhas fixas no código ("Studio Navalha assinou
+   * o plano Pro"), barbearias que nunca existiram em banco nenhum.
+   */
+  const pendencias = [
+    ...state.tenants
+      .filter((t) => t.status === "pendente")
+      .map((t) => ({ tenant: t, cor: c.darkAmber, texto: `${t.nome} — cadastro aguardando aprovação`, acao: "Aprovar" })),
+    ...state.tenants
+      .filter((t) => t.status === "atrasado")
+      .map((t) => ({ tenant: t, cor: c.darkRed, texto: `${t.nome} — sem acesso (suspensa ou recusada)`, acao: "Ver" })),
+  ];
 
   return (
     <div style={{ height: "100vh", overflow: "auto", background: c.darkBg, color: c.darkText }}>
@@ -135,26 +154,25 @@ export default function SuperAdminPage() {
       <div style={{ padding: "28px 30px", maxWidth: 1600 }}>
         {/* KPIs (sempre visíveis, dinâmicos) */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16 }}>
-          {saasKpis.map((k) => (
-            <div key={k.label} style={{ background: c.darkSurface, border: `1px solid ${c.darkLine}`, borderRadius: 14, padding: "18px 20px" }}>
+          {kpis.map((k) => (
+            <div key={k.label} style={{ background: c.darkSurface, border: `1px solid ${k.alerta ? c.darkAmber : c.darkLine}`, borderRadius: 14, padding: "18px 20px" }}>
               <div style={{ fontSize: 11, letterSpacing: 0.7, textTransform: "uppercase", color: c.darkMuted, fontWeight: 600 }}>{k.label}</div>
-              <div style={{ fontFamily: font.serif, fontSize: 30, fontWeight: 600, marginTop: 8, color: c.darkText }}>{kpiValor(k.label, k.value)}</div>
-              <div style={{ fontSize: 12, marginTop: 5, color: k.tone === "green" ? c.darkGreen : c.darkAmber, fontWeight: 600 }}>{k.delta}</div>
+              <div style={{ fontFamily: font.serif, fontSize: 30, fontWeight: 600, marginTop: 8, color: k.alerta ? c.darkAmber : c.darkText }}>{k.valor}</div>
+              <div style={{ fontSize: 12, marginTop: 5, color: k.alerta ? c.darkAmber : c.darkMuted, fontWeight: 600 }}>{k.sub}</div>
             </div>
           ))}
         </div>
 
         {aba === "Visão geral" ? (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16, marginTop: 16 }}>
-              <div style={{ background: c.darkSurface, border: `1px solid ${c.darkLine}`, borderRadius: 14, padding: "20px 22px" }}>
-                <div style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.darkText }}>Crescimento de MRR</div>
-                <div style={{ fontSize: 12, color: c.darkMuted, marginTop: 2, marginBottom: 14 }}>Últimos 12 meses</div>
-                <LineChart data={mrr12m} stroke={c.brass} fill="rgba(14,163,122,.16)" gridColor={c.darkLine} gridLines={[60, 120]} height={180} />
-              </div>
+            {/* O gráfico de "Crescimento de MRR — últimos 12 meses" saiu daqui: era uma
+                série fixa no código. O sistema não guarda histórico de faturamento, então
+                não há como desenhar isso de verdade — e um gráfico inventado num console
+                de decisão é pior do que gráfico nenhum. */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
               <PlanosCard distrib={distribPlanos} ticketMedio={ticketMedioSaas} />
+              <PendenciasCard itens={pendencias} onAbrir={setDrawer} />
             </div>
-            <AtividadeCard />
           </>
         ) : aba === "Barbearias" ? (
           <>
@@ -251,31 +269,7 @@ export default function SuperAdminPage() {
           </>
         ) : (
           /* Suporte */
-          <div style={{ background: c.darkSurface, border: `1px solid ${c.darkLine}`, borderRadius: 14, marginTop: 16, padding: "18px 22px" }}>
-            <div style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.darkText, marginBottom: 6 }}>Atividade & suporte</div>
-            {atividadeSaas.filter((_, i) => !resolvidos.includes(i)).length === 0 ? (
-              <div style={{ padding: "16px 0", fontSize: 13, color: c.darkMuted }}>Tudo resolvido. Nenhum item pendente.</div>
-            ) : (
-              atividadeSaas.map((a, i) =>
-                resolvidos.includes(i) ? null : (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 0", borderTop: i === 0 ? "none" : `1px solid ${c.darkLine}` }}>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: a.cor, flex: "none" }} />
-                    <span style={{ flex: 1, fontSize: 13.5, color: c.darkText }}>{a.texto}</span>
-                    <span style={{ fontSize: 12, color: c.darkMuted }}>{a.quando}</span>
-                    <button
-                      onClick={() => {
-                        setResolvidos((r) => [...r, i]);
-                        toast("Item marcado como resolvido.");
-                      }}
-                      style={{ border: "none", cursor: "pointer", fontSize: 11.5, fontWeight: 700, color: c.darkGreen, background: "rgba(52,214,166,.16)", borderRadius: 999, padding: "4px 12px" }}
-                    >
-                      Resolver
-                    </button>
-                  </div>
-                ),
-              )
-            )}
-          </div>
+          <PendenciasCard itens={pendencias} onAbrir={setDrawer} titulo="Atividade & suporte" />
         )}
       </div>
 
@@ -318,17 +312,43 @@ function PlanosCard({ distrib, ticketMedio }: { distrib: { nome: string; qtd: nu
   );
 }
 
-function AtividadeCard() {
+/**
+ * O que está parado esperando uma decisão sua.
+ *
+ * Não é um feed de eventos: é o estado atual das barbearias, lido do banco. Por isso
+ * cada linha ABRE a barbearia em vez de ter um botão "Resolver" — resolver um cadastro
+ * pendente é aprovar ou recusar, e isso acontece no painel dela.
+ */
+function PendenciasCard({
+  itens,
+  onAbrir,
+  titulo = "Precisa de você",
+}: {
+  itens: { tenant: Tenant; cor: string; texto: string; acao: string }[];
+  onAbrir: (t: Tenant) => void;
+  titulo?: string;
+}) {
   return (
     <div style={{ background: c.darkSurface, border: `1px solid ${c.darkLine}`, borderRadius: 14, marginTop: 16, padding: "18px 22px" }}>
-      <div style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.darkText, marginBottom: 6 }}>Atividade recente</div>
-      {atividadeSaas.map((a, i) => (
-        <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 0", borderTop: i === 0 ? "none" : `1px solid ${c.darkLine}` }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: a.cor, flex: "none" }} />
-          <span style={{ flex: 1, fontSize: 13.5, color: c.darkText }}>{a.texto}</span>
-          <span style={{ fontSize: 12, color: c.darkMuted }}>{a.quando}</span>
+      <div style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.darkText, marginBottom: 6 }}>{titulo}</div>
+      {itens.length === 0 ? (
+        <div style={{ padding: "16px 0", fontSize: 13, color: c.darkMuted }}>
+          Nada esperando decisão. Cadastros novos aparecem aqui.
         </div>
-      ))}
+      ) : (
+        itens.map((it, i) => (
+          <div key={it.tenant.id ?? it.texto} style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 0", borderTop: i === 0 ? "none" : `1px solid ${c.darkLine}` }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: it.cor, flex: "none" }} />
+            <span style={{ flex: 1, fontSize: 13.5, color: c.darkText }}>{it.texto}</span>
+            <button
+              onClick={() => onAbrir(it.tenant)}
+              style={{ border: "none", cursor: "pointer", fontSize: 11.5, fontWeight: 700, color: c.espressoDeep, background: it.cor, borderRadius: 999, padding: "4px 12px" }}
+            >
+              {it.acao}
+            </button>
+          </div>
+        ))
+      )}
     </div>
   );
 }
