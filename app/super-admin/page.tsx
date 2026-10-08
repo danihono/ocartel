@@ -10,6 +10,10 @@ import { signOutApp, useAuth } from "@/lib/firebase/auth";
 import { seedDemoTenant } from "@/lib/firebase/bootstrap";
 import { useToast } from "@/components/ui/Toast";
 import { TenantDrawer } from "@/components/admin/TenantDrawer";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { fieldInputDark, fieldLabelDark } from "@/components/ui/Field";
+import { acaoCriarBarbearia } from "./actions";
 import type { Tenant, TenantStatus } from "@/lib/types";
 
 const navTabs = ["Visão geral", "Barbearias", "Billing", "Suporte"] as const;
@@ -54,6 +58,29 @@ export default function SuperAdminPage() {
       router.push("/dashboard");
     } catch {
       toast("Não foi possível criar a barbearia demo.", "error");
+      setCriando(false);
+    }
+  }
+
+  // Barbearia de verdade, vazia e sem dono: você monta o cadastro (serviços, equipe,
+  // clientes) e define o administrador depois, pelo drawer dela.
+  const [novaAberta, setNovaAberta] = useState(false);
+  const [nomeNova, setNomeNova] = useState("");
+  async function criarBarbearia() {
+    if (!user || criando || !nomeNova.trim()) return;
+    setCriando(true);
+    try {
+      const r = await acaoCriarBarbearia(await user.getIdToken(), nomeNova);
+      if (!r.ok || !r.tenantId) {
+        toast(r.erro ?? "Não foi possível criar a barbearia.", "error");
+        setCriando(false);
+        return;
+      }
+      enterTenant(r.tenantId);
+      toast(`${nomeNova.trim()} criada. Abrindo painel…`);
+      router.push("/dashboard");
+    } catch {
+      toast("Não foi possível criar a barbearia.", "error");
       setCriando(false);
     }
   }
@@ -234,6 +261,13 @@ export default function SuperAdminPage() {
             <div style={{ display: "flex", alignItems: "center", padding: "18px 22px 12px", gap: 12 }}>
               <span style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.darkText, flex: 1 }}>Barbearias</span>
               <button
+                onClick={() => setNovaAberta(true)}
+                disabled={criando}
+                style={{ border: "none", cursor: criando ? "default" : "pointer", opacity: criando ? 0.6 : 1, fontSize: 11.5, fontWeight: 700, color: c.espressoDeep, background: c.brass, borderRadius: 999, padding: "6px 13px" }}
+              >
+                + Nova barbearia
+              </button>
+              <button
                 onClick={criarDemo}
                 disabled={criando}
                 style={{ border: "none", cursor: criando ? "default" : "pointer", opacity: criando ? 0.6 : 1, fontSize: 11.5, fontWeight: 700, color: c.espressoDeep, background: c.brass, borderRadius: 999, padding: "6px 13px" }}
@@ -308,6 +342,38 @@ export default function SuperAdminPage() {
       </div>
 
       <TenantDrawer open={drawer !== null} onClose={() => setDrawer(null)} tenant={drawer} />
+
+      <Modal
+        open={novaAberta}
+        onClose={() => setNovaAberta(false)}
+        title="Nova barbearia"
+        dark
+        footer={
+          <div style={{ display: "flex", gap: 10, width: "100%" }}>
+            <Button variant="dark" onClick={() => setNovaAberta(false)}>Cancelar</Button>
+            <div style={{ flex: 1 }} />
+            <Button onClick={criarBarbearia} loading={criando} disabled={!nomeNova.trim()}>Criar e abrir painel</Button>
+          </div>
+        }
+      >
+        <label style={{ display: "block" }}>
+          <span style={fieldLabelDark}>Nome da barbearia</span>
+          <input
+            autoFocus
+            value={nomeNova}
+            onChange={(e) => setNomeNova(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") criarBarbearia();
+            }}
+            placeholder="Cartel Barbearia"
+            style={fieldInputDark}
+          />
+        </label>
+        <div style={{ fontSize: 12.5, color: c.darkMuted, marginTop: 12, lineHeight: 1.5 }}>
+          Ela já nasce ativa e vazia. Cadastre serviços, equipe e clientes pelo painel e, quando
+          quiser, defina o administrador em Barbearias → abrir a barbearia.
+        </div>
+      </Modal>
     </div>
   );
 }

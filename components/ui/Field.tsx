@@ -24,6 +24,15 @@ export const fieldInput: CSSProperties = {
   outline: "none",
 };
 
+/** Variante para as telas escuras do console SaaS (/super-admin e seus modais). */
+export const fieldLabelDark: CSSProperties = { ...fieldLabel, color: c.darkMuted };
+export const fieldInputDark: CSSProperties = {
+  ...fieldInput,
+  background: c.darkBg,
+  border: `1px solid ${c.darkLine}`,
+  color: c.darkText,
+};
+
 export function Field({ label, children, style }: { label: string; children: ReactNode; style?: CSSProperties }) {
   return (
     <label style={{ display: "block", ...style }}>

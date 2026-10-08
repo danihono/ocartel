@@ -118,6 +118,11 @@ export interface Tenant {
   status: TenantStatus;
   mrr: string;
   agendamentosMes: string;
+  /**
+   * Criada pelo super admin no console e ainda sem ninguém que a administre. Some quando
+   * o administrador é definido (app/super-admin/actions.ts).
+   */
+  aguardandoAdministrador?: boolean;
 }
 
 export interface DesempenhoBarbeiro {

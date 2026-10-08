@@ -15,14 +15,8 @@ import {
   planosCliente as seedPlanos,
   servicos as seedServicos,
 } from "@/lib/mock-data";
+import { candidatosSlug, monograma, slugDeReserva } from "@/lib/tenant-util";
 import type { PlanoSaaS } from "@/lib/types";
-
-function monograma(nome: string): string {
-  const parts = nome.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "OC";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
 
 /**
  * Reserva ATOMICAMENTE slugs/{slug} -> tenantId (cria o doc dentro de uma
@@ -31,9 +25,7 @@ function monograma(nome: string): string {
  * criado aqui — por isso NÃO deve ser recriado nos batches dos chamadores.
  */
 async function reservarSlug(base: string, tenantId: string): Promise<string> {
-  const raiz = base || "barbearia";
-  const candidatos = [raiz, `${raiz}-${tenantId.slice(0, 4).toLowerCase()}`, `${raiz}-${tenantId.slice(0, 8).toLowerCase()}`];
-  for (const cand of candidatos) {
+  for (const cand of candidatosSlug(base, tenantId)) {
     const ok = await runTransaction(db, async (tx) => {
       const ref = doc(db, "slugs", cand);
       const snap = await tx.get(ref);
@@ -44,7 +36,7 @@ async function reservarSlug(base: string, tenantId: string): Promise<string> {
     if (ok) return cand;
   }
   // Último recurso: slug derivado do tenantId (único por construção).
-  const unico = `barbearia-${tenantId.slice(0, 12).toLowerCase()}`;
+  const unico = slugDeReserva(tenantId);
   await setDoc(doc(db, "slugs", unico), { tenantId, createdAt: serverTimestamp() });
   return unico;
 }

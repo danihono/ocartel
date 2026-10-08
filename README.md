@@ -20,6 +20,8 @@ npm run dev         # app em http://localhost:3000
 Abra http://localhost:3000 → **Criar barbearia** faz o onboarding (cria o tenant e o catálogo inicial).
 Para promover um usuário a `superAdmin`: `npm run provision:super-admin -- voce@dominio.com` (com as variáveis do emulador exportadas).
 
+**Montar uma barbearia antes do dono entrar:** no `/super-admin`, aba *Barbearias* → **+ Nova barbearia** cria uma barbearia ativa e vazia e abre o painel dela, onde você cadastra serviços, equipe e clientes. Quando quiser entregar, abra a barbearia na lista e use **Definir administrador** (nome + e-mail): a conta é criada sem senha e você recebe um link para a pessoa criar a senha dela (`app/super-admin/actions.ts`).
+
 ## Qualidade (lint / tipos / testes)
 
 ```bash

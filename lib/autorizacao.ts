@@ -63,6 +63,23 @@ export async function exigirQuemGerencia(idToken: string, tenantId: string): Pro
   throw new Error(NAO_AUTORIZADO);
 }
 
+/**
+ * Só o super admin passa. É a guarda das ações do console SaaS que mexem em barbearias
+ * que não são de ninguém em particular — criar uma barbearia e entregar a administração
+ * dela a alguém. O papel é lido do doc `users/{uid}`, a mesma fonte do `isSuper()` das
+ * regras: o `role` vindo do navegador não vale nada.
+ */
+export async function exigirSuperAdmin(idToken: string): Promise<QuemGerencia> {
+  if (!idToken) throw new Error(NAO_AUTORIZADO);
+  const decoded = await adminAuth.verifyIdToken(idToken).catch(() => null);
+  if (!decoded) throw new Error(NAO_AUTORIZADO);
+
+  const perfil = await adminDb.doc(`users/${decoded.uid}`).get();
+  if (!perfil.exists || perfil.get("role") !== "superAdmin") throw new Error(NAO_AUTORIZADO);
+
+  return { uid: decoded.uid, nome: String(perfil.get("nome") ?? perfil.get("email") ?? ""), role: "superAdmin" };
+}
+
 /** Converte a exceção de uma action no formato que a tela sabe exibir. */
 export function comoResultado(err: unknown): Resultado {
   return { ok: false, erro: err instanceof Error ? err.message : "Não foi possível concluir." };
