@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { c, font } from "@/lib/theme";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
+import { Kpi } from "@/components/ui/Kpi";
 import { useStore } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/lib/firebase/auth";
@@ -132,8 +134,8 @@ export function TelaComissoes() {
     <div style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 1600 }}>
       {/* Avisos que precisam vir ANTES de alguém fechar um mês */}
       {semRegra ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, background: c.amberBg, border: `1px solid ${c.amber}`, borderRadius: 12, padding: "13px 16px" }}>
-          <span style={{ width: 9, height: 9, borderRadius: "50%", background: c.amber, flex: "none" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12, background: c.amberBg, borderRadius: 14, padding: "13px 16px" }}>
+          <span style={{ color: c.amber, flex: "none" }}><Icon name="alerta" size={18} /></span>
           <div>
             <div style={{ fontSize: 13.5, fontWeight: 700, color: c.amberText }}>Nenhum percentual de comissão configurado</div>
             <div style={{ fontSize: 12.5, color: c.ink2, marginTop: 2 }}>
@@ -144,8 +146,8 @@ export function TelaComissoes() {
       ) : null}
 
       {apuracao.qtdInferidas > 0 ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, background: c.amberBg, border: `1px solid ${c.amber}`, borderRadius: 12, padding: "13px 16px" }}>
-          <span style={{ width: 9, height: 9, borderRadius: "50%", background: c.amber, flex: "none" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12, background: c.amberBg, borderRadius: 14, padding: "13px 16px" }}>
+          <span style={{ color: c.amber, flex: "none" }}><Icon name="alerta" size={18} /></span>
           <div>
             <div style={{ fontSize: 13.5, fontWeight: 700, color: c.amberText }}>
               {apuracao.qtdInferidas} atendimento{apuracao.qtdInferidas === 1 ? "" : "s"} com cobrança deduzida
@@ -159,8 +161,8 @@ export function TelaComissoes() {
       ) : null}
 
       {foraDaJanela ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, background: c.surfaceAlt, border: `1px solid ${c.border}`, borderRadius: 12, padding: "13px 16px" }}>
-          <span style={{ width: 9, height: 9, borderRadius: "50%", background: c.ink4, flex: "none" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12, background: c.surfaceAlt, borderRadius: 14, padding: "13px 16px" }}>
+          <span style={{ color: c.ink4, flex: "none" }}><Icon name="info" size={18} /></span>
           <div>
             <div style={{ fontSize: 13.5, fontWeight: 700, color: c.ink }}>Mês fora da janela carregada</div>
             <div style={{ fontSize: 12.5, color: c.ink2, marginTop: 2 }}>
@@ -171,49 +173,38 @@ export function TelaComissoes() {
         </div>
       ) : null}
 
-      {/* Mês + KPIs */}
-      <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "repeat(4,1fr)", gap: 16 }}>
-        <Card pad="16px 18px">
-          <div style={{ fontSize: 11.5, color: c.ink3, fontWeight: 600 }}>Mês</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
-            <Button variant="ghost" onClick={() => setTela({ mes: mesVizinho(mes, -1), barbeiroId: null })} style={{ padding: "6px 11px" }}>
-              ‹
-            </Button>
-            <div style={{ flex: 1, textAlign: "center", fontFamily: font.serif, fontSize: 17, fontWeight: 600, color: c.inkTitle }}>
+      {/* Mês + KPIs: a comissão apurada é o herói */}
+      <div className="oc-kpis">
+        <Kpi hero label="Comissão apurada" value={formatBRL(apuracao.totalComissao)} sub={`sobre ${formatBRL(apuracao.totalFaturamento)} recebidos`} />
+        <Card pad="18px 20px" style={{ display: "flex", flexDirection: "column", gap: 12, minHeight: 138 }}>
+          <span className="oc-label">Mês</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: "auto" }}>
+            <button className="oc-icon-btn" aria-label="Mês anterior" onClick={() => setTela({ mes: mesVizinho(mes, -1), barbeiroId: null })}>
+              <Icon name="chevronEsq" size={16} />
+            </button>
+            <div style={{ flex: 1, textAlign: "center", fontSize: 17, fontWeight: 600, letterSpacing: "-0.02em", color: c.inkTitle, textTransform: "capitalize" }}>
               {mesLabel(`${mes}-01`)}
             </div>
-            <Button variant="ghost" onClick={() => setTela({ mes: mesVizinho(mes, 1), barbeiroId: null })} style={{ padding: "6px 11px" }}>
-              ›
-            </Button>
+            <button className="oc-icon-btn" aria-label="Próximo mês" onClick={() => setTela({ mes: mesVizinho(mes, 1), barbeiroId: null })}>
+              <Icon name="chevronDir" size={16} />
+            </button>
           </div>
         </Card>
-        {[
-          { l: "Comissão apurada", v: formatBRL(apuracao.totalComissao), dot: c.brass, sub: `sobre ${formatBRL(apuracao.totalFaturamento)} recebidos` },
-          { l: "Já fechado", v: formatBRL(totalFechado), dot: c.violet, sub: `${fechamentosDoMes.length} de ${state.barbeiros.length} barbeiro(s)` },
-          { l: "Pago aos barbeiros", v: formatBRL(totalPago), dot: c.green, sub: `a pagar ${formatBRL(totalFechado - totalPago)}` },
-        ].map((k) => (
-          <Card key={k.l} pad="16px 18px">
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: k.dot }} />
-              <span style={{ fontSize: 11.5, color: c.ink3, fontWeight: 600 }}>{k.l}</span>
-            </div>
-            <div style={{ fontFamily: font.serif, fontSize: 23, fontWeight: 600, color: c.inkTitle, marginTop: 7 }}>{k.v}</div>
-            <div style={{ fontSize: 11.5, color: c.ink3, marginTop: 2 }}>{k.sub}</div>
-          </Card>
-        ))}
+        <Kpi label="Já fechado" value={formatBRL(totalFechado)} sub={`${fechamentosDoMes.length} de ${state.barbeiros.length} barbeiro(s)`} />
+        <Kpi label="Pago aos barbeiros" value={formatBRL(totalPago)} sub={`a pagar ${formatBRL(totalFechado - totalPago)}`} />
       </div>
 
       {/* Todos os barbeiros */}
       <Card pad="0">
         <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "18px 20px 14px", borderBottom: `1px solid ${c.borderSoft}` }}>
-          <span style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.inkTitle }}>Por barbeiro</span>
-          <span style={{ fontSize: 12, color: c.ink3, background: c.surfaceWarm, borderRadius: 999, padding: "2px 9px", fontWeight: 600 }}>
+          <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: "-0.015em", color: c.inkTitle }}>Por barbeiro</span>
+          <span className="oc-chip num" style={{ color: c.ink2, background: c.surfaceAlt, fontWeight: 500 }}>
             {mesLabel(`${mes}-01`)}
           </span>
         </div>
 
         {!narrow ? (
-          <div style={{ display: "grid", gridTemplateColumns: COLS_BARBEIRO, gap: 12, padding: "11px 20px", borderBottom: `1px solid ${c.borderSoft}`, fontSize: 10.5, letterSpacing: 1, textTransform: "uppercase", color: c.ink3, fontWeight: 700 }}>
+          <div style={{ display: "grid", gridTemplateColumns: COLS_BARBEIRO, gap: 12, padding: "11px 20px", borderBottom: `1px solid ${c.borderSoft}`, fontSize: 10.5, letterSpacing: "0.07em", textTransform: "uppercase", color: c.ink3, fontWeight: 600 }}>
             <span>Barbeiro</span>
             <span>Atendimentos</span>
             <span>Recebido</span>
@@ -247,7 +238,7 @@ export function TelaComissoes() {
                   </Button>
                 ) : f.pagoEm ? (
                   <>
-                    <span style={{ background: c.greenBg, color: c.greenText, borderRadius: 999, padding: "3px 10px", fontSize: 11.5, fontWeight: 700 }}>
+                    <span style={{ background: c.greenBg, color: c.greenText, borderRadius: 999, padding: "3px 10px", fontSize: 11.5, fontWeight: 600 }}>
                       Pago {isoParaDiaMes(f.pagoEm)}
                     </span>
                     <span style={{ fontSize: 12, color: c.ink3 }}>{formatBRL(f.total)}</span>
@@ -309,7 +300,7 @@ export function TelaComissoes() {
                 {aberto ? (
                   <div style={{ background: c.surfaceWarm, borderTop: `1px solid ${c.border}` }}>
                     {!narrow ? (
-                      <div style={{ display: "grid", gridTemplateColumns: COLS_LINHA, gap: 12, padding: "10px 20px", fontSize: 10.5, letterSpacing: 1, textTransform: "uppercase", color: c.ink3, fontWeight: 700 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: COLS_LINHA, gap: 12, padding: "10px 20px", fontSize: 10.5, letterSpacing: "0.07em", textTransform: "uppercase", color: c.ink3, fontWeight: 600 }}>
                         <span>Data</span>
                         <span>Cliente</span>
                         <span>Serviço</span>

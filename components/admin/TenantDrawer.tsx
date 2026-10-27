@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { fieldInputDark, fieldLabelDark } from "@/components/ui/Field";
+import { fieldInput, fieldLabel } from "@/components/ui/Field";
 import { acaoDefinirAdministrador } from "@/app/super-admin/actions";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/firebase/auth";
@@ -115,20 +115,20 @@ export function TenantDrawer({ open, onClose, tenant }: { open: boolean; onClose
   }
 
   const linha = (rotulo: string, valor: string) => (
-    <div style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: `1px solid ${c.darkLine}` }}>
-      <span style={{ fontSize: 12.5, color: c.darkMuted, fontWeight: 600, width: 130, flex: "none" }}>{rotulo}</span>
-      <span style={{ fontSize: 13.5, color: c.darkText, fontWeight: 600 }}>{valor}</span>
+    <div style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: `1px solid ${c.borderSoft}` }}>
+      <span style={{ fontSize: 12.5, color: c.ink3, fontWeight: 600, width: 130, flex: "none" }}>{rotulo}</span>
+      <span style={{ fontSize: 13.5, color: c.ink, fontWeight: 600 }}>{valor}</span>
     </div>
   );
 
   return (
-    <Modal open={open} onClose={onClose} title={tenant.nome} dark width={460}>
+    <Modal open={open} onClose={onClose} title={tenant.nome} width={460}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-        <div style={{ width: 40, height: 40, borderRadius: 9, background: c.espressoLine, color: c.brass, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: font.cinzel, fontSize: 13, fontWeight: 700 }}>
+        <div style={{ width: 44, height: 44, borderRadius: "50%", background: c.forest, color: c.neon, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: font.cinzel, fontSize: 13, fontWeight: 700 }}>
           {tenant.monograma}
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, color: c.darkMuted }}>{tenant.cidade}</div>
+          <div style={{ fontSize: 13, color: c.ink3 }}>{tenant.cidade}</div>
         </div>
         <span style={{ fontSize: 11.5, fontWeight: 700, padding: "3px 11px", borderRadius: 999, background: sm.bg, color: sm.fg }}>{sm.label}</span>
       </div>
@@ -139,37 +139,37 @@ export function TenantDrawer({ open, onClose, tenant }: { open: boolean; onClose
 
       <button
         onClick={abrirPainel}
-        style={{ width: "100%", marginTop: 20, border: "none", cursor: "pointer", background: c.brass, color: c.espressoDeep, padding: 13, borderRadius: 11, fontSize: 14, fontWeight: 700 }}
+        style={{ width: "100%", marginTop: 20, border: "none", cursor: "pointer", background: c.primaryBtnBg, color: c.primaryBtnText, padding: 13, borderRadius: 999, fontSize: 14, fontWeight: 600 }}
       >
         Abrir painel da barbearia →
       </button>
-      <div style={{ fontSize: 11.5, color: c.darkMuted, marginTop: 8, textAlign: "center" }}>
+      <div style={{ fontSize: 11.5, color: c.ink3, marginTop: 8, textAlign: "center" }}>
         Você entra como super admin e vê todas as telas dela.
       </div>
 
       {/* Barbearia criada pelo console: ninguém a administra até você definir. */}
       {linkSenha ? (
-        <div style={{ marginTop: 20, padding: "14px 16px", border: `1px solid ${c.darkLine}`, borderRadius: 11 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: c.darkText }}>Administrador definido</div>
-          <div style={{ fontSize: 12, color: c.darkMuted, marginTop: 4, lineHeight: 1.5 }}>
+        <div style={{ marginTop: 20, padding: "14px 16px", border: `1px solid ${c.borderSoft}`, borderRadius: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: c.ink }}>Administrador definido</div>
+          <div style={{ fontSize: 12, color: c.ink3, marginTop: 4, lineHeight: 1.5 }}>
             Envie este link para ele criar a senha. Depois é só entrar em /login com o e-mail.
           </div>
-          <input readOnly value={linkSenha} onFocus={(e) => e.currentTarget.select()} style={{ ...fieldInputDark, marginTop: 10, fontSize: 12 }} />
+          <input readOnly value={linkSenha} onFocus={(e) => e.currentTarget.select()} style={{ ...fieldInput, marginTop: 10, fontSize: 12 }} />
           <Button onClick={copiarLink} style={{ marginTop: 10, width: "100%" }}>Copiar link</Button>
         </div>
       ) : tenant.aguardandoAdministrador ? (
-        <div style={{ marginTop: 20, padding: "14px 16px", border: `1px dashed ${c.darkAmber}`, borderRadius: 11 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: c.darkAmber }}>Sem administrador</div>
-          <div style={{ fontSize: 12, color: c.darkMuted, marginTop: 4, lineHeight: 1.5 }}>
+        <div style={{ marginTop: 20, padding: "14px 16px", border: `1px dashed ${c.amberText}`, borderRadius: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: c.amberText }}>Sem administrador</div>
+          <div style={{ fontSize: 12, color: c.ink3, marginTop: 4, lineHeight: 1.5 }}>
             Quem você definir aqui entra como dono e encontra tudo o que já foi cadastrado.
           </div>
           <label style={{ display: "block", marginTop: 12 }}>
-            <span style={fieldLabelDark}>Nome</span>
-            <input value={adminNome} onChange={(e) => setAdminNome(e.target.value)} style={fieldInputDark} />
+            <span style={fieldLabel}>Nome</span>
+            <input value={adminNome} onChange={(e) => setAdminNome(e.target.value)} style={fieldInput} />
           </label>
           <label style={{ display: "block", marginTop: 10 }}>
-            <span style={fieldLabelDark}>E-mail</span>
-            <input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} style={fieldInputDark} />
+            <span style={fieldLabel}>E-mail</span>
+            <input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} style={fieldInput} />
           </label>
           <Button
             onClick={definirAdministrador}
@@ -184,13 +184,13 @@ export function TenantDrawer({ open, onClose, tenant }: { open: boolean; onClose
 
       {pendente ? (
         <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-          <Button variant="dark" onClick={recusar}>Recusar</Button>
+          <Button variant="ghost" onClick={recusar}>Recusar</Button>
           <div style={{ flex: 1 }} />
           <Button onClick={aprovar}>Aprovar barbearia</Button>
         </div>
       ) : (
         <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-          <Button variant="dark" onClick={alternarPlano}>{pro ? "Mudar para Básico" : "Mudar para Pro"}</Button>
+          <Button variant="ghost" onClick={alternarPlano}>{pro ? "Mudar para Básico" : "Mudar para Pro"}</Button>
           <div style={{ flex: 1 }} />
           <Button onClick={alternarStatus} style={ativo ? { background: c.red } : undefined}>
             {ativo ? "Suspender" : "Reativar"}

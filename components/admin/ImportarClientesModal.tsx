@@ -198,7 +198,7 @@ export function ImportarClientesModal({ open, onClose }: { open: boolean; onClos
 
           <button
             onClick={baixarModelo}
-            style={{ border: "none", background: "transparent", cursor: "pointer", color: c.brassDeep, fontSize: 12.5, fontWeight: 700, padding: 0, textAlign: "left" }}
+            style={{ border: "none", background: "transparent", cursor: "pointer", color: c.accent, fontSize: 12.5, fontWeight: 600, padding: 0, textAlign: "left" }}
           >
             Baixar planilha modelo →
           </button>

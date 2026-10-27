@@ -128,7 +128,7 @@ export default function CartaoPage() {
         ) : fase === "erro" ? (
           <div style={{ ...cartao, textAlign: "center" }}>
             <div style={{ fontSize: 34 }}>🤔</div>
-            <div style={{ fontFamily: font.serif, fontSize: 20, fontWeight: 600, color: c.inkTitle, marginTop: 10 }}>
+            <div style={{ fontSize: 20, fontWeight: 500, letterSpacing: "-0.035em", color: c.inkTitle, marginTop: 10 }}>
               Não deu certo
             </div>
             <p style={{ fontSize: 13.5, color: c.ink2, lineHeight: 1.55, marginTop: 8 }}>{erro}</p>
@@ -203,7 +203,7 @@ export default function CartaoPage() {
         ) : (
           /* ---- Cadastro ---- */
           <div style={cartao}>
-            <div style={{ fontFamily: font.serif, fontSize: 21, fontWeight: 600, color: c.inkTitle }}>
+            <div style={{ fontSize: 21, fontWeight: 500, letterSpacing: "-0.035em", color: c.inkTitle }}>
               {dados?.cliente ? `Oi, ${dados.cliente.split(" ")[0]}!` : "Sua mensalidade"}
             </div>
             <p style={{ fontSize: 13.5, color: c.ink2, lineHeight: 1.55, margin: "6px 0 4px" }}>

@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { c, font } from "@/lib/theme";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
+import { Kpi } from "@/components/ui/Kpi";
+import { StatusPill } from "@/components/ui/StatusPill";
 import { useStore } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/lib/firebase/auth";
@@ -181,12 +184,6 @@ export function TelaPagamentos() {
 
   const { visiveis, restantes, mostrarMais } = useListaProgressiva(transacoes, `${filtro}|${busca}|${tipo}`);
 
-  const kpis = [
-    { l: "Recebido este mês", v: formatBRL(resumo.recebidoMes), dot: c.green, sub: "" },
-    { l: "A receber", v: formatBRL(resumo.aReceber), dot: c.brass, sub: "" },
-    { l: "Em atraso", v: formatBRL(resumo.emAtraso), dot: c.red, sub: `${resumo.qtdAtraso} cobrança${resumo.qtdAtraso === 1 ? "" : "s"}` },
-  ];
-
   // A REGRA de quem é cobrado e quando não mora mais aqui: mora em `lib/cobranca-ciclo`,
   // e é a mesma que o disparo agendado (`/api/cobrancas/ciclo`) executa. Duas cópias da
   // regra divergiriam, e a divergência apareceria como cobrança duplicada.
@@ -218,8 +215,8 @@ export function TelaPagamentos() {
     <div style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 1600 }}>
       {/* Banner de inadimplência */}
       {resumo.qtdAtraso > 0 ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, background: c.redBg, border: `1px solid ${c.red}`, borderRadius: 12, padding: "13px 16px" }}>
-          <span style={{ width: 9, height: 9, borderRadius: "50%", background: c.red, flex: "none" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12, background: c.redBg, borderRadius: 14, padding: "13px 16px" }}>
+          <span style={{ color: c.red, flex: "none" }}><Icon name="alerta" size={18} /></span>
           <div>
             <div style={{ fontSize: 13.5, fontWeight: 700, color: c.redText }}>
               {resumo.qtdAtraso} cobrança{resumo.qtdAtraso === 1 ? "" : "s"} em atraso · {formatBRL(resumo.emAtraso)}
@@ -231,32 +228,30 @@ export function TelaPagamentos() {
         </div>
       ) : null}
 
-      {/* KPIs */}
-      <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "repeat(3,1fr)", gap: 16 }}>
-        {kpis.map((k) => (
-          <Card key={k.l} pad="16px 18px">
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: k.dot }} />
-              <span style={{ fontSize: 11.5, color: c.ink3, fontWeight: 600 }}>{k.l}</span>
-            </div>
-            <div style={{ fontFamily: font.serif, fontSize: 23, fontWeight: 600, color: c.inkTitle, marginTop: 7 }}>{k.v}</div>
-            {k.sub ? <div style={{ fontSize: 11.5, color: c.ink3, marginTop: 2 }}>{k.sub}</div> : null}
-          </Card>
-        ))}
+      {/* KPIs: o recebido é o herói */}
+      <div className="oc-stack-mobile" style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "1.35fr 1fr 1fr", gap: 16 }}>
+        <Kpi hero label="Recebido este mês" value={formatBRL(resumo.recebidoMes)} sub={`${contagens.Pagas} cobrança${contagens.Pagas === 1 ? "" : "s"} paga${contagens.Pagas === 1 ? "" : "s"}`} />
+        <Kpi label="A receber" value={formatBRL(resumo.aReceber)} sub={`${contagens.Pendentes} pendente${contagens.Pendentes === 1 ? "" : "s"}`} />
+        <Kpi
+          label="Em atraso"
+          value={formatBRL(resumo.emAtraso)}
+          sub={`${resumo.qtdAtraso} cobrança${resumo.qtdAtraso === 1 ? "" : "s"}`}
+          delta={resumo.qtdAtraso ? { text: "atenção", tone: "down" } : undefined}
+        />
       </div>
 
       {/* Lista de cobranças */}
       <Card pad="0">
         <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, padding: "18px 20px 14px", borderBottom: `1px solid ${c.borderSoft}` }}>
-          <span style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.inkTitle }}>Cobranças</span>
-          <span style={{ fontSize: 12, color: c.ink3, background: c.surfaceWarm, borderRadius: 999, padding: "2px 9px", fontWeight: 600 }}>{transacoes.length}</span>
+          <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: "-0.015em", color: c.inkTitle }}>Cobranças</span>
+          <span className="oc-chip num" style={{ color: c.ink2, background: c.surfaceAlt, fontWeight: 500 }}>{transacoes.length}</span>
           <div style={{ flex: 1 }} />
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: c.surfaceWarm, border: `1px solid ${c.border}`, borderRadius: 10, padding: "8px 12px", width: narrow ? "100%" : 220 }}>
-            <span style={{ width: 13, height: 13, border: `1.6px solid ${c.ink4}`, borderRadius: "50%", flex: "none" }} />
-            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cliente…" style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontSize: 13, color: c.inkTitle, fontFamily: font.sans }} />
+          <div className="oc-search" style={{ width: narrow ? "100%" : 230 }}>
+            <Icon name="busca" size={15} />
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cliente…" aria-label="Buscar cobrança por cliente" />
           </div>
-          <Button variant="ghost" onClick={gerarMensalidades}>Gerar mensalidades do mês</Button>
-          <Button onClick={() => setNovaOpen(true)}>+ Nova cobrança</Button>
+          <Button variant="ghost" size="sm" icon="repetir" onClick={gerarMensalidades}>Gerar mensalidades do mês</Button>
+          <Button size="sm" icon="mais" onClick={() => setNovaOpen(true)}>Nova cobrança</Button>
         </div>
 
         {/* Filtro por tipo */}
@@ -264,7 +259,7 @@ export function TelaPagamentos() {
           {TIPOS.map((t) => {
             const on = t.value === tipo;
             return (
-              <button key={t.value} onClick={() => setTipo(t.value)} style={{ border: "none", cursor: "pointer", fontSize: 12, fontWeight: on ? 700 : 600, color: on ? c.inkTitle : c.ink3, background: on ? c.brassSoft : c.surfaceWarm, borderRadius: 999, padding: "5px 12px" }}>
+              <button key={t.value} onClick={() => setTipo(t.value)} style={{  cursor: "pointer", fontSize: 12, fontWeight: 500, color: on ? "var(--oc-sel-text)" : c.ink2, background: on ? "var(--oc-sel-bg)" : c.surface, border: `1px solid ${on ? "transparent" : c.border}`, borderRadius: 999, padding: "5px 12px" }}>
                 {t.label}
               </button>
             );
@@ -276,7 +271,7 @@ export function TelaPagamentos() {
           {FILTROS.map((f) => {
             const on = f === filtro;
             return (
-              <button key={f} onClick={() => setFiltro(f)} style={{ border: "none", cursor: "pointer", fontSize: 12, fontWeight: on ? 700 : 600, color: on ? c.inkTitle : c.ink3, background: on ? c.brassSoft : c.surfaceWarm, borderRadius: 999, padding: "5px 12px" }}>
+              <button key={f} onClick={() => setFiltro(f)} style={{  cursor: "pointer", fontSize: 12, fontWeight: 500, color: on ? "var(--oc-sel-text)" : c.ink2, background: on ? "var(--oc-sel-bg)" : c.surface, border: `1px solid ${on ? "transparent" : c.border}`, borderRadius: 999, padding: "5px 12px" }}>
                 {f} <span style={{ opacity: 0.6 }}>{contagens[f]}</span>
               </button>
             );
@@ -285,7 +280,7 @@ export function TelaPagamentos() {
 
         {/* Cabeçalho da tabela (desktop) */}
         {!narrow ? (
-          <div style={{ display: "grid", gridTemplateColumns: COLS, padding: "12px 20px", fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase", color: c.ink3, fontWeight: 600, borderBottom: `1px solid ${c.borderSoft}` }}>
+          <div style={{ display: "grid", gridTemplateColumns: COLS, padding: "12px 20px", fontSize: 10.5, letterSpacing: "0.07em", textTransform: "uppercase", color: c.ink3, fontWeight: 600, borderBottom: `1px solid ${c.borderSoft}` }}>
             <span>Cliente</span>
             <span>Item</span>
             <span>Data</span>
@@ -310,11 +305,11 @@ export function TelaPagamentos() {
               <div key={t.id} style={{ display: "flex", flexDirection: "column", gap: 8, padding: "14px 20px", borderBottom: `1px solid ${c.borderSoft}` }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 14, fontWeight: 700, color: c.inkTitle, flex: 1 }}>{t.clienteNome}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: sm.bg, color: sm.fg }}>{sm.label}</span>
+                  <StatusPill label={sm.label} fg={sm.fg} bg={sm.bg} />
                 </div>
                 <div style={{ fontSize: 13, color: c.ink2 }}>{t.servico} · {dataExibida(t, hoje)}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: c.inkTitle }}>{formatBRL(valorMostrado)}</span>
+                  <span className="num" style={{ fontSize: 15, fontWeight: 500, color: c.inkTitle }}>{formatBRL(valorMostrado)}</span>
                   {divergente ? <span style={{ fontSize: 11.5, color: c.ink3 }}>cobrado {formatBRL(cobrado)}</span> : null}
                   {t.cobertoPorPlano ? (
                     <span style={{ fontSize: 12, color: c.greenText, fontWeight: 600, marginLeft: "auto" }}>Coberto pelo plano</span>
@@ -342,20 +337,20 @@ export function TelaPagamentos() {
 
           // Linha (desktop)
           return (
-            <div key={t.id} style={{ display: "grid", gridTemplateColumns: COLS, alignItems: "center", padding: "13px 20px", borderBottom: `1px solid ${c.borderSoft}` }}>
-              <span style={{ fontSize: 13.5, color: c.inkTitle, fontWeight: 600 }}>{t.clienteNome}</span>
+            <div key={t.id} className="oc-row" style={{ display: "grid", gridTemplateColumns: COLS, alignItems: "center", padding: "14px 22px", borderBottom: `1px solid ${c.borderSoft}` }}>
+              <span style={{ fontSize: 13.5, color: c.inkTitle, fontWeight: 500 }}>{t.clienteNome}</span>
               <span style={{ fontSize: 13, color: c.ink2 }}>
                 {t.servico}
                 <LinhaCartao t={t} />
                 <LinhaBoleto t={t} />
               </span>
-              <span style={{ fontSize: 12.5, color: st === "atrasado" ? c.redText : c.ink2, fontWeight: 600 }}>{dataExibida(t, hoje)}</span>
+              <span className="num" style={{ fontSize: 12.5, color: st === "atrasado" ? c.redText : c.ink2 }}>{dataExibida(t, hoje)}</span>
               <span>
-                <span style={{ fontSize: 13.5, color: c.inkTitle, fontWeight: 700 }}>{formatBRL(valorMostrado)}</span>
+                <span className="num" style={{ fontSize: 13.5, color: c.inkTitle, fontWeight: 500 }}>{formatBRL(valorMostrado)}</span>
                 {divergente ? <div style={{ fontSize: 11, color: c.ink3 }}>cobrado {formatBRL(cobrado)}</div> : null}
               </span>
               <span>
-                <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: sm.bg, color: sm.fg }}>{sm.label}</span>
+                <StatusPill label={sm.label} fg={sm.fg} bg={sm.bg} />
               </span>
               <span style={{ fontSize: 12.5, color: t.cobertoPorPlano ? c.greenText : c.ink2, fontWeight: t.cobertoPorPlano ? 600 : undefined }}>
                 {t.cobertoPorPlano ? (
@@ -378,17 +373,17 @@ export function TelaPagamentos() {
                       <button
                         onClick={() => emitirBoletoAMao(t)}
                         disabled={emitindo === t.id}
-                        style={{ border: `1px solid ${c.borderInput}`, background: c.surface, cursor: emitindo === t.id ? "default" : "pointer", color: c.inkTitle, fontSize: 11.5, fontWeight: 700, borderRadius: 8, padding: "6px 11px", whiteSpace: "nowrap" }}
+                        style={{ border: `1px solid ${c.borderInput}`, background: c.surface, cursor: emitindo === t.id ? "default" : "pointer", color: c.inkTitle, fontSize: 11.5, fontWeight: 600, borderRadius: 999, padding: "6px 11px", whiteSpace: "nowrap" }}
                       >
                         {emitindo === t.id ? "Emitindo…" : "Emitir boleto"}
                       </button>
                     ) : null}
-                    <button onClick={() => setPagar(t)} style={{ border: `1px solid ${c.borderInput}`, background: c.surface, cursor: "pointer", color: c.green, fontSize: 11.5, fontWeight: 700, borderRadius: 8, padding: "6px 11px", whiteSpace: "nowrap" }}>
-                      Registrar pagamento
+                    <button onClick={() => setPagar(t)} className="oc-btn oc-btn-pill oc-btn-sm">
+                      <Icon name="check" size={13} stroke={2.2} /> Registrar
                     </button>
                   </>
                 ) : (
-                  <span style={{ fontSize: 12, color: c.ink4, fontWeight: 600 }}>✓ pago</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: c.ink4, fontWeight: 500 }}><Icon name="check" size={13} stroke={2.2} /> pago</span>
                 )}
               </span>
             </div>
@@ -398,7 +393,7 @@ export function TelaPagamentos() {
         {restantes > 0 ? (
           <button
             onClick={mostrarMais}
-            style={{ width: "100%", border: "none", borderTop: `1px solid ${c.borderSoft}`, background: c.surfaceWarm, color: c.inkTitle, cursor: "pointer", padding: "13px 0", fontSize: 12.5, fontWeight: 600 }}
+            style={{ width: "100%", border: "none", borderTop: `1px solid ${c.borderSoft}`, background: c.field, color: c.accent, cursor: "pointer", padding: "13px 0", fontSize: 12.5, fontWeight: 600 }}
           >
             Mostrar mais ({restantes})
           </button>

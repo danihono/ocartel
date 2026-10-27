@@ -4,7 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { c, font } from "@/lib/theme";
+import Image from "next/image";
+import { c } from "@/lib/theme";
+import { Button } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
+import { ThemeSwitch } from "@/components/ui/ThemeSwitch";
 import { Seal } from "@/components/ui/Seal";
 import { fieldInput, fieldLabel } from "@/components/ui/Field";
 import { auth, db } from "@/lib/firebase/config";
@@ -142,75 +146,84 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
-      {/* Left — brand */}
-      <div style={{ flex: "0 0 44%", background: "linear-gradient(165deg, #103029 0%, #071714 72%)", color: c.darkText, padding: "60px 56px", display: "flex", flexDirection: "column", justifyContent: "space-between", position: "relative", overflow: "hidden", boxShadow: "inset -60px 0 120px rgba(0,0,0,.4)" }}>
+    <div className="oc-login">
+      {/* Esquerda — marca: floresta "barber pole" com a navalha acesa */}
+      <div className="oc-login-brand oc-card-hero" style={{ borderRadius: 0, border: "none" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
-          <Seal size={46} />
+          <Seal size={44} />
           <div>
-            <div style={{ fontFamily: font.cinzel, fontWeight: 600, fontSize: 18, letterSpacing: 3, color: "#FFFFFF" }}>O CARTEL</div>
-            <div style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", color: "#7E938D", marginTop: 2 }}>Clube de barbearia</div>
+            <div className="oc-wordmark" style={{ fontSize: 17, color: "#FFFFFF" }}>O CARTEL</div>
+            <div style={{ fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: c.darkMuted, marginTop: 3 }}>Clube de barbearia</div>
           </div>
         </div>
 
-        <div style={{ maxWidth: 380 }}>
-          <div style={{ fontFamily: font.serif, fontSize: 38, lineHeight: 1.18, fontWeight: 600, letterSpacing: "-0.01em", color: "#FFFFFF", textWrap: "balance" } as React.CSSProperties}>
-            Gestão de barbearia para quem leva o ofício a sério.
-          </div>
-          <p style={{ fontSize: 14, lineHeight: 1.6, color: "#9FB4AE", marginTop: 20, maxWidth: 330 }}>
-            Agenda, clientes, planos e financeiro num só lugar — com a discrição de um clube fechado.
-          </p>
+        <div className="oc-login-razor" aria-hidden>
+          <span className="oc-login-glow" />
+          <Image src="/marca/simbolo-quadrado.png" alt="" width={168} height={168} priority className="oc-breathe" style={{ borderRadius: 38, position: "relative" }} />
         </div>
 
+        <div style={{ maxWidth: 420 }}>
+          <span className="oc-eyebrow" style={{ background: "rgba(183,255,24,.08)", borderColor: "rgba(183,255,24,.22)", color: c.neon }}>
+            <span className="oc-eyebrow-dot" style={{ background: c.neon, boxShadow: "0 0 0 3px rgba(183,255,24,.2)" }} />
+            Gestão de barbearia
+          </span>
+          <h2 style={{ fontSize: "clamp(30px, 3.2vw, 42px)", lineHeight: 1.06, fontWeight: 500, letterSpacing: "-0.045em", color: "#FFFFFF", margin: "16px 0 0", textWrap: "balance" } as React.CSSProperties}>
+            Para quem leva o ofício a sério.
+            <span style={{ display: "block", color: "rgba(238,244,236,.42)" }}>Agenda, clientes e caixa num lugar só.</span>
+          </h2>
+        </div>
       </div>
 
-      {/* Right — form */}
-      <div style={{ flex: 1, background: c.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 48 }}>
-        <div style={{ width: "100%", maxWidth: 392 }}>
-          <div style={{ display: "flex", background: c.surfaceAlt, borderRadius: 11, padding: 4, marginBottom: 28 }}>
-            {(["entrar", "criar"] as const).map((t) => {
-              const on = tab === t;
-              return (
-                <button
-                  key={t}
-                  onClick={() => setTab(t)}
-                  style={{ flex: 1, border: "none", cursor: "pointer", padding: 9, borderRadius: 8, fontSize: 13.5, fontWeight: 600, background: on ? c.surface : "transparent", color: on ? c.inkTitle : c.ink3, boxShadow: on ? "0 1px 2px rgba(0,0,0,.08)" : "none" }}
-                >
-                  {t === "entrar" ? "Entrar" : "Criar barbearia"}
-                </button>
-              );
-            })}
+      {/* Direita — formulário */}
+      <div className="oc-login-form">
+        <div style={{ position: "absolute", top: 20, right: 20 }}>
+          <ThemeSwitch />
+        </div>
+        <div style={{ width: "100%", maxWidth: 380 }}>
+          <div className="oc-seg" role="tablist" style={{ display: "flex", marginBottom: 32 }}>
+            {(["entrar", "criar"] as const).map((t) => (
+              <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} style={{ flex: 1, justifyContent: "center", padding: "9px 0", fontSize: 13.5 }}>
+                {t === "entrar" ? "Entrar" : "Criar barbearia"}
+              </button>
+            ))}
           </div>
 
           {tab === "entrar" ? (
-            <div>
-              <h1 style={{ fontFamily: font.serif, fontSize: 27, fontWeight: 600, margin: "0 0 4px", color: c.inkTitle }}>Bem-vindo de volta</h1>
-              <p style={{ fontSize: 13.5, color: c.ink2, margin: "0 0 26px" }}>Acesse o painel da sua barbearia.</p>
+            <div className="oc-pop" key="entrar">
+              <h1 className="oc-h1" style={{ fontSize: 32, marginBottom: 26 }}>
+                Bem-vindo de volta.
+                <span>Acesse o painel da sua barbearia.</span>
+              </h1>
               <label style={fieldLabel}>E-mail</label>
-              <input style={{ ...fieldInput, marginBottom: 16 }} value={email} onChange={(e) => setEmail(e.target.value)} />
+              <input className="oc-input" type="email" autoComplete="email" style={{ ...fieldInput, marginBottom: 16 }} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@email.com" />
               <label style={fieldLabel}>Senha</label>
-              <input type="password" style={{ ...fieldInput, marginBottom: 10 }} value={senha} onChange={(e) => setSenha(e.target.value)} />
+              <input className="oc-input" type="password" autoComplete="current-password" style={{ ...fieldInput, marginBottom: 10 }} value={senha} onChange={(e) => setSenha(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void entrar(); }} />
               <div style={{ textAlign: "right", marginBottom: 22 }}>
-                <button onClick={esqueciSenha} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 12.5, color: c.brassDeep, fontWeight: 600 }}>
+                <button onClick={esqueciSenha} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 12.5, color: c.accent, fontWeight: 600 }}>
                   Esqueci minha senha
                 </button>
               </div>
-              <button onClick={entrar} disabled={carregando} style={{ width: "100%", border: "none", cursor: carregando ? "default" : "pointer", opacity: carregando ? 0.7 : 1, background: c.primaryBtnBg, color: c.primaryBtnText, padding: 14, borderRadius: 11, fontSize: 14.5, fontWeight: 700 }}>{carregando ? "Entrando…" : "Entrar no painel"}</button>
+              <Button block onClick={entrar} disabled={carregando} style={{ padding: "13px 18px", fontSize: 14.5 }}>
+                {carregando ? "Entrando…" : "Entrar no painel"}
+                {!carregando ? <Icon name="seta" size={16} style={{ color: "var(--oc-btn-icon)" }} /> : null}
+              </Button>
             </div>
           ) : (
-            <div>
-              <h1 style={{ fontFamily: font.serif, fontSize: 27, fontWeight: 600, margin: "0 0 4px", color: c.inkTitle }}>Crie sua barbearia</h1>
-              <p style={{ fontSize: 13.5, color: c.ink2, margin: "0 0 22px" }}>Seu cadastro passa por aprovação antes de liberar.</p>
+            <div className="oc-pop" key="criar">
+              <h1 className="oc-h1" style={{ fontSize: 32, marginBottom: 22 }}>
+                Crie sua barbearia.
+                <span>O cadastro passa por aprovação.</span>
+              </h1>
               <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
                 {[
                   { n: "1 · Conta" },
                   { n: "2 · Barbearia" },
-                ].map((s, i) => {
+                ].map((st, i) => {
                   const done = i + 1 <= step;
                   return (
-                    <div key={s.n} style={{ flex: 1 }}>
-                      <div style={{ height: 4, background: done ? c.brass : c.borderInput, borderRadius: 2 }} />
-                      <div style={{ fontSize: 11, color: done ? c.inkTitle : c.ink3, fontWeight: done ? 700 : 600, marginTop: 7 }}>{s.n}</div>
+                    <div key={st.n} style={{ flex: 1 }}>
+                      <div style={{ height: 4, background: done ? c.accent : c.borderInput, borderRadius: 999, transition: "background .3s" }} />
+                      <div style={{ fontSize: 11.5, color: done ? c.inkTitle : c.ink3, fontWeight: done ? 600 : 500, marginTop: 8 }}>{st.n}</div>
                     </div>
                   );
                 })}
@@ -219,15 +232,18 @@ export default function LoginPage() {
               {step === 1 ? (
                 <>
                   <label style={fieldLabel}>E-mail</label>
-                  <input style={{ ...fieldInput, marginBottom: 14 }} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@email.com" />
+                  <input className="oc-input" type="email" autoComplete="email" style={{ ...fieldInput, marginBottom: 14 }} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@email.com" />
                   <label style={fieldLabel}>Senha</label>
-                  <input type="password" style={{ ...fieldInput, marginBottom: 22 }} value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="Crie uma senha" />
-                  <button onClick={() => { if (validarPasso1()) setStep(2); }} style={{ width: "100%", border: "none", cursor: "pointer", background: c.primaryBtnBg, color: c.primaryBtnText, padding: 14, borderRadius: 11, fontSize: 14.5, fontWeight: 700 }}>Continuar</button>
+                  <input className="oc-input" type="password" autoComplete="new-password" style={{ ...fieldInput, marginBottom: 22 }} value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="Crie uma senha" />
+                  <Button block onClick={() => { if (validarPasso1()) setStep(2); }} style={{ padding: "13px 18px", fontSize: 14.5 }}>
+                    Continuar <Icon name="seta" size={16} style={{ color: "var(--oc-btn-icon)" }} />
+                  </Button>
                 </>
               ) : (
                 <>
                   <label style={fieldLabel}>Nome da barbearia</label>
                   <input
+                    className="oc-input"
                     style={{ ...fieldInput, marginBottom: 8 }}
                     value={novaBarbearia}
                     onChange={(e) => setNovaBarbearia(e.target.value)}
@@ -238,8 +254,12 @@ export default function LoginPage() {
                     É o nome que aparece para os seus clientes. Dá para mudar depois.
                   </p>
                   <div style={{ display: "flex", gap: 10 }}>
-                    <button onClick={() => setStep(1)} style={{ flex: "0 0 auto", border: `1px solid ${c.borderInput}`, cursor: "pointer", background: c.surface, color: c.inkTitle, padding: "14px 20px", borderRadius: 11, fontSize: 14, fontWeight: 600 }}>Voltar</button>
-                    <button onClick={concluirOnboarding} disabled={carregando} style={{ flex: 1, border: "none", cursor: carregando ? "default" : "pointer", opacity: carregando ? 0.7 : 1, background: c.primaryBtnBg, color: c.primaryBtnText, padding: 14, borderRadius: 11, fontSize: 14.5, fontWeight: 700 }}>{carregando ? "Enviando…" : "Enviar cadastro"}</button>
+                    <Button variant="ghost" icon="setaEsq" onClick={() => setStep(1)} style={{ padding: "13px 18px" }}>
+                      Voltar
+                    </Button>
+                    <Button onClick={concluirOnboarding} disabled={carregando} style={{ flex: 1, padding: "13px 18px", fontSize: 14.5 }}>
+                      {carregando ? "Enviando…" : "Enviar cadastro"}
+                    </Button>
                   </div>
                 </>
               )}

@@ -2,6 +2,9 @@
 
 import { useMemo, useRef, useState } from "react";
 import { c, font, shadow } from "@/lib/theme";
+import { Icon } from "@/components/ui/Icon";
+import { Button } from "@/components/ui/Button";
+import { Segmented } from "@/components/ui/Segmented";
 import { useStore } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import { selectAgendaPorBarbeiro, selectAtendimentosHoje } from "@/lib/selectors";
@@ -62,7 +65,7 @@ function gridBg(colH: number, indice: number): React.CSSProperties {
       `repeating-linear-gradient(to bottom,transparent 0,transparent ${H_HORA - 1}px,${c.border} ${H_HORA - 1}px,${c.border} ${H_HORA}px)`,
       `repeating-linear-gradient(to bottom,transparent 0,transparent ${H_MEIA - 1}px,${c.borderSoft} ${H_MEIA - 1}px,${c.borderSoft} ${H_MEIA}px)`,
     ].join(","),
-    backgroundColor: indice % 2 === 0 ? "rgba(237,241,243,.40)" : undefined,
+    backgroundColor: indice % 2 === 0 ? c.field : undefined,
     borderLeft: indice === 0 ? "none" : `1px solid ${c.borderSoft}`,
     cursor: "copy",
   };
@@ -95,16 +98,16 @@ function BlocoSugestao({
         right: 6,
         top: minutosDesde(inicio, base) * PX_PER_MIN,
         height: dur * PX_PER_MIN - 4,
-        border: `1.5px dashed ${c.brass}`,
-        background: "rgba(14,163,122,0.10)",
-        borderRadius: 8,
+        border: `1.5px dashed ${c.accent}`,
+        background: c.accentTint,
+        borderRadius: 10,
         padding: "4px 8px",
         pointerEvents: "none",
         overflow: "hidden",
         zIndex: 2,
       }}
     >
-      <div style={{ fontSize: 10, fontWeight: 700, color: c.brassDeep, letterSpacing: 0.4 }}>SUGESTÃO</div>
+      <div style={{ fontSize: 9.5, fontWeight: 700, color: c.brassDeep, letterSpacing: "0.1em" }}>SUGESTÃO</div>
       <div style={{ fontSize: 11.5, color: c.ink2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
         {cliente}
       </div>
@@ -227,8 +230,8 @@ function Bloco({
         borderRight: "none",
         borderBottom: "none",
         borderLeft: `3px solid ${m.bar}`,
-        borderRadius: 8,
-        padding: "7px 9px",
+        borderRadius: 10,
+        padding: "7px 10px",
         overflow: "hidden",
         textAlign: "left",
         cursor: fixo ? "pointer" : arrastando ? "grabbing" : "grab",
@@ -241,8 +244,8 @@ function Bloco({
         transition: "opacity .12s ease-out",
       }}
     >
-      <div style={{ fontSize: 12.5, fontWeight: 700, lineHeight: 1.25, color: m.title, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-        {horaPreview} · {cliente}
+      <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.25, color: m.title, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <span className="num" style={{ fontWeight: 500 }}>{horaPreview}</span> · {cliente}
       </div>
       <div style={{ fontSize: 11, fontWeight: 500, color: m.sub, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{servico}</div>
       {!fixo ? (
@@ -253,17 +256,6 @@ function Bloco({
     </div>
   );
 }
-
-const btnNav: React.CSSProperties = {
-  width: 32,
-  height: 32,
-  border: `1px solid ${c.borderInput}`,
-  background: c.surface,
-  borderRadius: 9,
-  cursor: "pointer",
-  color: c.inkLabel,
-  fontSize: 15,
-};
 
 type View = "dia" | "semana" | "mes";
 
@@ -405,93 +397,66 @@ export function TelaAgenda() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, height: "100%", maxWidth: 1600 }}>
       {/* Toolbar */}
-      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button className="oc-btn oc-btn-ghost" style={btnNav} onClick={() => passo(-1)}>‹</button>
-          <div style={{ fontFamily: font.serif, fontSize: 19, fontWeight: 600, color: c.inkTitle, minWidth: 190, textAlign: "center" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button className="oc-icon-btn" onClick={() => passo(-1)} aria-label="Anterior">
+            <Icon name="chevronEsq" size={16} />
+          </button>
+          <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-0.02em", color: c.inkTitle, minWidth: 170, textAlign: "center", textTransform: view === "mes" ? "capitalize" : undefined }}>
             {tituloCentral}
           </div>
-          <button className="oc-btn oc-btn-ghost" style={btnNav} onClick={() => passo(1)}>›</button>
-          <button
-            onClick={() => setTela({ dateISO: null })}
-            style={{ border: "none", fontSize: 12, fontWeight: 700, color: c.brassDeep, background: c.brassSoft, borderRadius: 999, padding: "6px 13px", cursor: "pointer" }}
-          >
-            Hoje
+          <button className="oc-icon-btn" onClick={() => passo(1)} aria-label="Próximo">
+            <Icon name="chevronDir" size={16} />
           </button>
+          <Button variant="pill" size="sm" onClick={() => setTela({ dateISO: null })} disabled={ehHoje && view === "dia"}>
+            Hoje
+          </Button>
         </div>
         {visaoBarbeiro && barbeiroVisaoNome ? (
-          <span style={{ fontSize: 12, fontWeight: 700, color: c.brassDeep, background: c.brassSoft, borderRadius: 999, padding: "6px 12px" }}>
+          <span className="oc-chip" style={{ color: c.brassDeep, background: c.brassSoft }}>
             Agenda de {barbeiroVisaoNome}
           </span>
         ) : null}
         <div style={{ flex: 1 }} />
         {view === "dia" ? (
-          <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-            <input
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar cliente…"
-              className="oc-input"
-              style={{ width: 190, background: c.surface, border: `1px solid ${c.borderInput}`, borderRadius: 9, padding: "8px 30px 8px 12px", fontSize: 13, color: c.inkTitle, outline: "none" }}
-            />
+          <div className="oc-search" style={{ width: 210 }}>
+            <Icon name="busca" size={15} />
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cliente…" aria-label="Buscar cliente na agenda" />
             {busca ? (
               <button
                 onClick={() => setBusca("")}
                 aria-label="Limpar busca"
-                style={{ position: "absolute", right: 8, border: "none", background: "transparent", cursor: "pointer", color: c.ink3, fontSize: 14, lineHeight: 1, padding: 2 }}
+                className="oc-icon-btn is-plain"
+                style={{ width: 24, height: 24 }}
               >
-                ✕
+                <Icon name="fechar" size={13} />
               </button>
             ) : null}
           </div>
         ) : null}
-        <div style={{ display: "flex", background: c.surfaceAlt, borderRadius: 9, padding: 3 }}>
-          {([
-            ["Dia", "dia"],
-            ["Semana", "semana"],
-            ["Mês", "mes"],
-          ] as const).map(([label, v]) => {
-            const on = v === view;
-            return (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                style={{
-                  border: "none",
-                  fontSize: 12.5,
-                  fontWeight: on ? 700 : 600,
-                  color: on ? c.inkTitle : c.ink3,
-                  padding: "7px 14px",
-                  borderRadius: 7,
-                  background: on ? c.surface : "transparent",
-                  boxShadow: on ? shadow.pop : "none",
-                  cursor: "pointer",
-                }}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-        <button
-          onClick={() => setRecorrenteOpen(true)}
-          style={{ border: `1px solid ${c.borderInput}`, background: c.surface, cursor: "pointer", color: c.inkTitle, padding: "8px 14px", borderRadius: 9, fontSize: 13, fontWeight: 600 }}
-        >
-          + Agendamento recorrente
-        </button>
-        <button
-          onClick={() => setBloquear(true)}
-          style={{ border: `1px solid ${c.borderInput}`, background: c.surface, cursor: "pointer", color: c.inkTitle, padding: "8px 14px", borderRadius: 9, fontSize: 13, fontWeight: 600 }}
-        >
-          + Bloquear horário
-        </button>
+        <Segmented
+          label="Visão"
+          value={view}
+          onChange={setView}
+          options={[
+            { value: "dia", label: "Dia" },
+            { value: "semana", label: "Semana" },
+            { value: "mes", label: "Mês" },
+          ]}
+        />
+        <Button variant="ghost" size="sm" icon="repetir" onClick={() => setRecorrenteOpen(true)}>
+          Recorrente
+        </Button>
+        <Button variant="ghost" size="sm" icon="bloqueio" onClick={() => setBloquear(true)}>
+          Bloquear horário
+        </Button>
       </div>
 
       {/* Legenda */}
       <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
         {legenda.map((l) => (
-          <span key={l.label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: c.ink2, fontWeight: 600 }}>
-            <span style={{ width: 9, height: 9, borderRadius: 3, background: l.cor }} />
+          <span key={l.label} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: c.ink2, fontWeight: 500 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: l.cor }} />
             {l.label}
           </span>
         ))}
@@ -509,7 +474,7 @@ export function TelaAgenda() {
       ) : null}
 
       {/* Calendário */}
-      <div style={{ position: "relative", background: c.surface, border: `1px solid ${c.border}`, borderRadius: 14, overflow: "auto", flex: 1, boxShadow: shadow.card }}>
+      <div style={{ position: "relative", background: c.surface, border: `1px solid ${c.borderSoft}`, borderRadius: 18, overflow: "auto", flex: 1, minHeight: 320, boxShadow: shadow.card }}>
         {view === "dia" ? (
           buscaAtiva && colunasDia.length === 0 ? (
             <div style={{ padding: 48, textAlign: "center", color: c.ink3, fontSize: 13 }}>
@@ -534,7 +499,7 @@ export function TelaAgenda() {
                   padding: "0 16px",
                 }}
               >
-                <div style={{ width: 30, height: 30, flex: "none", borderRadius: "50%", background: barbeiro.cor, color: c.darkText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, fontWeight: 700 }}>
+                <div style={{ width: 32, height: 32, flex: "none", borderRadius: "50%", background: barbeiro.cor, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, fontWeight: 600, boxShadow: `0 0 0 3px ${c.surface}, 0 0 0 4px ${c.borderSoft}` }}>
                   {barbeiro.iniciais}
                 </div>
                 <div style={{ minWidth: 0 }}>
@@ -564,11 +529,11 @@ export function TelaAgenda() {
                     position: "absolute",
                     top: min * PX_PER_MIN + 3,
                     right: 10,
-                    fontSize: 11.5,
-                    fontWeight: 500,
-                    color: c.ink3,
+                    fontSize: 11,
+                    fontFamily: font.mono,
+                    color: c.ink4,
                     fontVariantNumeric: "tabular-nums",
-                    letterSpacing: ".2px",
+                    letterSpacing: "-0.02em",
                   }}
                 >
                   {horaDesde(min, abre)}
@@ -582,14 +547,16 @@ export function TelaAgenda() {
                     right: 6,
                     transform: "translateY(-50%)",
                     zIndex: 7,
-                    background: c.red,
-                    color: "#FFFFFF",
-                    fontSize: 10,
-                    fontWeight: 700,
+                    background: c.neon,
+                    color: c.onNeon,
+                    fontFamily: font.mono,
+                    fontSize: 10.5,
+                    fontWeight: 600,
                     lineHeight: 1,
-                    padding: "3px 6px",
-                    borderRadius: 5,
+                    padding: "4px 7px",
+                    borderRadius: 999,
                     fontVariantNumeric: "tabular-nums",
+                    boxShadow: "0 0 0 3px rgba(183,255,24,.25)",
                   }}
                 >
                   {agora}
@@ -601,8 +568,8 @@ export function TelaAgenda() {
             {colunasDia.map(({ barbeiro, blocos }, i) => (
               <div key={barbeiro.id} style={gridBg(colH, i)} onClick={(e) => criarNoHorario(e, barbeiro.id)}>
                 {ehHoje && nowTop >= 0 && nowTop <= colH ? (
-                  <div style={{ position: "absolute", left: 0, right: 0, top: nowTop, height: 1.5, background: c.red, zIndex: 3 }}>
-                    <div style={{ position: "absolute", left: -3, top: -2.25, width: 6, height: 6, borderRadius: "50%", background: c.red }} />
+                  <div style={{ position: "absolute", left: 0, right: 0, top: nowTop, height: 2, background: c.accent, zIndex: 3, boxShadow: "0 0 8px rgba(183,255,24,.55)" }}>
+                    <div style={{ position: "absolute", left: -4, top: -3, width: 8, height: 8, borderRadius: "50%", background: c.accent }} />
                   </div>
                 ) : null}
                 {blocos.map((b) => (
@@ -624,14 +591,11 @@ export function TelaAgenda() {
               o aviso nasceria fora da área visível. */}
           {diaVazio ? (
             <div style={{ position: "absolute", top: 62, left: 64, right: 0, height: 330, display: "grid", placeItems: "center", pointerEvents: "none", padding: 24, zIndex: 4 }}>
-              <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 14, boxShadow: shadow.pop, padding: "22px 26px", textAlign: "center", maxWidth: 330 }}>
-                <div style={{ width: 38, height: 38, margin: "0 auto 11px", borderRadius: 10, background: c.brassTint, display: "grid", placeItems: "center" }}>
-                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={c.brassDeep} strokeWidth="1.9" strokeLinecap="round" aria-hidden="true">
-                    <rect x="3" y="5" width="18" height="16" rx="3" />
-                    <path d="M8 3v4M16 3v4M3 10h18" />
-                  </svg>
+              <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 18, boxShadow: shadow.pop, padding: "22px 26px", textAlign: "center", maxWidth: 330 }}>
+                <div style={{ width: 42, height: 42, margin: "0 auto 12px", borderRadius: "50%", background: c.forest, color: c.neon, display: "grid", placeItems: "center" }}>
+                  <Icon name="agenda" size={19} />
                 </div>
-                <div style={{ fontSize: 14.5, fontWeight: 700, color: c.inkTitle }}>Nenhum agendamento neste dia</div>
+                <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: "-0.02em", color: c.inkTitle }}>Nenhum agendamento neste dia</div>
                 <div style={{ fontSize: 12.5, color: c.ink2, marginTop: 4 }}>Clique em um horário na coluna do barbeiro para marcar.</div>
               </div>
             </div>
@@ -664,9 +628,9 @@ function SemanaView({ dateISO, hoje, state, onSelect, barbeiroId }: { dateISO: s
           .sort((a, b) => a.inicio.localeCompare(b.inicio));
         return (
           <div key={iso} style={{ borderLeft: i === 0 ? "none" : `1px solid ${c.borderSoft}`, minHeight: 520 }}>
-            <div style={{ ...headerFixo, height: 50, borderBottom: `1px solid ${c.border}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: iso === hoje ? c.brassSoft : c.surface }}>
-              <span style={{ fontSize: 11, color: c.ink3, fontWeight: 600 }}>{DIAS_CURTO[i]}</span>
-              <span style={{ fontFamily: font.serif, fontSize: 15, fontWeight: 700, color: c.inkTitle }}>{iso.slice(8)}</span>
+            <div style={{ ...headerFixo, height: 58, borderBottom: `1px solid ${c.border}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3 }}>
+              <span className="oc-label" style={{ fontSize: 10 }}>{DIAS_CURTO[i]}</span>
+              <span className="num" style={{ width: 28, height: 28, borderRadius: "50%", display: "grid", placeItems: "center", fontSize: 14, fontWeight: 500, background: iso === hoje ? c.forest : "transparent", color: iso === hoje ? c.neon : c.inkTitle }}>{iso.slice(8)}</span>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 5, padding: 7 }}>
               {ags.length === 0 ? <div style={{ fontSize: 11, color: c.ink4, textAlign: "center", marginTop: 12 }}>—</div> : null}
@@ -677,9 +641,10 @@ function SemanaView({ dateISO, hoje, state, onSelect, barbeiroId }: { dateISO: s
                   <button
                     key={a.id}
                     onClick={() => onSelect(a.id)}
-                    style={{ textAlign: "left", border: "none", borderLeft: `3px solid ${m.bar}`, background: m.bg, borderRadius: 6, padding: "6px 8px", cursor: "pointer" }}
+                    className="oc-bloco"
+                    style={{ textAlign: "left", border: "none", borderLeft: `3px solid ${m.bar}`, background: m.bg, borderRadius: 9, padding: "6px 8px", cursor: "pointer" }}
                   >
-                    <div style={{ fontSize: 11, fontWeight: 700, color: m.title }}>{a.inicio} · {a.clienteNome}</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: m.title }}><span className="num">{a.inicio}</span> · {a.clienteNome}</div>
                     <div style={{ fontSize: 10, color: m.sub, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.servico} · {barbeiro?.iniciais ?? ""}</div>
                   </button>
                 );
@@ -699,7 +664,7 @@ function MesView({ dateISO, hoje, state, onPick, barbeiroId }: { dateISO: string
     <div style={{ minWidth: 740 }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", borderBottom: `1px solid ${c.border}`, ...headerFixo }}>
         {DIAS_CURTO.map((d) => (
-          <div key={d} style={{ padding: "11px 0", textAlign: "center", fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase", color: c.ink3, fontWeight: 600 }}>{d}</div>
+          <div key={d} className="oc-label" style={{ padding: "12px 0", textAlign: "center" }}>{d}</div>
         ))}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
@@ -715,7 +680,7 @@ function MesView({ dateISO, hoje, state, onPick, barbeiroId }: { dateISO: string
                 border: "none",
                 borderTop: `1px solid ${c.borderSoft}`,
                 borderLeft: `1px solid ${c.borderSoft}`,
-                background: cel.foraDoMes ? c.surface : c.surface,
+                background: cel.foraDoMes ? c.field : c.surface,
                 cursor: "pointer",
                 textAlign: "left",
                 padding: 9,
@@ -734,15 +699,16 @@ function MesView({ dateISO, hoje, state, onPick, barbeiroId }: { dateISO: string
                   justifyContent: "center",
                   borderRadius: "50%",
                   fontSize: 12.5,
-                  fontWeight: 700,
-                  color: cel.foraDoMes ? c.ink4 : c.inkTitle,
-                  border: isHoje ? `1.5px solid ${c.brass}` : "1.5px solid transparent",
+                  fontFamily: font.mono,
+                  fontWeight: 500,
+                  color: isHoje ? c.neon : cel.foraDoMes ? c.ink4 : c.inkTitle,
+                  background: isHoje ? c.forest : "transparent",
                 }}
               >
                 {cel.dia}
               </span>
               {total > 0 ? (
-                <span style={{ fontSize: 11, fontWeight: 600, color: c.brassDeep, background: c.brassSoft, borderRadius: 999, padding: "2px 9px" }}>
+                <span className="oc-chip" style={{ alignSelf: "flex-start", fontSize: 11, color: c.brassDeep, background: c.brassSoft }}>
                   {total} agend.
                 </span>
               ) : null}

@@ -1041,3 +1041,75 @@ a {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Controles nativos no acento do tema. */
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"] {
+  accent-color: var(--oc-accent);
+}
+input[type="checkbox"],
+input[type="radio"] {
+  width: 16px;
+  height: 16px;
+}
+
+/* ------------------------------------------------------------- login */
+.oc-login {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--oc-page);
+}
+.oc-login-brand {
+  flex: 0 0 46%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 32px;
+  padding: 52px 56px;
+  color: var(--oc-on-forest);
+}
+.oc-login-razor {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 1;
+  min-height: 200px;
+}
+.oc-login-glow {
+  position: absolute;
+  width: 340px;
+  height: 340px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(183, 255, 24, 0.3), rgba(183, 255, 24, 0.06) 45%, transparent 70%);
+  filter: blur(8px);
+}
+.oc-login-form {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+}
+@media (max-width: 899px) {
+  .oc-login {
+    flex-direction: column;
+  }
+  .oc-login-brand {
+    flex: none;
+    padding: 28px 22px 30px;
+    gap: 18px;
+  }
+  .oc-login-razor {
+    display: none;
+  }
+  .oc-login-brand h2 {
+    font-size: 26px !important;
+  }
+  .oc-login-form {
+    align-items: flex-start;
+    padding: 30px 20px 48px;
+  }
+}

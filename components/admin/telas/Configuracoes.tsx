@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Field, Select, TextInput } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
 import { useStore, makeId } from "@/lib/store";
 import * as repo from "@/lib/firebase/repos";
@@ -314,10 +315,10 @@ export function TelaConfiguracoes() {
     router.push("/login");
   }
 
-  const eyebrow = { fontSize: 11, letterSpacing: 0.7, textTransform: "uppercase" as const, color: c.ink3, fontWeight: 600 };
+  const eyebrow = { fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: c.ink3, fontWeight: 600 };
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1.9fr 1fr", gap: 18, maxWidth: 1600 }}>
+    <div className="oc-stack-mobile" style={{ display: "grid", gridTemplateColumns: "minmax(0,1.9fr) minmax(0,1fr)", gap: 18 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
         {/* Dados da barbearia */}
         <Card>
@@ -358,7 +359,8 @@ export function TelaConfiguracoes() {
                     <button
                       key={d}
                       onClick={() => toggleDia(i)}
-                      style={{ flex: 1, cursor: "pointer", border: `1.5px solid ${on ? c.brass : c.borderInput}`, background: on ? c.brassTint : c.surface, color: on ? c.inkTitle : c.ink3, borderRadius: 9, padding: "9px 0", fontSize: 12, fontWeight: on ? 700 : 600 }}
+                      aria-pressed={on}
+                      style={{ flex: 1, cursor: "pointer", border: `1px solid ${on ? "transparent" : c.border}`, background: on ? "var(--oc-sel-bg)" : c.surface, color: on ? "var(--oc-sel-text)" : c.ink3, borderRadius: 999, padding: "9px 0", fontSize: 12.5, fontWeight: 500, transition: "background .15s, color .15s" }}
                     >
                       {d}
                     </button>
@@ -394,7 +396,7 @@ export function TelaConfiguracoes() {
                 </Select>
               </Field>
 
-              <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${c.borderInput}` }}>
+              <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${c.borderSoft}` }}>
                 <div style={{ ...eyebrow, marginBottom: 8 }}>Atendente automático</div>
                 <label style={{ display: "flex", alignItems: "flex-start", gap: 9, cursor: "pointer" }}>
                   <input type="checkbox" checked={iaAtiva} onChange={(e) => setIaAtiva(e.target.checked)} style={{ marginTop: 3 }} />
@@ -406,14 +408,14 @@ export function TelaConfiguracoes() {
                   </span>
                 </label>
                 {iaAtiva ? (
-                  <div style={{ fontSize: 12, color: c.amberText, background: c.amberBg, borderRadius: 8, padding: "8px 10px", marginTop: 10, lineHeight: 1.45 }}>
+                  <div style={{ fontSize: 12, color: c.amberText, background: c.amberBg, borderRadius: 12, padding: "10px 12px", marginTop: 10, lineHeight: 1.45 }}>
                     Ligado, ele responde <b>qualquer número</b> que escrever. Quando você responde
                     uma conversa à mão, ele se cala nela por algumas horas.
                   </div>
                 ) : null}
               </div>
 
-              <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${c.borderInput}` }}>
+              <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${c.borderSoft}` }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: c.inkTitle, marginBottom: 4 }}>
                   Número do WhatsApp
                 </div>
@@ -481,7 +483,7 @@ export function TelaConfiguracoes() {
           {/* Cobrança automática — mesma forma do bloco de confirmação acima, e pelo mesmo
               motivo: quem já entendeu um entende o outro. Vem DESLIGADO por padrão; aqui
               isso pesa mais, porque o que sai daqui é boleto no CPF de cliente. */}
-          <div style={{ marginTop: 22, paddingTop: 18, borderTop: `1px solid ${c.borderInput}` }}>
+          <div style={{ marginTop: 22, paddingTop: 18, borderTop: `1px solid ${c.borderSoft}` }}>
             <div style={{ ...eyebrow, marginBottom: 8 }}>Cobrança automática das mensalidades</div>
             <label style={{ display: "flex", alignItems: "flex-start", gap: 9, cursor: "pointer", marginBottom: 12 }}>
               <input
@@ -542,10 +544,10 @@ export function TelaConfiguracoes() {
                   fontSize: 12.5,
                   color: c.ink3,
                   lineHeight: 1.5,
-                  background: c.surfaceAlt,
-                  border: `1px solid ${c.borderInput}`,
-                  borderRadius: 10,
-                  padding: "11px 13px",
+                  background: c.field,
+                  border: `1px solid ${c.borderSoft}`,
+                  borderRadius: 14,
+                  padding: "12px 14px",
                   margin: "0 0 12px",
                 }}
               >
@@ -591,7 +593,7 @@ export function TelaConfiguracoes() {
             {/* Conta do gateway. A chave é da BARBEARIA: o dinheiro do boleto cai na conta
                 dela, não na do O Cartel. Salva à parte do resto da tela porque não é
                 configuração de comportamento — é credencial. */}
-            <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${c.borderInput}` }}>
+            <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${c.borderSoft}` }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: c.inkTitle, marginBottom: 4 }}>
                 Conta do Asaas
               </div>
@@ -645,17 +647,17 @@ export function TelaConfiguracoes() {
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
             {state.barbeiros.map((b) => (
               <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 11 }}>
-                <div style={{ width: 36, height: 36, borderRadius: "50%", background: b.cor, color: c.darkText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flex: "none" }}>{b.iniciais}</div>
+                <div style={{ width: 38, height: 38, borderRadius: "50%", background: b.cor, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, flex: "none" }}>{b.iniciais}</div>
                 <TextInput value={b.nome} onChange={(e) => setBarb(b, { nome: e.target.value, iniciais: iniciaisDe(e.target.value) })} />
-                <button onClick={() => { void actions.barbeiros.remove(b.id).then(() => toast("Barbeiro removido.")).catch(() => toast("Não foi possível remover.", "error")); }} aria-label="Remover" style={{ flex: "none", border: `1px solid ${c.borderInput}`, background: c.surface, borderRadius: 9, width: 38, height: 38, cursor: "pointer", color: c.red, fontSize: 15 }}>
-                  ✕
+                <button onClick={() => { void actions.barbeiros.remove(b.id).then(() => toast("Barbeiro removido.")).catch(() => toast("Não foi possível remover.", "error")); }} aria-label="Remover" className="oc-icon-btn" style={{ color: c.red, width: 40, height: 40 }}>
+                  <Icon name="lixo" size={16} />
                 </button>
               </div>
             ))}
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 14, borderTop: `1px solid ${c.borderSoft}`, paddingTop: 14 }}>
             <TextInput value={novoBarbeiro} onChange={(e) => setNovoBarbeiro(e.target.value)} placeholder="Nome do novo barbeiro" />
-            <Button onClick={adicionarBarbeiro}>Adicionar</Button>
+            <Button icon="mais" onClick={adicionarBarbeiro}>Adicionar</Button>
           </div>
         </Card>
 
@@ -715,14 +717,14 @@ export function TelaConfiguracoes() {
         <Card>
           <CardTitle>Conta</CardTitle>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
-            <div style={{ width: 44, height: 44, borderRadius: "50%", background: c.leather, color: c.darkText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700 }}>{iniciaisDe(profile?.nome || state.auth.nome || "")}</div>
+            <div style={{ width: 46, height: 46, borderRadius: "50%", background: c.forest, color: c.neon, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 600 }}>{iniciaisDe(profile?.nome || state.auth.nome || "")}</div>
             <div>
               <div style={{ fontSize: 14, fontWeight: 600, color: c.inkTitle }}>{profile?.nome || state.auth.nome || "Conta"}</div>
               <div style={{ fontSize: 12, color: c.ink3 }}>{profile ? PAPEL_LABEL[profile.role] : "Admin"}</div>
             </div>
           </div>
-          <button onClick={sair} style={{ width: "100%", marginTop: 18, border: `1px solid ${c.borderInput}`, background: c.surface, color: c.red, cursor: "pointer", padding: 12, borderRadius: 11, fontSize: 14, fontWeight: 600 }}>
-            Sair da conta
+          <button onClick={sair} className="oc-btn oc-btn-danger oc-btn-block" style={{ marginTop: 18 }}>
+            <Icon name="sair" size={16} /> Sair da conta
           </button>
         </Card>
       </div>

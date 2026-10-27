@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Field";
 import { FinalizarAtendimentoModal } from "./FinalizarAtendimentoModal";
@@ -155,8 +156,8 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
 
   const linha = (rotulo: string, valor: string) => (
     <div style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: `1px solid ${c.borderSoft}` }}>
-      <span style={{ fontSize: 12.5, color: c.ink3, fontWeight: 600, width: 104, flex: "none" }}>{rotulo}</span>
-      <span style={{ fontSize: 13.5, color: c.inkTitle, fontWeight: 600 }}>{valor}</span>
+      <span style={{ fontSize: 12.5, color: c.ink3, width: 104, flex: "none" }}>{rotulo}</span>
+      <span style={{ fontSize: 13.5, color: c.inkTitle, fontWeight: 500 }}>{valor}</span>
     </div>
   );
 
@@ -165,18 +166,19 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
     <div
       onClick={onClose}
       className="oc-fade"
-      style={{ position: "fixed", inset: 0, background: "rgba(8,19,15,.5)", zIndex: 50, display: "flex", justifyContent: "flex-end" }}
+      style={{ position: "fixed", inset: 0, background: "var(--oc-overlay)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 50, display: "flex", justifyContent: "flex-end", padding: 10 }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         className="oc-slide-right"
         style={{
           width: "100%",
-          maxWidth: 420,
+          maxWidth: 430,
           height: "100%",
           background: c.surface,
-          borderLeft: `1px solid ${c.border}`,
-          boxShadow: "-12px 0 36px rgba(8,19,15,.16)",
+          border: `1px solid ${c.border}`,
+          borderRadius: 22,
+          boxShadow: "var(--oc-shadow-modal)",
           padding: "22px 24px",
           overflow: "auto",
           display: "flex",
@@ -185,18 +187,20 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
       >
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
-          <span style={{ fontFamily: font.serif, fontSize: 20, fontWeight: 600, color: c.inkTitle, flex: 1 }}>
+          <span style={{ fontSize: 20, fontWeight: 500, letterSpacing: "-0.035em", color: c.inkTitle, flex: 1 }}>
             {isBloqueio ? "Bloqueio" : "Agendamento"}
           </span>
-          <button onClick={onClose} aria-label="Fechar" style={{ border: "none", background: "transparent", cursor: "pointer", color: c.ink3, fontSize: 18, lineHeight: 1, padding: 4 }}>
-            ✕
+          <button onClick={onClose} aria-label="Fechar" className="oc-icon-btn">
+            <Icon name="fechar" size={16} />
           </button>
         </div>
 
         {/* Status */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-          <span style={{ width: 9, height: 9, borderRadius: 3, background: meta.bar }} />
-          <span style={{ fontSize: 12.5, fontWeight: 700, color: c.inkTitle }}>{STATUS_LABEL[ag.status]}</span>
+          <span className="oc-chip" style={{ background: meta.bg, color: meta.title }}>
+            <span className="oc-chip-dot" style={{ background: meta.bar }} />
+            {STATUS_LABEL[ag.status]}
+          </span>
           {/* Quem respondeu sozinho pelo link vale mais que quem a barbearia marcou. */}
           {ag.confirmadoPeloCliente ? (
             <span
@@ -211,7 +215,7 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
         {/* Cliente */}
         {!isBloqueio ? (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-            <span style={{ fontSize: 16, fontWeight: 700, color: c.inkTitle }}>{ag.clienteNome}</span>
+            <span style={{ fontSize: 18, fontWeight: 500, letterSpacing: "-0.025em", color: c.inkTitle }}>{ag.clienteNome}</span>
             {selo ? (
               <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 9px", borderRadius: 999, background: selo.bg, color: selo.fg }}>{seloTag}</span>
             ) : null}
@@ -238,14 +242,14 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
               marginTop: 12,
               background: "#25D366", // verde do WhatsApp — é o que o olho procura
               color: "#0B3D26",
-              borderRadius: 11,
-              padding: "11px 14px",
+              borderRadius: 999,
+              padding: "11px 16px",
               fontSize: 13.5,
-              fontWeight: 700,
+              fontWeight: 600,
               textDecoration: "none",
             }}
           >
-            <span aria-hidden>💬</span>
+            <Icon name="whatsapp" size={17} />
             {ag.status === "confirmado" ? "Lembrar pelo WhatsApp" : "Pedir confirmação pelo WhatsApp"}
           </a>
         ) : null}
@@ -280,7 +284,7 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
           <div style={{ display: "flex", gap: 8, marginTop: 22 }}>
             <Button variant="ghost" onClick={onClose}>Fechar</Button>
             <div style={{ flex: 1 }} />
-            <Button onClick={() => excluir("Bloqueio removido.")} style={{ background: c.red }}>Excluir bloqueio</Button>
+            <Button variant="danger" onClick={() => excluir("Bloqueio removido.")}>Excluir bloqueio</Button>
           </div>
         ) : (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 22 }}>
@@ -326,7 +330,7 @@ export function AgendamentoPanel({ open, onClose, agendamentoId }: { open: boole
                   Excluir toda a série? (concluídos são mantidos)
                 </span>
                 <Button variant="ghost" onClick={() => setExcluindoSerie(false)} disabled={removendo}>Cancelar</Button>
-                <Button onClick={excluirSerie} loading={removendo} style={{ background: c.red }}>Confirmar exclusão</Button>
+                <Button variant="danger" onClick={excluirSerie} loading={removendo}>Confirmar exclusão</Button>
               </div>
             ) : (
               <button

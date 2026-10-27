@@ -11,12 +11,13 @@ import { useMemo, useState } from "react";
 import { c } from "@/lib/theme";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { MoneyInput, TextInput } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
 import { Button } from "@/components/ui/Button";
 import { useStore, makeId } from "@/lib/store";
 import { useToast } from "@/components/ui/Toast";
 import type { Plano, Servico } from "@/lib/types";
 
-const eyebrow = { fontSize: 11, letterSpacing: 0.7, textTransform: "uppercase" as const, color: c.ink3, fontWeight: 600 };
+const eyebrow = { fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: c.ink3, fontWeight: 600 };
 const ABAS = [
   ["servicos", "Serviços"],
   ["planos", "Planos"],
@@ -134,31 +135,14 @@ export function TelaPlanos() {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 1100 }}>
+    <div className="oc-stagger" style={{ display: "flex", flexDirection: "column", gap: 18, maxWidth: 1100 }}>
       {/* Abas */}
-      <div style={{ display: "flex", background: c.surfaceAlt, borderRadius: 11, padding: 4, alignSelf: "flex-start", gap: 2 }}>
-        {ABAS.map(([id, label]) => {
-          const on = aba === id;
-          return (
-            <button
-              key={id}
-              onClick={() => setAba(id)}
-              style={{
-                border: "none",
-                cursor: "pointer",
-                padding: "9px 26px",
-                borderRadius: 8,
-                fontSize: 13.5,
-                fontWeight: on ? 700 : 600,
-                background: on ? c.surface : "transparent",
-                color: on ? c.inkTitle : c.ink3,
-                boxShadow: on ? "0 1px 2px rgba(0,0,0,.08)" : "none",
-              }}
-            >
-              {label}
-            </button>
-          );
-        })}
+      <div className="oc-seg" role="tablist" style={{ alignSelf: "flex-start" }}>
+        {ABAS.map(([id, label]) => (
+          <button key={id} role="tab" aria-selected={aba === id} onClick={() => setAba(id)} style={{ padding: "8px 22px", fontSize: 13.5 }}>
+            {label}
+          </button>
+        ))}
       </div>
 
       {aba === "servicos" ? (
@@ -176,7 +160,7 @@ export function TelaPlanos() {
               <TextInput value={novoNome} onChange={(e) => setNovoNome(e.target.value)} placeholder="Ex.: Sobrancelha" />
               <TextInput type="number" value={novoDur} onChange={(e) => setNovoDur(Number(e.target.value) || 0)} />
               <MoneyInput value={novoPreco} onChange={setNovoPreco} />
-              <Button onClick={adicionar}>Adicionar</Button>
+              <Button icon="mais" onClick={adicionar}>Adicionar</Button>
             </div>
           </Card>
 
@@ -201,9 +185,9 @@ export function TelaPlanos() {
                     <TextInput value={s.nome} onChange={(e) => setServ(s, { nome: e.target.value })} />
                     <TextInput type="number" value={s.duracaoMin} onChange={(e) => setServ(s, { duracaoMin: Number(e.target.value) || 0 })} />
                     <MoneyInput value={s.preco} onChange={(n) => setServ(s, { preco: n })} />
-                    <span style={{ fontSize: 12.5, color: c.ink3, fontWeight: 600, textAlign: "center" }}>{usosPorServico(s)}</span>
-                    <button onClick={() => remover(s)} aria-label="Remover" style={{ border: `1px solid ${c.borderInput}`, background: c.surface, borderRadius: 9, width: 36, height: 38, cursor: "pointer", color: c.red, fontSize: 15 }}>
-                      ✕
+                    <span className="num" style={{ fontSize: 13, color: c.ink2, textAlign: "center" }}>{usosPorServico(s)}</span>
+                    <button onClick={() => remover(s)} aria-label="Remover" className="oc-icon-btn" style={{ color: c.red, width: 40, height: 40 }}>
+                      <Icon name="lixo" size={16} />
                     </button>
                   </div>
                 ))
@@ -226,7 +210,7 @@ export function TelaPlanos() {
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr auto", gap: 10, alignItems: "center", marginTop: 8 }}>
               <TextInput value={planoNome} onChange={(e) => setPlanoNome(e.target.value)} placeholder="Ex.: Mensal Premium" />
               <MoneyInput value={planoValor} onChange={setPlanoValor} />
-              <Button onClick={adicionarPlano}>Criar</Button>
+              <Button icon="mais" onClick={adicionarPlano}>Criar</Button>
             </div>
           </Card>
 
@@ -243,7 +227,7 @@ export function TelaPlanos() {
                   const usados = assinantesPorPlano.get(p.id) ?? 0;
                   const ativo = p.ativo ?? true;
                   return (
-                    <div key={p.id} style={{ border: `1px solid ${c.border}`, background: c.surfaceAlt, borderRadius: 12, padding: 14 }}>
+                    <div key={p.id} style={{ border: `1px solid ${ativo ? c.accentLine : c.border}`, background: ativo ? `linear-gradient(135deg, ${c.accentTint}, transparent 60%)` : c.field, borderRadius: 16, padding: 16 }}>
                       <div style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr 40px", gap: 10, alignItems: "end" }}>
                         <div>
                           <div style={{ ...eyebrow, marginBottom: 4 }}>Plano</div>
@@ -253,15 +237,16 @@ export function TelaPlanos() {
                           <div style={{ ...eyebrow, marginBottom: 4 }}>Mensalidade</div>
                           <MoneyInput value={p.valor} onChange={(n) => setPlano(p, { valor: n })} />
                         </div>
-                        <button onClick={() => removerPlano(p)} aria-label="Remover plano" style={{ border: `1px solid ${c.borderInput}`, background: c.surface, borderRadius: 9, width: 36, height: 38, cursor: "pointer", color: c.red, fontSize: 15 }}>
-                          ✕
+                        <button onClick={() => removerPlano(p)} aria-label="Remover plano" className="oc-icon-btn" style={{ color: c.red, width: 40, height: 40 }}>
+                          <Icon name="lixo" size={16} />
                         </button>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
                         <button
                           onClick={() => setPlano(p, { ativo: !ativo })}
-                          style={{ border: `1.5px solid ${ativo ? c.brass : c.borderInput}`, background: ativo ? c.brassTint : c.surface, color: ativo ? c.inkTitle : c.ink3, borderRadius: 999, padding: "4px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                          style={{ border: "none", background: ativo ? c.greenBg : c.surfaceAlt, color: ativo ? c.greenText : c.ink3, borderRadius: 999, padding: "4px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
                         >
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor" }} />
                           {ativo ? "Ativo" : "Inativo"}
                         </button>
                         <span style={{ fontSize: 11.5, color: c.ink3 }}>{usados} assinante(s)</span>

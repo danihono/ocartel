@@ -40,7 +40,7 @@ export function AguardandoAprovacao({ barbearia, email }: { barbearia: string; e
           nesta mesma tela — não precisa recarregar nem cadastrar de novo.
         </p>
 
-        <div style={{ background: c.surfaceAlt, borderRadius: 11, padding: "13px 15px", textAlign: "left", marginBottom: 22 }}>
+        <div style={{ background: c.field, border: `1px solid ${c.borderSoft}`, borderRadius: 14, padding: "14px 16px", textAlign: "left", marginBottom: 22 }}>
           <div style={{ fontSize: 11.5, color: c.ink3, fontWeight: 600 }}>Conta</div>
           <div style={{ fontSize: 13.5, color: c.inkTitle, fontWeight: 600, marginTop: 2, wordBreak: "break-all" }}>
             {email ?? "—"}

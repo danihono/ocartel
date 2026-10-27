@@ -323,7 +323,7 @@ function BloquearSheet({ onClose, onSalvar }: { onClose: () => void; onSalvar: (
       </label>
       <button
         onClick={() => onSalvar(inicio, duracaoMin, motivo)}
-        style={{ width: "100%", marginTop: 16, border: "none", cursor: "pointer", background: c.primaryBtnBg, color: c.primaryBtnText, padding: 14, borderRadius: 12, fontSize: 14.5, fontWeight: 700 }}
+        style={{ width: "100%", marginTop: 16, border: "none", cursor: "pointer", background: c.primaryBtnBg, color: c.primaryBtnText, padding: 14, borderRadius: 999, fontSize: 14.5, fontWeight: 600 }}
       >
         Bloquear
       </button>
@@ -382,7 +382,7 @@ const btnNav: CSSProperties = {
   height: 34,
   border: `1px solid ${c.borderInput}`,
   background: c.surface,
-  borderRadius: 10,
+  borderRadius: 999,
   cursor: "pointer",
   color: c.ink2,
   fontSize: 17,

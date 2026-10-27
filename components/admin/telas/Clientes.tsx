@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { c, font, shadow } from "@/lib/theme";
 import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
 import { Tag } from "@/components/ui/StatusPill";
 import { Avatar } from "@/components/ui/Seal";
 import { tagMeta } from "@/lib/status";
@@ -35,7 +37,9 @@ import { linkWhatsApp } from "@/lib/confirmacao";
 import { mensagemConviteCartao } from "@/lib/cobranca-mensagem";
 import { telefoneWhatsApp } from "@/lib/clientes-import";
 
-const eyebrow = { fontSize: 11, letterSpacing: 0.7, textTransform: "uppercase" as const, color: c.ink3, fontWeight: 600 };
+const eyebrow = { fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: c.ink3, fontWeight: 600 };
+/** Caixinha de informação dentro do perfil. */
+const caixa: React.CSSProperties = { background: c.field, border: `1px solid ${c.borderSoft}`, borderRadius: 14, padding: "14px 16px" };
 const FILTROS: FiltroCliente[] = ["Todos", "VIP", "Avulsos", "Inadimplentes"];
 const ORDENS: { value: OrdemCliente; label: string }[] = [
   { value: "nome", label: "Nome (A–Z)" },
@@ -186,65 +190,46 @@ export function TelaClientes() {
   }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1.45fr 1fr", gap: 18, height: "100%", maxWidth: 1600 }}>
+    <div className="oc-stack-mobile" style={{ display: "grid", gridTemplateColumns: "minmax(0,1.45fr) minmax(0,1fr)", gap: 18, height: "100%" }}>
       {/* List */}
-      <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 14, display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: shadow.card }}>
+      <div className="oc-card" style={{ display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 420 }}>
         <div style={{ padding: "18px 20px 14px", borderBottom: `1px solid ${c.borderSoft}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <span style={{ fontFamily: font.serif, fontSize: 18, fontWeight: 600, color: c.inkTitle }}>Clientes</span>
-            <span style={{ fontSize: 12, color: c.ink3, background: c.surfaceWarm, borderRadius: 999, padding: "2px 9px", fontWeight: 600 }}>{contagens.Todos}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <h2 className="oc-h2">Base de clientes</h2>
+            <span className="oc-chip num" style={{ color: c.ink2, background: c.surfaceAlt, fontWeight: 500 }}>{contagens.Todos}</span>
             <div style={{ flex: 1 }} />
-            <button onClick={() => setImportOpen(true)} style={{ border: `1px solid ${c.borderInput}`, cursor: "pointer", background: c.surface, color: c.inkTitle, padding: "8px 13px", borderRadius: 9, fontSize: 12.5, fontWeight: 600 }}>
+            <Button variant="ghost" size="sm" icon="upload" onClick={() => setImportOpen(true)}>
               Importar
-            </button>
-            <button onClick={() => setNovoOpen(true)} style={{ border: "none", cursor: "pointer", background: c.primaryBtnBg, color: c.primaryBtnText, padding: "8px 13px", borderRadius: 9, fontSize: 12.5, fontWeight: 700 }}>
-              + Novo cliente
-            </button>
+            </Button>
+            <Button size="sm" icon="mais" onClick={() => setNovoOpen(true)}>
+              Novo cliente
+            </Button>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: c.surfaceWarm, border: `1px solid ${c.border}`, borderRadius: 10, padding: "9px 13px", marginBottom: 12 }}>
-            <span style={{ width: 13, height: 13, border: `1.6px solid ${c.ink4}`, borderRadius: "50%", display: "inline-block", flex: "none" }} />
-            <input
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar por nome, telefone ou e-mail…"
-              style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontSize: 13, color: c.inkTitle, fontFamily: font.sans }}
-            />
+          <div className="oc-search" style={{ marginBottom: 12 }}>
+            <Icon name="busca" size={15} />
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, telefone ou e-mail…" aria-label="Buscar cliente" />
           </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-            {FILTROS.map((f) => {
-              const on = f === filtro;
-              return (
-                <button
-                  key={f}
-                  onClick={() => setFiltro(f)}
-                  style={{
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: 12,
-                    fontWeight: on ? 700 : 600,
-                    color: on ? c.inkTitle : c.ink3,
-                    background: on ? c.brassSoft : c.surfaceWarm,
-                    borderRadius: 999,
-                    padding: "5px 12px",
-                  }}
-                >
-                  {f} <span style={{ opacity: 0.6 }}>{contagens[f]}</span>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <div className="oc-seg" role="group" aria-label="Filtro">
+              {FILTROS.map((f) => (
+                <button key={f} type="button" aria-pressed={f === filtro} onClick={() => setFiltro(f)}>
+                  {f} <span className="oc-seg-count">{contagens[f]}</span>
                 </button>
-              );
-            })}
+              ))}
+            </div>
             <div style={{ flex: 1, minWidth: 8 }} />
             <select
               value={ordem}
               onChange={(e) => setOrdem(e.target.value as OrdemCliente)}
               aria-label="Ordenar clientes por"
               style={{
-                border: `1px solid ${c.borderInput}`,
+                border: `1px solid ${c.border}`,
                 background: c.surface,
                 color: c.ink2,
                 borderRadius: 999,
-                padding: "5px 10px",
-                fontSize: 12,
-                fontWeight: 600,
+                padding: "7px 12px",
+                fontSize: 12.5,
+                fontWeight: 500,
                 fontFamily: font.sans,
                 cursor: "pointer",
                 outline: "none",
@@ -270,13 +255,14 @@ export function TelaClientes() {
               <button
                 key={cl.id}
                 onClick={() => { setSelId(cl.id); setVerTudo(false); }}
+                className={active ? undefined : "oc-row"}
                 style={{
                   width: "100%",
                   textAlign: "left",
                   border: "none",
-                  borderLeft: `3px solid ${active ? c.brass : "transparent"}`,
                   cursor: "pointer",
-                  background: active ? "rgba(14,163,122,0.12)" : "transparent",
+                  background: active ? `linear-gradient(90deg, ${c.accentTint}, transparent)` : "transparent",
+                  boxShadow: active ? `inset 3px 0 0 ${c.accent}` : undefined,
                   display: "flex",
                   alignItems: "center",
                   gap: 13,
@@ -284,13 +270,13 @@ export function TelaClientes() {
                   borderBottom: `1px solid ${c.borderSoft}`,
                 }}
               >
-                <Avatar initials={cl.iniciais} size={38} />
+                <Avatar initials={cl.iniciais} size={38} bg={active ? c.forest : c.surfaceAlt} color={active ? c.neon : c.ink} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: c.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cl.nome}</div>
-                  <div style={{ fontSize: 12, color: c.ink2, marginTop: 1 }}>{cl.telefone}</div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: c.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cl.nome}</div>
+                  <div style={{ fontSize: 12, color: c.ink3, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>{cl.telefone}</div>
                 </div>
                 <div style={{ textAlign: "right", flex: "none", whiteSpace: "nowrap" }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, color: c.inkTitle }}>{cl.plano}</div>
+                  <div style={{ fontSize: 12.5, fontWeight: 500, color: c.inkTitle }}>{cl.plano}</div>
                   <div style={{ fontSize: 11, color: c.ink3, marginTop: 2 }}>{ultimo}</div>
                 </div>
                 {t ? <Tag label={clTag} fg={t.fg} bg={t.bg} /> : null}
@@ -300,7 +286,7 @@ export function TelaClientes() {
           {restantes > 0 ? (
             <button
               onClick={mostrarMais}
-              style={{ width: "100%", border: "none", borderTop: `1px solid ${c.borderSoft}`, background: c.surfaceWarm, color: c.inkTitle, cursor: "pointer", padding: "12px 0", fontSize: 12.5, fontWeight: 600 }}
+              style={{ width: "100%", border: "none", borderTop: `1px solid ${c.borderSoft}`, background: c.field, color: c.accent, cursor: "pointer", padding: "13px 0", fontSize: 12.5, fontWeight: 600 }}
             >
               Mostrar mais ({restantes})
             </button>
@@ -312,10 +298,10 @@ export function TelaClientes() {
       {sel ? (
         <Card pad="24px" style={{ overflow: "auto" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-            <Avatar initials={sel.iniciais} size={58} bg={c.leather} color={c.darkText} fontSize={19} />
+            <Avatar initials={sel.iniciais} size={60} bg={c.forest} color={c.neon} fontSize={19} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                <span style={{ fontFamily: font.serif, fontSize: 21, fontWeight: 600, color: c.inkTitle }}>{sel.nome}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.03em", color: c.inkTitle }}>{sel.nome}</span>
                 {selTag ? <Tag label={selTagValue} fg={selTag.fg} bg={selTag.bg} /> : null}
               </div>
               <div style={{ fontSize: 13, color: c.ink2, marginTop: 3 }}>
@@ -323,15 +309,17 @@ export function TelaClientes() {
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 7, flex: "none" }}>
-              <button onClick={() => setAgendarOpen(true)} style={{ border: "none", cursor: "pointer", background: c.primaryBtnBg, color: c.primaryBtnText, padding: "8px 12px", borderRadius: 9, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>
-                Novo agendamento
-              </button>
-              <button onClick={() => setEditOpen(true)} style={{ border: `1px solid ${c.borderInput}`, cursor: "pointer", background: c.surface, color: c.inkTitle, padding: "8px 12px", borderRadius: 9, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>
-                Editar
-              </button>
-              <button onClick={excluirCliente} style={{ border: `1px solid ${c.borderInput}`, cursor: "pointer", background: c.surface, color: c.red, padding: "8px 12px", borderRadius: 9, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>
-                Excluir
-              </button>
+              <Button size="sm" icon="agenda" onClick={() => setAgendarOpen(true)}>
+                Agendar
+              </Button>
+              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                <button onClick={() => setEditOpen(true)} className="oc-icon-btn" aria-label="Editar cliente" title="Editar">
+                  <Icon name="editar" size={15} />
+                </button>
+                <button onClick={excluirCliente} className="oc-icon-btn" aria-label="Excluir cliente" title="Excluir" style={{ color: c.red }}>
+                  <Icon name="lixo" size={15} />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -341,23 +329,23 @@ export function TelaClientes() {
               { l: "Atendimentos", v: String(sel.atendimentos) },
               { l: "Cliente desde", v: sel.desde },
             ].map((s) => (
-              <div key={s.l} style={{ background: c.surfaceAlt, borderRadius: 11, padding: "13px 15px" }}>
-                <div style={{ fontSize: 10.5, letterSpacing: 0.5, textTransform: "uppercase", color: c.ink3, fontWeight: 600 }}>{s.l}</div>
-                <div style={{ fontFamily: font.serif, fontSize: 21, fontWeight: 600, color: c.inkTitle, marginTop: 5 }}>{s.v}</div>
+              <div key={s.l} style={caixa}>
+                <div style={eyebrow}>{s.l}</div>
+                <div className={s.l === "Cliente desde" ? undefined : "num"} style={{ fontSize: 19, fontWeight: 500, letterSpacing: "-0.03em", color: c.inkTitle, marginTop: 8, whiteSpace: "nowrap" }}>{s.v}</div>
               </div>
             ))}
           </div>
 
           {/* Plano */}
-          <div style={{ border: `1px solid ${c.surfaceAlt}`, background: c.surface, borderRadius: 12, padding: 16, marginTop: 18, display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: c.inkTitle, flex: 1 }}>Plano · {sel.plano}</span>
+          <div style={{ border: `1px solid ${c.border}`, background: c.surface, borderRadius: 14, padding: 16, marginTop: 18, display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: c.inkTitle, flex: 1 }}>Plano · {sel.plano}</span>
             {/* O vencimento é deste cliente, não do plano. */}
             {!/avulso/i.test(sel.plano) ? (
-              <span style={{ fontSize: 11.5, fontWeight: 600, color: c.ink2, background: c.surfaceAlt, borderRadius: 999, padding: "3px 10px" }}>
+              <span className="oc-chip" style={{ color: c.ink2, background: c.surfaceAlt }}>
                 Vence dia {diaVencimentoCliente(sel, planoDoCliente(state.planos, sel))}
               </span>
             ) : null}
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: /avulso/i.test(sel.plano) ? c.ink3 : c.green }}>
+            <span className="oc-chip" style={{ color: /avulso/i.test(sel.plano) ? c.ink3 : c.greenText, background: /avulso/i.test(sel.plano) ? c.surfaceAlt : c.greenBg }}>
               {/avulso/i.test(sel.plano) ? "Sem plano ativo" : "Plano ativo"}
             </span>
           </div>
@@ -367,9 +355,9 @@ export function TelaClientes() {
               que o dinheiro não entrou e o sistema, por decisão, não emitiu boleto
               sozinho. */}
           {!/avulso/i.test(sel.plano) ? (
-            <div style={{ border: `1px solid ${c.surfaceAlt}`, background: c.surface, borderRadius: 12, padding: 16, marginTop: 12 }}>
+            <div style={{ border: `1px solid ${c.border}`, background: c.surface, borderRadius: 14, padding: 16, marginTop: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: c.inkTitle, flex: 1 }}>
+                <span style={{ fontSize: 13.5, fontWeight: 600, color: c.inkTitle, flex: 1 }}>
                   {temCartaoAtivo
                     ? `Cartão · ${cartaoDoSel!.bandeira} ••${cartaoDoSel!.ultimosDigitos}`
                     : "Cartão · não cadastrado"}
@@ -400,7 +388,7 @@ export function TelaClientes() {
                   <button
                     onClick={() => setCadastrarCartaoOpen(true)}
                     disabled={cartaoBusy !== null}
-                    style={{ border: "none", background: "transparent", cursor: cartaoBusy ? "default" : "pointer", color: c.brassDeep, fontSize: 12, fontWeight: 700, padding: 0 }}
+                    style={{ border: "none", background: "transparent", cursor: cartaoBusy ? "default" : "pointer", color: c.accent, fontSize: 12.5, fontWeight: 600, padding: 0 }}
                   >
                     Cadastrar cartão no balcão →
                   </button>
@@ -427,29 +415,29 @@ export function TelaClientes() {
 
           {/* Próximo + Pagamento */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
-            <div style={{ background: c.surfaceAlt, borderRadius: 11, padding: "13px 15px" }}>
+            <div style={caixa}>
               <div style={eyebrow}>Próximo agendamento</div>
               {proximo ? (
                 <>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: c.inkTitle, marginTop: 5 }}>
-                    {isoParaLabel(proximo.date)} · {proximo.inicio}
+                  <div style={{ fontSize: 14, fontWeight: 600, color: c.inkTitle, marginTop: 7 }}>
+                    {isoParaLabel(proximo.date)} · <span className="num">{proximo.inicio}</span>
                   </div>
                   <div style={{ fontSize: 12, color: c.ink2, marginTop: 2 }}>{proximo.servico} · {proximo.barbeiroNome}</div>
                 </>
               ) : (
                 <>
                   <div style={{ fontSize: 13.5, fontWeight: 600, color: c.ink3, marginTop: 5 }}>Nenhum futuro</div>
-                  <button onClick={() => setAgendarOpen(true)} style={{ marginTop: 4, border: "none", background: "transparent", cursor: "pointer", color: c.brassDeep, fontSize: 12, fontWeight: 700, padding: 0 }}>
+                  <button onClick={() => setAgendarOpen(true)} style={{ marginTop: 4, border: "none", background: "transparent", cursor: "pointer", color: c.accent, fontSize: 12.5, fontWeight: 600, padding: 0 }}>
                     Agendar →
                   </button>
                 </>
               )}
             </div>
-            <div style={{ background: c.surfaceAlt, borderRadius: 11, padding: "13px 15px" }}>
+            <div style={caixa}>
               <div style={eyebrow}>Forma de pagamento</div>
               {formaPreferida ? (
                 <>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: c.inkTitle, marginTop: 5 }}>{formaPagamentoLabel[formaPreferida]}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: c.inkTitle, marginTop: 7 }}>{formaPagamentoLabel[formaPreferida]}</div>
                   <div style={{ fontSize: 12, color: c.ink2, marginTop: 2 }}>mais usada</div>
                 </>
               ) : (
@@ -461,7 +449,7 @@ export function TelaClientes() {
           {/* Observações */}
           <div style={{ marginTop: 18 }}>
             <div style={{ ...eyebrow, marginBottom: 7 }}>Observações</div>
-            <div style={{ fontSize: 13.5, color: sel.observacoes ? c.inkTitle : c.ink3, lineHeight: 1.5, background: c.surfaceAlt, borderRadius: 11, padding: "13px 15px" }}>
+            <div style={{ fontSize: 13.5, color: sel.observacoes ? c.inkTitle : c.ink3, lineHeight: 1.5, ...caixa }}>
               {sel.observacoes || "Sem observações."}
             </div>
           </div>
@@ -475,16 +463,16 @@ export function TelaClientes() {
               <>
                 {histVisivel.map((h) => (
                   <div key={h.id} style={{ display: "flex", alignItems: "center", gap: 13, padding: "11px 0", borderBottom: `1px solid ${c.borderSoft}` }}>
-                    <div style={{ fontFamily: font.serif, fontSize: 13, fontWeight: 600, color: c.brown2, width: 48 }}>{h.data}</div>
+                    <div className="num" style={{ fontSize: 12.5, color: c.ink3, width: 52 }}>{h.data}</div>
                     <div style={{ flex: 1 }}>
-                      <span style={{ fontSize: 13.5, fontWeight: 600, color: c.inkTitle }}>{h.servico}</span>
+                      <span style={{ fontSize: 13.5, fontWeight: 500, color: c.inkTitle }}>{h.servico}</span>
                       <span style={{ fontSize: 12, color: c.ink2, marginLeft: 8 }}>{h.barbeiro}</span>
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: c.inkTitle }}>{formatBRL(h.valor)}</div>
+                    <div className="num" style={{ fontSize: 13, color: c.inkTitle }}>{formatBRL(h.valor)}</div>
                   </div>
                 ))}
                 {historico.length > HIST_INICIAL ? (
-                  <button onClick={() => setVerTudo((v) => !v)} style={{ marginTop: 10, border: "none", background: "transparent", cursor: "pointer", color: c.brassDeep, fontSize: 12.5, fontWeight: 700, padding: 0 }}>
+                  <button onClick={() => setVerTudo((v) => !v)} style={{ marginTop: 10, border: "none", background: "transparent", cursor: "pointer", color: c.accent, fontSize: 12.5, fontWeight: 600, padding: 0 }}>
                     {verTudo ? "Ver menos" : `Ver tudo (${historico.length})`}
                   </button>
                 ) : null}
@@ -494,12 +482,14 @@ export function TelaClientes() {
         </Card>
       ) : (
         <Card pad="24px" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", gap: 6 }}>
-          <Avatar initials="" size={52} bg={c.surfaceAlt} color={c.ink4} />
-          <div style={{ fontFamily: font.serif, fontSize: 17, fontWeight: 600, color: c.inkTitle, marginTop: 6 }}>Selecione um cliente</div>
+          <div style={{ width: 52, height: 52, borderRadius: "50%", background: c.forest, color: c.neon, display: "grid", placeItems: "center" }}>
+            <Icon name="usuario" size={22} />
+          </div>
+          <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-0.02em", color: c.inkTitle, marginTop: 8 }}>Selecione um cliente</div>
           <div style={{ fontSize: 13, color: c.ink3, maxWidth: 260 }}>Escolha um cliente na lista ao lado para ver o perfil completo, ou cadastre um novo.</div>
-          <button onClick={() => setNovoOpen(true)} style={{ marginTop: 8, border: "none", cursor: "pointer", background: c.primaryBtnBg, color: c.primaryBtnText, padding: "9px 15px", borderRadius: 9, fontSize: 12.5, fontWeight: 700 }}>
-            + Novo cliente
-          </button>
+          <Button size="sm" icon="mais" onClick={() => setNovoOpen(true)} style={{ marginTop: 10 }}>
+            Novo cliente
+          </Button>
         </Card>
       )}
 

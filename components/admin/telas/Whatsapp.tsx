@@ -16,6 +16,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { c, font, shadow } from "@/lib/theme";
+import { Icon } from "@/components/ui/Icon";
 import { Avatar } from "@/components/ui/Seal";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/firebase/auth";
@@ -33,7 +34,7 @@ import { CardSugestao } from "@/components/admin/CardSugestao";
 import type { Sugestao } from "@/lib/types";
 import * as repo from "@/lib/firebase/repos";
 
-const eyebrow = { fontSize: 11, letterSpacing: 0.7, textTransform: "uppercase" as const, color: c.ink3, fontWeight: 600 };
+const eyebrow = { fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: c.ink3, fontWeight: 600 };
 
 /** Mensagem que a pessoa mandou e ainda não voltou pelo espelho. */
 interface Pendente {
@@ -46,8 +47,8 @@ interface Pendente {
 
 const painel: React.CSSProperties = {
   background: c.surface,
-  border: `1px solid ${c.border}`,
-  borderRadius: 14,
+  border: `1px solid ${c.borderSoft}`,
+  borderRadius: 18,
   display: "flex",
   flexDirection: "column",
   overflow: "hidden",
@@ -268,21 +269,21 @@ export function TelaWhatsapp() {
   return (
     // A lista é uma coluna de LEITURA: nome, prévia e selos. Quem trabalha é a conversa,
     // então a lista ganha só o que precisa (largura fixa) e o resto sobra para o papo.
-    <div style={{ display: "grid", gridTemplateColumns: "minmax(230px, 290px) 1fr", gap: 16, height: "100%", maxWidth: 1600 }}>
+    <div className="oc-stack-mobile" style={{ display: "grid", gridTemplateColumns: "minmax(240px, 300px) minmax(0,1fr)", gap: 16, height: "100%" }}>
       {/* ---- Lista de conversas ---- */}
       <div style={painel}>
         <div style={{ padding: "14px 14px 12px", borderBottom: `1px solid ${c.borderSoft}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 9 }}>
-            <span style={{ fontFamily: font.serif, fontSize: 15.5, fontWeight: 600, color: c.inkTitle }}>Conversas</span>
-            <span style={{ fontSize: 11.5, color: c.ink3, background: c.surfaceWarm, borderRadius: 999, padding: "1px 8px", fontWeight: 600 }}>
+            <h2 className="oc-h2">Conversas</h2>
+            <span className="oc-chip num" style={{ color: c.ink2, background: c.surfaceAlt, fontWeight: 500 }}>
               {conversas.length}
             </span>
           </div>
 
           <StatusConexao conexao={conexao} onConfigurar={() => ir("/configuracoes")} />
 
-          <div style={{ display: "flex", alignItems: "center", gap: 7, background: c.surfaceWarm, border: `1px solid ${c.border}`, borderRadius: 9, padding: "7px 10px", margin: "10px 0 8px" }}>
-            <span style={{ width: 12, height: 12, border: `1.6px solid ${c.ink4}`, borderRadius: "50%", display: "inline-block", flex: "none" }} />
+          <div className="oc-search" style={{ height: 36, margin: "10px 0 8px" }}>
+            <Icon name="busca" size={15} />
             <input
               value={busca}
               onChange={(e) => setTela({ busca: e.target.value })}
@@ -295,12 +296,12 @@ export function TelaWhatsapp() {
             onClick={() => setAddOpen((v) => !v)}
             style={{
               width: "100%",
-              border: `1px dashed ${c.borderInput}`,
+              border: `1px dashed ${addOpen ? c.accent : c.borderInput}`,
               cursor: "pointer",
               background: addOpen ? c.brassTint : c.surface,
               color: c.inkTitle,
-              padding: "8px 10px",
-              borderRadius: 9,
+              padding: "8px 12px",
+              borderRadius: 999,
               fontSize: 12,
               fontWeight: 600,
               textAlign: "left",
@@ -352,9 +353,9 @@ export function TelaWhatsapp() {
                     width: "100%",
                     textAlign: "left",
                     border: "none",
-                    borderLeft: `3px solid ${ativa ? c.brass : "transparent"}`,
                     cursor: "pointer",
-                    background: ativa ? "rgba(14,163,122,0.12)" : "transparent",
+                    background: ativa ? `linear-gradient(90deg, ${c.accentTint}, transparent)` : "transparent",
+                    boxShadow: ativa ? `inset 3px 0 0 ${c.accent}` : undefined,
                     display: "flex",
                     alignItems: "center",
                     gap: 10,
@@ -378,7 +379,7 @@ export function TelaWhatsapp() {
                         {item.conversa.lastMessage || "—"}
                       </span>
                       {naoLidas > 0 ? (
-                        <span style={{ flex: "none", background: c.brass, color: "#fff", borderRadius: 999, fontSize: 10.5, fontWeight: 700, padding: "1px 7px" }}>
+                        <span className="num" style={{ flex: "none", background: c.neon, color: c.onNeon, borderRadius: 999, fontSize: 10.5, fontWeight: 600, padding: "1px 7px" }}>
                           {naoLidas}
                         </span>
                       ) : null}
@@ -398,8 +399,12 @@ export function TelaWhatsapp() {
       {/* ---- Conversa ---- */}
       <div style={painel}>
         {!abertaBruta ? (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: c.ink3, fontSize: 13, padding: 30, textAlign: "center" }}>
-            Escolha uma conversa à esquerda — ou adicione um cliente do cadastro.
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: c.ink3, fontSize: 13, padding: 30, textAlign: "center", background: c.field }}>
+            <span style={{ width: 52, height: 52, borderRadius: "50%", background: c.forest, color: c.neon, display: "grid", placeItems: "center" }}>
+              <Icon name="whatsapp" size={22} />
+            </span>
+            <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: "-0.02em", color: c.ink }}>Nenhuma conversa aberta</span>
+            <span style={{ maxWidth: 300, lineHeight: 1.5 }}>Escolha uma conversa à esquerda — ou adicione um cliente do cadastro.</span>
           </div>
         ) : (
           <>
@@ -409,7 +414,7 @@ export function TelaWhatsapp() {
               ia={iaLigada ? { pausada: iaPausada, ocupado: mexendoNaIa, alternar: () => void alternarIa() } : null}
             />
 
-            <div style={{ flex: 1, overflow: "auto", padding: "16px 20px", background: c.bg }}>
+            <div style={{ flex: 1, overflow: "auto", padding: "18px 22px", background: c.field }}>
               {mensagens.length === 0 && pendentesVisiveis.length === 0 ? (
                 <div style={{ textAlign: "center", color: c.ink3, fontSize: 12.5, padding: "30px 10px", lineHeight: 1.6 }}>
                   Sem mensagens por aqui ainda.
@@ -424,9 +429,9 @@ export function TelaWhatsapp() {
 
               {pendentesVisiveis.map((p) => (
                 <div key={p.id} style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
-                  <div style={{ maxWidth: "72%", background: p.erro ? c.redBg : c.brassSoft, color: c.ink, borderRadius: "12px 12px 3px 12px", padding: "8px 11px", fontSize: 13.5, lineHeight: 1.45, opacity: p.erro ? 1 : 0.75 }}>
+                  <div style={{ maxWidth: "72%", background: p.erro ? c.redBg : c.forest, color: p.erro ? c.ink : c.darkText, borderRadius: "16px 16px 4px 16px", padding: "9px 13px", fontSize: 13.5, lineHeight: 1.45, opacity: p.erro ? 1 : 0.7 }}>
                     <div style={{ whiteSpace: "pre-wrap" }}>{p.texto}</div>
-                    <div style={{ fontSize: 10.5, marginTop: 3, color: p.erro ? c.redText : c.ink3, fontWeight: 600 }}>
+                    <div style={{ fontSize: 10.5, marginTop: 3, color: p.erro ? c.redText : c.darkMuted, fontWeight: 500 }}>
                       {p.erro ?? "enviando…"}
                     </div>
                   </div>
@@ -460,13 +465,13 @@ export function TelaWhatsapp() {
                   flex: 1,
                   resize: "none",
                   border: `1px solid ${c.borderInput}`,
-                  borderRadius: 10,
-                  padding: "9px 12px",
+                  borderRadius: 18,
+                  padding: "10px 14px",
                   fontSize: 13.5,
                   fontFamily: font.sans,
                   color: c.inkTitle,
                   outline: "none",
-                  background: conectado ? c.surface : c.surfaceWarm,
+                  background: conectado ? c.field : c.surfaceAlt,
                 }}
               />
               <button
@@ -475,14 +480,18 @@ export function TelaWhatsapp() {
                 style={{
                   border: "none",
                   cursor: !conectado || enviando || !rascunho.trim() ? "default" : "pointer",
-                  background: !conectado || enviando || !rascunho.trim() ? c.surfaceWarm : c.primaryBtnBg,
+                  background: !conectado || enviando || !rascunho.trim() ? c.surfaceAlt : c.primaryBtnBg,
                   color: !conectado || enviando || !rascunho.trim() ? c.ink3 : c.primaryBtnText,
-                  padding: "10px 18px",
-                  borderRadius: 10,
+                  padding: "11px 18px",
+                  borderRadius: 999,
                   fontSize: 13,
-                  fontWeight: 700,
+                  fontWeight: 600,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 7,
                 }}
               >
+                <Icon name="enviar" size={15} />
                 {enviando ? "Enviando…" : "Enviar"}
               </button>
             </div>
@@ -513,7 +522,7 @@ function SeloIa() {
         gap: 3,
         background: c.brassSoft,
         color: c.brassDeep,
-        border: `1px solid ${c.brass}`,
+        border: `1px solid ${c.accentLine}`,
         borderRadius: 999,
         padding: "0 5px",
         fontSize: 9.5,
@@ -546,10 +555,10 @@ function SeloSugestao({ pendentes }: { pendentes: Sugestao[] }) {
         alignItems: "center",
         gap: 5,
         marginTop: 4,
-        border: `1px dashed ${c.brass}`,
+        border: `1px dashed ${c.accent}`,
         background: c.brassTint,
         color: c.brassDeep,
-        borderRadius: 7,
+        borderRadius: 999,
         padding: "2px 6px",
         fontSize: 10.5,
         fontWeight: 700,
@@ -639,10 +648,10 @@ function CabecalhoConversa({
               : "O atendente automático responde esta conversa sozinho."
           }
           style={{
-            border: `1px solid ${ia.pausada ? c.borderInput : c.brass}`,
+            border: `1px solid ${ia.pausada ? c.border : c.accentLine}`,
             background: ia.pausada ? c.surface : c.brassTint,
             color: ia.pausada ? c.ink2 : c.brassDeep,
-            borderRadius: 9,
+            borderRadius: 999,
             padding: "7px 12px",
             fontSize: 12,
             fontWeight: 700,
@@ -657,7 +666,7 @@ function CabecalhoConversa({
         </button>
       ) : null}
       {item.cliente ? (
-        <button onClick={onVerCliente} style={{ border: `1px solid ${c.borderInput}`, background: c.surface, color: c.inkTitle, borderRadius: 9, padding: "7px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+        <button onClick={onVerCliente} className="oc-btn oc-btn-ghost oc-btn-sm">
           Ver cliente
         </button>
       ) : (
@@ -689,7 +698,8 @@ function PainelAdicionar({
           onChange={(e) => setBusca(e.target.value)}
           autoFocus
           placeholder="Buscar por nome, telefone ou e-mail…"
-          style={{ width: "100%", border: `1px solid ${c.border}`, borderRadius: 9, padding: "8px 11px", fontSize: 13, fontFamily: font.sans, color: c.inkTitle, outline: "none", background: c.surface }}
+          className="oc-input"
+          style={{ width: "100%", border: `1px solid ${c.border}`, borderRadius: 999, padding: "8px 14px", fontSize: 13, fontFamily: font.sans, color: c.inkTitle, outline: "none", background: c.surface }}
         />
         <div style={{ fontSize: 11.5, color: c.ink3, marginTop: 8, lineHeight: 1.5 }}>
           Um clique abre a conversa de <b>um</b> cliente. Nada é enviado agora, e nenhum outro número é cadastrado.
@@ -747,7 +757,7 @@ function Balao({ m, mostrarDia }: { m: MensagemWa; mostrarDia: boolean }) {
     <>
       {mostrarDia ? (
         <div style={{ textAlign: "center", margin: "10px 0 12px" }}>
-          <span style={{ fontSize: 10.5, fontWeight: 700, color: c.ink3, background: c.surface, border: `1px solid ${c.borderSoft}`, borderRadius: 999, padding: "3px 10px" }}>
+          <span className="oc-label" style={{ fontSize: 10, color: c.ink3, background: c.surface, border: `1px solid ${c.border}`, borderRadius: 999, padding: "3px 10px" }}>
             {diaLabel(m.sentAt)}
           </span>
         </div>
@@ -756,11 +766,12 @@ function Balao({ m, mostrarDia }: { m: MensagemWa; mostrarDia: boolean }) {
         <div
           style={{
             maxWidth: "72%",
-            background: minha ? c.brassSoft : c.surface,
+            background: minha ? c.forest : c.surface,
             border: minha ? "none" : `1px solid ${c.border}`,
-            color: c.ink,
-            borderRadius: minha ? "12px 12px 3px 12px" : "12px 12px 12px 3px",
-            padding: "8px 11px",
+            color: minha ? c.darkText : c.ink,
+            borderRadius: minha ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
+            padding: "9px 13px",
+            boxShadow: minha ? "0 2px 8px -4px rgba(6,17,11,.5)" : "var(--oc-shadow-sm)",
             fontSize: 13.5,
             lineHeight: 1.45,
           }}
@@ -769,9 +780,9 @@ function Balao({ m, mostrarDia }: { m: MensagemWa; mostrarDia: boolean }) {
           {m.text || m.caption ? <div style={{ whiteSpace: "pre-wrap" }}>{m.text || m.caption}</div> : null}
           <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "flex-end", marginTop: 3 }}>
             {m.porIa ? (
-              <span style={{ fontSize: 10, fontWeight: 700, color: c.brassDeep }}>IA</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: minha ? c.neon : c.brassDeep }}>IA</span>
             ) : null}
-            <span style={{ fontSize: 10.5, color: c.ink3 }}>{horaCurta(m.sentAt)}</span>
+            <span className="num" style={{ fontSize: 10.5, color: minha ? c.darkMuted : c.ink3 }}>{horaCurta(m.sentAt)}</span>
           </div>
         </div>
       </div>
