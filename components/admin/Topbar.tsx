@@ -1,16 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { c, font, shadow } from "@/lib/theme";
 import { isoParaLabel } from "@/lib/date";
 import { useHoje } from "@/lib/useRelogio";
 import { useStore } from "@/lib/store";
 import { NovoAgendamentoModal } from "@/components/admin/NovoAgendamentoModal";
 import { useNavegacao } from "@/components/admin/navegacao";
+import { Icon } from "@/components/ui/Icon";
+import { Button } from "@/components/ui/Button";
+import { ThemeSwitch } from "@/components/ui/ThemeSwitch";
 
-export default function Topbar({ eyebrow, title }: { eyebrow: string; title: string }) {
+// Barra do topo: a própria página (sem faixa nem borda). Breadcrumb "Barbearia / Aba"
+// à esquerda; busca em pílula, data, tema e o botão principal à direita. O título
+// grande da aba mora no PageHeader, dentro da tela.
+export default function Topbar({ title, onMenu }: { title: string; onMenu: () => void }) {
   const { ir } = useNavegacao();
-  const { dispatch } = useStore();
+  const { state, dispatch } = useStore();
   const hoje = useHoje();
   const [q, setQ] = useState("");
   const [novo, setNovo] = useState(false);
@@ -23,77 +28,50 @@ export default function Topbar({ eyebrow, title }: { eyebrow: string; title: str
   }
 
   return (
-    <header
-      style={{
-        height: 74,
-        background: c.surface,
-        borderBottom: `1px solid ${c.border}`,
-        display: "flex",
-        alignItems: "center",
-        padding: "0 30px",
-        gap: 18,
-        flex: "none",
-      }}
-    >
-      <div style={{ flex: "none" }}>
-        <div style={{ fontSize: 10.5, letterSpacing: 1.5, textTransform: "uppercase", color: c.ink4, fontWeight: 600, whiteSpace: "nowrap" }}>
-          {eyebrow}
-        </div>
-        <div style={{ fontFamily: font.sans, fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: c.inkTitle, marginTop: 1, whiteSpace: "nowrap" }}>
-          {title}
-        </div>
+    <header className="oc-topbar">
+      <button className="oc-icon-btn oc-only-mobile" onClick={onMenu} aria-label="Abrir menu">
+        <Icon name="menu" size={18} />
+      </button>
+
+      <div className="oc-crumb">
+        <span className="oc-only-desktop" style={{ overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220 }}>
+          {state.config.nome || "Barbearia"}
+        </span>
+        <span className="oc-only-desktop">/</span>
+        <b>{title}</b>
       </div>
 
+      <span style={{ flex: 1 }} />
+
       <form
+        className="oc-search oc-only-desktop"
+        style={{ width: 340, maxWidth: "34vw" }}
         onSubmit={(e) => {
           e.preventDefault();
           buscar();
         }}
-        style={{
-          flex: 1,
-          minWidth: 120,
-          maxWidth: 230,
-          display: "flex",
-          alignItems: "center",
-          background: c.surfaceWarm,
-          border: `1px solid ${c.border}`,
-          borderRadius: 10,
-          padding: "9px 13px",
-          gap: 9,
-          color: c.ink4,
-        }}
       >
-        <span style={{ width: 13, height: 13, border: `1.6px solid ${c.ink4}`, borderRadius: "50%", display: "inline-block", flex: "none" }} />
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar cliente…"
-          style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", fontSize: 13, color: c.inkTitle, fontFamily: font.sans }}
-        />
+        <Icon name="busca" size={16} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar cliente…" aria-label="Buscar cliente" />
+        <span className="oc-kbd">↵</span>
       </form>
 
-      <div style={{ fontSize: 13, color: c.inkLabel, fontWeight: 600, background: c.surfaceWarm, border: `1px solid ${c.border}`, borderRadius: 10, padding: "10px 13px", whiteSpace: "nowrap" }}>
+      <div
+        className="oc-only-desktop"
+        style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: "var(--oc-sub)", background: "var(--oc-surface)", border: "1px solid var(--oc-line)", borderRadius: 999, padding: "0 13px", height: 38, whiteSpace: "nowrap", fontWeight: 500 }}
+      >
+        <Icon name="agenda" size={14} />
         {isoParaLabel(hoje)}
       </div>
 
-      <button
-        onClick={() => setNovo(true)}
-        className="oc-btn oc-btn-primary"
-        style={{
-          border: "none",
-          cursor: "pointer",
-          background: c.primaryBtnBg,
-          color: c.primaryBtnText,
-          padding: "11px 16px",
-          borderRadius: 12,
-          fontSize: 13.5,
-          fontWeight: 700,
-          whiteSpace: "nowrap",
-          boxShadow: shadow.glow,
-        }}
-      >
-        + Novo agendamento
-      </button>
+      <div className="oc-only-desktop">
+        <ThemeSwitch />
+      </div>
+
+      <Button icon="mais" onClick={() => setNovo(true)}>
+        <span className="oc-only-desktop">Novo agendamento</span>
+        <span className="oc-only-mobile">Novo</span>
+      </Button>
 
       <NovoAgendamentoModal open={novo} onClose={() => setNovo(false)} />
     </header>

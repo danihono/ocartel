@@ -33,8 +33,8 @@ export function Seal({ size = 40, alt = "" }: { size?: number; alt?: string }) {
 export function Avatar({
   initials,
   size = 38,
-  bg = c.brassSoft,
-  color = c.brassDeep,
+  bg = c.surfaceAlt,
+  color = c.ink,
   fontSize,
 }: {
   initials: string;
@@ -55,7 +55,8 @@ export function Avatar({
         alignItems: "center",
         justifyContent: "center",
         fontSize: fontSize ?? Math.round(size * 0.34),
-        fontWeight: 700,
+        fontWeight: 600,
+        letterSpacing: "-0.02em",
         flex: "none",
       }}
     >

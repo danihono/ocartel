@@ -1,5 +1,6 @@
 // Seletores puros: derivam as formas que as telas já esperam a partir do
 // modelo único `Agendamento`. As telas leem daqui (não importam mock-data).
+import { c as tema } from "./theme";
 import type { AppState } from "./store";
 import type {
   Agendamento,
@@ -558,7 +559,8 @@ export function selectDesempenhoBarbeiros(state: AppState, hojeISO: string = HOJ
     .sort((a, b) => b.faturamento - a.faturamento);
 }
 
-const CORES_SERVICO = ["#0EA37A", "#0FB6C8", "#7C5CFC", "#E0A21A", "#F0476A"];
+// Série categórica do tema (variáveis CSS: acompanha claro/escuro).
+const CORES_SERVICO = tema.series;
 
 /** Serviços mais vendidos: derivado dos atendimentos concluídos (top 5). */
 export function selectServicosMaisVendidos(

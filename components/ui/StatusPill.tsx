@@ -1,16 +1,8 @@
-export function StatusPill({ label, fg, bg }: { label: string; fg: string; bg: string }) {
+/** Pílula de status: texto colorido sobre o tint da mesma cor, sem borda. */
+export function StatusPill({ label, fg, bg, dot = false }: { label: string; fg: string; bg: string; dot?: boolean }) {
   return (
-    <span
-      style={{
-        fontSize: 11,
-        fontWeight: 700,
-        padding: "4px 11px",
-        borderRadius: 999,
-        background: bg,
-        color: fg,
-        whiteSpace: "nowrap",
-      }}
-    >
+    <span className="oc-chip" style={{ background: bg, color: fg }}>
+      {dot ? <span className="oc-chip-dot" /> : null}
       {label}
     </span>
   );
@@ -18,17 +10,7 @@ export function StatusPill({ label, fg, bg }: { label: string; fg: string; bg: s
 
 export function Tag({ label, fg, bg }: { label: string; fg: string; bg: string }) {
   return (
-    <span
-      style={{
-        fontSize: 10.5,
-        fontWeight: 700,
-        padding: "3px 9px",
-        borderRadius: 999,
-        background: bg,
-        color: fg,
-        flex: "none",
-      }}
-    >
+    <span className="oc-chip" style={{ background: bg, color: fg, fontSize: 10.5, padding: "2px 8px", flex: "none" }}>
       {label}
     </span>
   );

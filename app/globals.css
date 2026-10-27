@@ -1,15 +1,180 @@
-/* Tokens espelhados de lib/theme.ts para o CSS global (micro-interações). */
+/*
+ * O Cartel: paleta "Navalha".
+ *
+ * Base clara e quente (off-white, cartão branco, tinta quase preta), como no
+ * crm-titas e no FisioUp, mas sem um acento colorido solto: o destaque é o PAR da
+ * marca, floresta quase preta + limão neon (#B7FF18). Regra de ouro: neon NUNCA vira
+ * texto sobre fundo claro (não tem contraste). No claro, o acento legível é
+ * --oc-accent (um verde-oliva escuro). O neon aparece sobre floresta, no tema
+ * escuro, ou como preenchimento com texto floresta.
+ *
+ * lib/theme.ts aponta para estas variáveis, então os estilos inline das telas
+ * seguem o tema (claro/escuro) sem conhecer as cores.
+ */
 :root {
-  --oc-bg: #f5f7f8;
-  --oc-ink: #0f1b19;
-  --oc-primary: #0ea37a;
-  --oc-primary-hover: #0c8e69;
-  --oc-surface-alt: #edf1f3;
-  --oc-ring: rgba(14, 163, 122, 0.18);
-  --oc-nav-hover: rgba(14, 163, 122, 0.12);
-  --oc-scrollbar: #c9d4d8;
+  color-scheme: light;
+
+  /* superfícies */
+  --oc-page: #f4f4f0;
+  --oc-surface: #ffffff;
+  --oc-raised: #eeeee9;
+  --oc-field: #f9f9f6;
+  --oc-overlay: rgba(10, 16, 12, 0.38);
+
+  /* tinta */
+  --oc-ink: #0e1411;
+  --oc-sub: #545b57;
+  --oc-muted: #7a817d;
+  --oc-faint: #a3a8a4;
+  --oc-dim: #a3a8a4; /* segundo tom dos títulos */
+
+  /* bordas */
+  --oc-line: #e6e6e0;
+  --oc-hair: #efefea;
+  --oc-line-strong: #dddcd5;
+
+  /* floresta: superfícies escuras em QUALQUER tema (herói, nav ativa, toast) */
+  --oc-forest: #0b1a12;
+  --oc-forest-deep: #06110b;
+  --oc-forest-2: #16291e;
+  --oc-forest-line: rgba(183, 255, 24, 0.12);
+  --oc-on-forest: #eef4ec;
+  --oc-on-forest-dim: #9aaa9f;
+
+  /* neon da marca */
+  --oc-neon: #b7ff18;
+  --oc-neon-press: #a6ef00;
+  --oc-on-neon: #0b1a12;
+
+  /* acento legível sobre a superfície do tema */
+  --oc-accent: #4a7300;
+  --oc-accent-strong: #365500;
+  --oc-accent-soft: rgba(183, 255, 24, 0.28);
+  --oc-accent-tint: rgba(183, 255, 24, 0.14);
+  --oc-accent-line: rgba(74, 115, 0, 0.28);
+
+  /* botão principal / item ativo */
+  --oc-btn-bg: #0b1a12;
+  --oc-btn-bg-hover: #16291e;
+  --oc-btn-ink: #ffffff;
+  --oc-btn-icon: #b7ff18;
+  --oc-sel-bg: #0b1a12;
+  --oc-sel-ink: #b7ff18;
+  --oc-sel-text: #ffffff;
+
+  /* status: texto + tint */
+  --oc-green: #1f8a5b;
+  --oc-green-ink: #17704a;
+  --oc-green-tint: #e5f3ec;
+  --oc-amber: #b07a12;
+  --oc-amber-ink: #8a5d0a;
+  --oc-amber-tint: #faf0dc;
+  --oc-red: #c2334b;
+  --oc-red-ink: #a52a3f;
+  --oc-red-tint: #fbe8eb;
+  --oc-blue: #2f6fb3;
+  --oc-blue-ink: #245a93;
+  --oc-blue-tint: #e6eff8;
+  --oc-violet: #6a4fd6;
+  --oc-violet-tint: #eeeafb;
+  --oc-pink: #d63f6b;
+
+  /* série categórica (barbeiros, planos, gráficos) */
+  --oc-s1: #4a7300;
+  --oc-s2: #2f6fb3;
+  --oc-s3: #6a4fd6;
+  --oc-s4: #b07a12;
+  --oc-s5: #d63f6b;
+
+  /* sombras: baixas e largas, o cartão flutua, não pesa */
+  --oc-shadow-sm: 0 1px 2px rgba(14, 20, 17, 0.04);
+  --oc-shadow-card: 0 1px 2px rgba(14, 20, 17, 0.03), 0 10px 30px -14px rgba(14, 20, 17, 0.1);
+  --oc-shadow-pop: 0 14px 36px -8px rgba(14, 20, 17, 0.18);
+  --oc-shadow-modal: 0 30px 80px rgba(14, 20, 17, 0.24);
+  --oc-shadow-phone: 0 30px 70px rgba(6, 17, 11, 0.4);
+  --oc-glow: 0 0 0 3px rgba(183, 255, 24, 0.35), 0 8px 22px -8px rgba(11, 26, 18, 0.45);
+  --oc-ring: 0 0 0 3px rgba(183, 255, 24, 0.32);
+  --oc-scrollbar: rgba(14, 20, 17, 0.14);
+  --oc-scrollbar-hover: rgba(14, 20, 17, 0.28);
+
+  --oc-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --oc-radius: 18px;
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --oc-page: #0a0d0b;
+  --oc-surface: #121714;
+  --oc-raised: #1a201c;
+  --oc-field: #151a17;
+  --oc-overlay: rgba(0, 0, 0, 0.62);
+
+  --oc-ink: #eef2ee;
+  --oc-sub: #a9b1ac;
+  --oc-muted: #808984;
+  --oc-faint: #66706a;
+  --oc-dim: #5e6661;
+
+  --oc-line: #232a25;
+  --oc-hair: #1c221e;
+  --oc-line-strong: #2c342e;
+
+  --oc-forest: #102318;
+  --oc-forest-deep: #0a170f;
+  --oc-forest-2: #1a3324;
+  --oc-forest-line: rgba(183, 255, 24, 0.14);
+  --oc-on-forest: #eef4ec;
+  --oc-on-forest-dim: #93a499;
+
+  --oc-accent: #b7ff18;
+  --oc-accent-strong: #ccff5c;
+  --oc-accent-soft: rgba(183, 255, 24, 0.18);
+  --oc-accent-tint: rgba(183, 255, 24, 0.09);
+  --oc-accent-line: rgba(183, 255, 24, 0.3);
+
+  /* no escuro o neon vira preenchimento: pílula neon com texto floresta */
+  --oc-btn-bg: #b7ff18;
+  --oc-btn-bg-hover: #c6ff4a;
+  --oc-btn-ink: #0b1a12;
+  --oc-btn-icon: #0b1a12;
+  --oc-sel-bg: #b7ff18;
+  --oc-sel-ink: #0b1a12;
+  --oc-sel-text: #0b1a12;
+
+  --oc-green: #5fd19c;
+  --oc-green-ink: #74dcab;
+  --oc-green-tint: rgba(95, 209, 156, 0.14);
+  --oc-amber: #e5b55c;
+  --oc-amber-ink: #edc378;
+  --oc-amber-tint: rgba(229, 181, 92, 0.15);
+  --oc-red: #f0808f;
+  --oc-red-ink: #f497a4;
+  --oc-red-tint: rgba(240, 128, 143, 0.15);
+  --oc-blue: #82b3e8;
+  --oc-blue-ink: #9cc3ee;
+  --oc-blue-tint: rgba(130, 179, 232, 0.14);
+  --oc-violet: #a996f2;
+  --oc-violet-tint: rgba(169, 150, 242, 0.15);
+  --oc-pink: #f08aa8;
+
+  --oc-s1: #b7ff18;
+  --oc-s2: #82b3e8;
+  --oc-s3: #a996f2;
+  --oc-s4: #e5b55c;
+  --oc-s5: #f08aa8;
+
+  --oc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --oc-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px -14px rgba(0, 0, 0, 0.6);
+  --oc-shadow-pop: 0 14px 36px -8px rgba(0, 0, 0, 0.7);
+  --oc-shadow-modal: 0 30px 80px rgba(0, 0, 0, 0.72);
+  --oc-glow: 0 0 0 3px rgba(183, 255, 24, 0.22), 0 8px 26px -6px rgba(183, 255, 24, 0.35);
+  --oc-ring: 0 0 0 3px rgba(183, 255, 24, 0.22);
+  --oc-scrollbar: rgba(255, 255, 255, 0.12);
+  --oc-scrollbar-hover: rgba(255, 255, 255, 0.24);
+}
+
+/* ---------------------------------------------------------------- base */
 * {
   box-sizing: border-box;
 }
@@ -21,69 +186,27 @@ body {
 }
 
 body {
-  background: var(--oc-bg);
+  background: var(--oc-page);
   color: var(--oc-ink);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
 }
 
-button {
+button,
+input,
+select,
+textarea {
   font-family: inherit;
 }
 
-/* --- Micro-interações (hover/foco/transições) --- */
-.oc-btn {
-  transition: filter 0.14s ease, background 0.14s ease, box-shadow 0.14s ease, transform 0.1s ease;
-}
-.oc-btn:hover {
-  filter: brightness(1.04);
-}
-.oc-btn:active {
-  transform: translateY(1px);
-}
-.oc-btn-primary:hover {
-  background: var(--oc-primary-hover) !important;
-  filter: none;
-  box-shadow: 0 6px 18px rgba(14, 163, 122, 0.28);
-}
-.oc-btn-ghost:hover {
-  background: var(--oc-surface-alt) !important;
-  filter: none;
-}
-.oc-nav {
-  transition: background 0.12s ease, color 0.12s ease;
-}
-.oc-nav:hover {
-  background: var(--oc-nav-hover);
-}
-.oc-row {
-  transition: background 0.12s ease, border-color 0.12s ease;
-}
-.oc-row:hover {
-  background: var(--oc-surface-alt);
-}
-.oc-card {
-  transition: box-shadow 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
-}
-/* Bloco de agendamento na grade da agenda. Só a sombra muda no hover: um `transform`
-   deslocaria o bloco no meio do arraste, que posiciona por pixel. */
-.oc-bloco:hover {
-  box-shadow: 0 8px 24px rgba(15, 27, 25, 0.12);
-}
-.oc-input {
-  transition: border-color 0.14s ease, box-shadow 0.14s ease;
-}
-.oc-input:focus,
-.oc-input:focus-within {
-  border-color: var(--oc-primary) !important;
-  box-shadow: 0 0 0 3px var(--oc-ring);
-}
-
-/* Foco visível para teclado em qualquer elemento interativo */
-:focus-visible {
-  outline: 2px solid var(--oc-primary);
-  outline-offset: 2px;
+input::placeholder,
+textarea::placeholder {
+  color: var(--oc-faint);
 }
 
 a {
@@ -91,18 +214,704 @@ a {
   text-decoration: none;
 }
 
+:focus-visible {
+  outline: 2px solid var(--oc-accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--oc-accent-soft);
+}
+
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--oc-scrollbar);
-  border-radius: 10px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--oc-scrollbar-hover);
+  background-clip: padding-box;
 }
 
+/* Números: mono, tabular e com tracking negativo, em todo lugar. */
+.num {
+  font-family: var(--font-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+/* Wordmark "O CARTEL": a única serifa do sistema. */
+.oc-wordmark {
+  font-family: var(--font-cinzel), serif;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+}
+
+/* --------------------------------------------------------- tipografia */
+.oc-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--oc-muted);
+  background: var(--oc-surface);
+  border: 1px solid var(--oc-line);
+  border-radius: 999px;
+  padding: 4px 10px;
+  line-height: 1.4;
+}
+.oc-eyebrow-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--oc-accent);
+  box-shadow: 0 0 0 3px var(--oc-accent-tint);
+}
+
+.oc-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--oc-muted);
+}
+
+/* Título em dois tons: "Agenda. / 12 horários hoje." */
+.oc-h1 {
+  margin: 0;
+  font-size: clamp(26px, 2.6vw, 36px);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+  color: var(--oc-ink);
+  text-wrap: balance;
+}
+.oc-h1 span {
+  display: block;
+  color: var(--oc-dim);
+}
+
+.oc-h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--oc-ink);
+}
+.oc-h2-sub {
+  font-size: 12px;
+  color: var(--oc-muted);
+  margin-top: 2px;
+}
+
+/* -------------------------------------------------------------- cards */
+.oc-card {
+  background: var(--oc-surface);
+  border: 1px solid var(--oc-hair);
+  border-radius: var(--oc-radius);
+  box-shadow: var(--oc-shadow-card);
+  min-width: 0;
+  transition: box-shadow 0.28s var(--oc-ease), transform 0.28s var(--oc-ease), border-color 0.2s ease;
+}
+.oc-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--oc-shadow-pop);
+}
+
+/* Herói "barber pole": floresta com listras diagonais quase invisíveis. */
+.oc-card-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--oc-forest);
+  color: var(--oc-on-forest);
+  border: 1px solid var(--oc-forest-line);
+  border-radius: var(--oc-radius);
+  box-shadow: 0 18px 40px -16px rgba(6, 17, 11, 0.55);
+}
+.oc-card-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(183, 255, 24, 0.16), transparent 55%),
+    repeating-linear-gradient(135deg, rgba(183, 255, 24, 0.045) 0 2px, transparent 2px 14px);
+  pointer-events: none;
+}
+.oc-card-hero .oc-label {
+  color: var(--oc-on-forest-dim);
+}
+
+.oc-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* ------------------------------------------------------------ botões */
+.oc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.18s var(--oc-ease), box-shadow 0.18s ease, background 0.15s ease, border-color 0.15s ease,
+    color 0.15s ease, filter 0.18s ease;
+}
+.oc-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.oc-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.985);
+}
+.oc-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.oc-btn svg {
+  flex: none;
+}
+
+.oc-btn-primary {
+  background: var(--oc-btn-bg);
+  color: var(--oc-btn-ink);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 13.5px;
+  font-weight: 600;
+  box-shadow: 0 6px 16px -8px rgba(6, 17, 11, 0.6);
+}
+.oc-btn-primary svg {
+  color: var(--oc-btn-icon);
+}
+.oc-btn-primary:hover:not(:disabled) {
+  background: var(--oc-btn-bg-hover);
+  box-shadow: var(--oc-glow);
+}
+
+.oc-btn-ghost {
+  background: var(--oc-surface);
+  color: var(--oc-ink);
+  border: 1px solid var(--oc-line);
+  border-radius: 999px;
+  padding: 9px 16px;
+  font-size: 13.5px;
+  font-weight: 500;
+  box-shadow: var(--oc-shadow-sm);
+}
+.oc-btn-ghost:hover:not(:disabled) {
+  border-color: var(--oc-line-strong);
+  background: var(--oc-surface);
+}
+
+/* Ação suave em tinta do acento. */
+.oc-btn-pill {
+  background: var(--oc-accent-tint);
+  color: var(--oc-accent-strong);
+  border: 1px solid var(--oc-accent-line);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.oc-btn-pill:hover:not(:disabled) {
+  background: var(--oc-accent-soft);
+}
+
+/* CTA neon (páginas públicas, login): preenchimento neon + texto floresta. */
+.oc-btn-neon {
+  background: var(--oc-neon);
+  color: var(--oc-on-neon);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 13px 20px;
+  font-size: 14.5px;
+  font-weight: 700;
+  box-shadow: 0 10px 24px -10px rgba(140, 200, 0, 0.75);
+}
+.oc-btn-neon:hover:not(:disabled) {
+  background: var(--oc-neon-press);
+  box-shadow: 0 0 0 4px rgba(183, 255, 24, 0.25), 0 12px 28px -10px rgba(140, 200, 0, 0.8);
+}
+
+.oc-btn-danger {
+  background: var(--oc-red-tint);
+  color: var(--oc-red-ink);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 9px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.oc-btn-sm {
+  padding: 7px 13px;
+  font-size: 12.5px;
+}
+.oc-btn-block {
+  width: 100%;
+}
+
+.oc-icon-btn {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--oc-line);
+  background: var(--oc-surface);
+  color: var(--oc-sub);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.oc-icon-btn:hover {
+  color: var(--oc-ink);
+  border-color: var(--oc-line-strong);
+}
+.oc-icon-btn.is-plain {
+  border-color: transparent;
+  background: transparent;
+}
+.oc-icon-btn.is-plain:hover {
+  background: var(--oc-raised);
+}
+
+/* ------------------------------------------------------------ campos */
+.oc-input {
+  transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
+}
+.oc-input:focus,
+.oc-input:focus-within {
+  border-color: var(--oc-accent) !important;
+  background: var(--oc-surface) !important;
+  box-shadow: var(--oc-ring);
+}
+
+/* Busca em pílula. */
+.oc-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 38px;
+  padding: 0 8px 0 14px;
+  background: var(--oc-surface);
+  border: 1px solid var(--oc-line);
+  border-radius: 999px;
+  color: var(--oc-muted);
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.oc-search:focus-within {
+  border-color: var(--oc-accent);
+  box-shadow: var(--oc-ring);
+}
+.oc-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--oc-ink);
+}
+.oc-kbd {
+  font-family: var(--font-mono), monospace;
+  font-size: 10.5px;
+  color: var(--oc-muted);
+  border: 1px solid var(--oc-line);
+  border-radius: 6px;
+  padding: 2px 6px;
+  line-height: 1.3;
+}
+
+/* ------------------------------------------------- chips e segmentos */
+.oc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  border-radius: 999px;
+  padding: 3px 10px;
+  line-height: 1.5;
+}
+.oc-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Segmentado: o selecionado é floresta (neon no escuro). */
+.oc-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--oc-surface);
+  border: 1px solid var(--oc-line);
+  border-radius: 999px;
+  flex: none;
+}
+.oc-seg button {
+  border: none;
+  background: transparent;
+  color: var(--oc-sub);
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 6px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.oc-seg button:hover {
+  color: var(--oc-ink);
+}
+.oc-seg button[aria-pressed="true"],
+.oc-seg button[aria-selected="true"] {
+  background: var(--oc-sel-bg);
+  color: var(--oc-sel-text);
+}
+.oc-seg-count {
+  font-family: var(--font-mono), monospace;
+  font-size: 10.5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  background: var(--oc-raised);
+  color: var(--oc-sub);
+}
+.oc-seg button[aria-pressed="true"] .oc-seg-count,
+.oc-seg button[aria-selected="true"] .oc-seg-count {
+  background: rgba(255, 255, 255, 0.16);
+  color: inherit;
+}
+
+/* --------------------------------------------------- tabelas em grid */
+.oc-thead {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--oc-muted);
+}
+.oc-row {
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.oc-row:hover {
+  background: var(--oc-field);
+}
+
+/* ------------------------------------------------------------- shell */
+.oc-shell {
+  display: flex;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--oc-page);
+}
+
+.oc-side {
+  flex: 0 0 auto;
+  width: 244px;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 14px 14px;
+  background: var(--oc-page);
+  border-right: 1px solid var(--oc-line);
+  transition: width 0.22s var(--oc-ease);
+  overflow: hidden;
+}
+.oc-side.is-collapsed {
+  width: 74px;
+  overflow: visible; /* deixa o tooltip sair para o lado */
+}
+.oc-side.is-collapsed nav {
+  overflow: visible !important;
+}
+
+.oc-nav {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 13px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--oc-sub);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+.oc-nav svg {
+  flex: none;
+  color: var(--oc-muted);
+  transition: color 0.16s ease;
+}
+.oc-nav:hover {
+  background: var(--oc-raised);
+  color: var(--oc-ink);
+}
+.oc-nav:hover svg {
+  color: var(--oc-ink);
+}
+.oc-nav.is-active {
+  background: var(--oc-sel-bg);
+  color: var(--oc-sel-text);
+  font-weight: 600;
+}
+.oc-nav.is-active svg {
+  color: var(--oc-sel-ink);
+}
+.oc-side.is-collapsed .oc-nav {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  justify-content: center;
+  margin: 0 auto;
+}
+.oc-side.is-collapsed .oc-hide-collapsed {
+  display: none !important;
+}
+
+.oc-nav-group {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--oc-faint);
+  padding: 16px 13px 6px;
+}
+.oc-side.is-collapsed .oc-nav-group {
+  height: 1px;
+  padding: 0;
+  margin: 12px 16px;
+  background: var(--oc-line);
+  font-size: 0;
+}
+
+.oc-nav-badge {
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  font-family: var(--font-mono), monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  background: var(--oc-accent-tint);
+  color: var(--oc-accent-strong);
+}
+.oc-nav.is-active .oc-nav-badge {
+  background: rgba(183, 255, 24, 0.18);
+  color: var(--oc-sel-ink);
+}
+:root[data-theme="dark"] .oc-nav.is-active .oc-nav-badge {
+  background: rgba(11, 26, 18, 0.16);
+}
+.oc-side.is-collapsed .oc-nav-badge {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  min-width: 17px;
+  height: 17px;
+  font-size: 9.5px;
+  padding: 0 4px;
+  border: 2px solid var(--oc-page);
+  background: var(--oc-neon);
+  color: var(--oc-on-neon);
+}
+
+/* Tooltip em pílula do menu recolhido. */
+.oc-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translate(-4px, -50%);
+  background: var(--oc-forest);
+  color: var(--oc-on-forest);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 11px;
+  border-radius: 999px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 40;
+}
+.oc-side.is-collapsed .oc-tip:hover::after,
+.oc-side.is-collapsed .oc-tip:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
+.oc-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.oc-topbar {
+  flex: none;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 32px;
+  background: var(--oc-page);
+}
+
+.oc-crumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--oc-muted);
+  white-space: nowrap;
+  min-width: 0;
+}
+.oc-crumb b {
+  color: var(--oc-ink);
+  font-weight: 500;
+}
+
+/* Conteúdo de cada tela. */
+.oc-tela {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.oc-tela-inner {
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 6px 32px 48px;
+}
+
+.oc-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+
+.oc-kpis {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr 1fr 1fr;
+  gap: 16px;
+}
+
+/* Entrada escalonada dos blocos de uma tela. */
+.oc-stagger > * {
+  animation: oc-in 0.45s var(--oc-ease) both;
+}
+.oc-stagger > *:nth-child(2) {
+  animation-delay: 0.04s;
+}
+.oc-stagger > *:nth-child(3) {
+  animation-delay: 0.08s;
+}
+.oc-stagger > *:nth-child(4) {
+  animation-delay: 0.12s;
+}
+.oc-stagger > *:nth-child(5) {
+  animation-delay: 0.16s;
+}
+.oc-stagger > *:nth-child(n + 6) {
+  animation-delay: 0.2s;
+}
+
+/* Bloco de agendamento na grade da agenda. Só a sombra muda no hover: um `transform`
+   deslocaria o bloco no meio do arraste, que posiciona por pixel. */
+.oc-bloco {
+  transition: box-shadow 0.18s ease, filter 0.18s ease;
+}
+.oc-bloco:hover {
+  box-shadow: var(--oc-shadow-pop);
+}
+
+/* Menu suspenso. */
+.oc-menu {
+  background: var(--oc-surface);
+  border: 1px solid var(--oc-line);
+  border-radius: 14px;
+  box-shadow: var(--oc-shadow-pop);
+  padding: 6px;
+}
+.oc-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--oc-ink);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  padding: 9px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.oc-menu-item:hover {
+  background: var(--oc-raised);
+}
+.oc-menu-item svg {
+  color: var(--oc-muted);
+}
+
+/* Fundo das páginas públicas no desktop: pontilhado sutil. */
+.oc-public-bg {
+  background-color: var(--oc-page);
+  background-image: radial-gradient(var(--oc-line-strong) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* --------------------------------------------------------- animações */
+@keyframes oc-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 @keyframes oc-fade {
   from {
     opacity: 0;
@@ -114,31 +923,22 @@ a {
 @keyframes oc-pop {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.985);
+    transform: translateY(10px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: none;
   }
 }
 @keyframes oc-toast {
   from {
     opacity: 0;
-    transform: translateX(16px);
+    transform: translateY(14px);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: none;
   }
-}
-.oc-fade {
-  animation: oc-fade 0.14s ease-out;
-}
-.oc-pop {
-  animation: oc-pop 0.16s ease-out;
-}
-.oc-toast {
-  animation: oc-toast 0.18s ease-out;
 }
 @keyframes oc-slide-right {
   from {
@@ -147,14 +947,91 @@ a {
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: none;
   }
 }
+@keyframes oc-breathe {
+  50% {
+    transform: translateY(-3px);
+    opacity: 0.75;
+  }
+}
+.oc-fade {
+  animation: oc-fade 0.15s ease-out;
+}
+.oc-pop {
+  animation: oc-pop 0.24s var(--oc-ease);
+}
+.oc-toast {
+  animation: oc-toast 0.22s var(--oc-ease);
+}
 .oc-slide-right {
-  animation: oc-slide-right 0.18s ease-out;
+  animation: oc-slide-right 0.24s var(--oc-ease);
+}
+.oc-breathe {
+  animation: oc-breathe 1.6s ease-in-out infinite;
 }
 
-/* Respeita usuários que pedem menos movimento */
+/* ------------------------------------------------------- responsivo */
+.oc-only-mobile {
+  display: none !important;
+}
+
+@media (max-width: 1180px) {
+  .oc-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 899px) {
+  .oc-only-mobile {
+    display: inline-flex !important;
+  }
+  .oc-only-desktop {
+    display: none !important;
+  }
+  .oc-side {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 70;
+    width: 272px;
+    transform: translateX(-100%);
+    transition: transform 0.26s var(--oc-ease);
+    box-shadow: var(--oc-shadow-modal);
+  }
+  .oc-side.is-open {
+    transform: none;
+  }
+  .oc-side.is-collapsed {
+    width: 272px;
+  }
+  .oc-topbar {
+    padding: 0 16px;
+    height: 58px;
+  }
+  .oc-tela-inner {
+    padding: 4px 16px 40px;
+  }
+  .oc-kpis {
+    gap: 12px;
+  }
+  /* Grades de duas colunas viram uma. */
+  .oc-stack-mobile {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .oc-scroll-x {
+    overflow-x: auto;
+  }
+}
+
+@media print {
+  .oc-side,
+  .oc-topbar {
+    display: none;
+  }
+}
+
+/* Respeita quem pede menos movimento */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

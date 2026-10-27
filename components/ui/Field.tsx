@@ -6,32 +6,27 @@ import { c, font } from "@/lib/theme";
 // Estilos extraídos do formulário de login para reuso em modais e telas.
 export const fieldLabel: CSSProperties = {
   fontSize: 12,
-  fontWeight: 600,
-  color: c.inkLabel,
+  fontWeight: 500,
+  color: c.ink2,
   display: "block",
   marginBottom: 6,
 };
 
 export const fieldInput: CSSProperties = {
   width: "100%",
-  background: c.surface,
+  background: c.field,
   border: `1px solid ${c.borderInput}`,
-  borderRadius: 10,
-  padding: "12px 14px",
+  borderRadius: 12,
+  padding: "11px 14px",
   fontSize: 14,
   color: c.inkTitle,
   fontFamily: font.sans,
   outline: "none",
 };
 
-/** Variante para as telas escuras do console SaaS (/super-admin e seus modais). */
-export const fieldLabelDark: CSSProperties = { ...fieldLabel, color: c.darkMuted };
-export const fieldInputDark: CSSProperties = {
-  ...fieldInput,
-  background: c.darkBg,
-  border: `1px solid ${c.darkLine}`,
-  color: c.darkText,
-};
+/** Apelidos de quando o console SaaS era escuro fixo; o tema agora é global. */
+export const fieldLabelDark: CSSProperties = fieldLabel;
+export const fieldInputDark: CSSProperties = fieldInput;
 
 export function Field({ label, children, style }: { label: string; children: ReactNode; style?: CSSProperties }) {
   return (
@@ -65,7 +60,7 @@ export function Textarea({ style, className, ...rest }: TextareaProps) {
 export function MoneyInput({ value, onChange, style }: { value: number; onChange: (n: number) => void; style?: CSSProperties }) {
   return (
     <div className="oc-input" style={{ ...fieldInput, display: "flex", alignItems: "center", gap: 6, padding: "0 14px", ...style }}>
-      <span style={{ color: c.ink3, fontSize: 14, fontWeight: 600 }}>R$</span>
+      <span className="num" style={{ color: c.ink3, fontSize: 13, fontWeight: 500 }}>R$</span>
       <input
         inputMode="numeric"
         value={value ? String(value) : ""}

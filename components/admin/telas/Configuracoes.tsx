@@ -23,7 +23,9 @@ import {
 import type { EstadoPareamento } from "@/lib/canal/pareamento";
 
 const DIAS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
-const PALETA = ["#0EA37A", "#0FB6C8", "#7C5CFC", "#E0A21A", "#F0476A"];
+// Cor de cada barbeiro (gravada no Firestore, então hex fixo): tons médios que leem
+// bem nos dois temas, abrindo com o oliva da marca.
+const PALETA = ["#7FB520", "#3D7FC4", "#7A5FE0", "#C98A1A", "#D9527A"];
 const HORAS = Array.from({ length: 15 }, (_, i) => `${String(7 + i).padStart(2, "0")}:00`);
 const DIAS_ALERTA = [1, 2, 3, 5, 7];
 const DIAS_BOLETO = [1, 2, 3, 5, 7];

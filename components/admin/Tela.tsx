@@ -22,10 +22,14 @@
 // 3. Montagem preguiçosa. Uma aba só é construída na primeira vez que é aberta —
 //    abrir o painel não paga o custo de todas de uma vez. Depois disso ela nunca
 //    mais é desmontada, e voltar nela é só o toggle de `display`.
+//
+// `header` é o PageHeader da aba (rola junto com o conteúdo). `cheia` é para as telas
+// que ocupam a altura inteira com rolagem própria (Agenda, Clientes, WhatsApp): o
+// conteúdo ganha exatamente o espaço que sobra abaixo do cabeçalho.
 
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 
-export function Tela({ ativa, children }: { ativa: boolean; children: ReactNode }) {
+export function Tela({ ativa, header, cheia = false, children }: { ativa: boolean; header?: ReactNode; cheia?: boolean; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const ultimo = useRef<ReactNode>(null);
   const scroll = useRef(0);
@@ -45,17 +49,14 @@ export function Tela({ ativa, children }: { ativa: boolean; children: ReactNode 
   if (!jaAberta) return null;
 
   return (
-    <div
-      ref={ref}
-      hidden={!ativa}
-      style={{
-        display: ativa ? "block" : "none",
-        height: "100%",
-        overflow: "auto",
-        padding: "26px 30px",
-      }}
-    >
-      {ultimo.current}
+    <div ref={ref} hidden={!ativa} className="oc-tela" style={{ display: ativa ? "block" : "none" }}>
+      <div
+        className="oc-tela-inner"
+        style={cheia ? { height: "100%", display: "flex", flexDirection: "column", paddingBottom: 24 } : undefined}
+      >
+        {header}
+        {cheia ? <div style={{ flex: "1 1 0", minHeight: 0 }}>{ultimo.current}</div> : ultimo.current}
+      </div>
     </div>
   );
 }

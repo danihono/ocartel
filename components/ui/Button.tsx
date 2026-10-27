@@ -1,67 +1,33 @@
 "use client";
 
-import type { CSSProperties } from "react";
-import { c } from "@/lib/theme";
+import type { ReactNode } from "react";
+import { Icon, type IconName } from "./Icon";
 
-type Variant = "primary" | "ghost" | "pill" | "dark";
+// Botões em pílula. O visual mora em app/globals.css (.oc-btn-*); aqui só a escolha
+// da variante e o estado "salvando".
+//   primary → floresta com ícone neon (no escuro: neon com texto floresta)
+//   ghost   → superfície com borda fina
+//   pill    → ação suave no tint do acento
+//   neon    → CTA neon (páginas públicas e login)
+//   danger  → ação destrutiva
+//   dark    → apelido de ghost (o tema agora é global)
+type Variant = "primary" | "ghost" | "pill" | "neon" | "danger" | "dark";
 
-export const btnPrimary: CSSProperties = {
-  border: "none",
-  cursor: "pointer",
-  background: c.primaryBtnBg,
-  color: c.primaryBtnText,
-  padding: "11px 16px",
-  borderRadius: 12,
-  fontSize: 13.5,
-  fontWeight: 700,
-  whiteSpace: "nowrap",
-  boxShadow: "0 4px 14px rgba(14,163,122,.22)",
+type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: Variant;
+  loading?: boolean;
+  size?: "md" | "sm";
+  block?: boolean;
+  icon?: IconName;
+  children?: ReactNode;
 };
 
-export const btnGhost: CSSProperties = {
-  border: `1px solid ${c.borderInput}`,
-  cursor: "pointer",
-  background: c.surface,
-  color: c.ink,
-  padding: "10px 15px",
-  borderRadius: 12,
-  fontSize: 13.5,
-  fontWeight: 600,
-  whiteSpace: "nowrap",
-};
-
-export const btnPill: CSSProperties = {
-  border: "none",
-  cursor: "pointer",
-  background: c.brassSoft,
-  color: c.brassDeep,
-  padding: "8px 14px",
-  borderRadius: 999,
-  fontSize: 12.5,
-  fontWeight: 700,
-  whiteSpace: "nowrap",
-};
-
-const variants: Record<Variant, CSSProperties> = {
-  primary: btnPrimary,
-  ghost: btnGhost,
-  pill: btnPill,
-  dark: { ...btnGhost, background: "transparent", color: c.darkText, border: `1px solid ${c.darkLine}` },
-};
-
-type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; loading?: boolean };
-
-export function Button({ variant = "primary", style, className, loading = false, disabled, children, ...rest }: Props) {
-  const cls = `oc-btn oc-btn-${variant}${className ? ` ${className}` : ""}`;
-  const off = disabled || loading;
+export function Button({ variant = "primary", size = "md", block, icon, className, loading = false, disabled, children, ...rest }: Props) {
+  const v = variant === "dark" ? "ghost" : variant;
+  const cls = ["oc-btn", `oc-btn-${v}`, size === "sm" && "oc-btn-sm", block && "oc-btn-block", className].filter(Boolean).join(" ");
   return (
-    <button
-      {...rest}
-      disabled={off}
-      aria-busy={loading ? "true" : undefined}
-      className={cls}
-      style={{ ...variants[variant], ...(off ? { opacity: 0.5, cursor: "not-allowed" } : null), ...style }}
-    >
+    <button {...rest} disabled={disabled || loading} aria-busy={loading ? "true" : undefined} className={cls}>
+      {icon && !loading ? <Icon name={icon} size={size === "sm" ? 15 : 16} stroke={2} /> : null}
       {loading ? "Salvando…" : children}
     </button>
   );

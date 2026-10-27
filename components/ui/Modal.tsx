@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
-import { c, font, shadow } from "@/lib/theme";
+import { c, shadow } from "@/lib/theme";
+import { Icon } from "./Icon";
 
 export function Modal({
   open,
@@ -9,8 +10,7 @@ export function Modal({
   title,
   children,
   footer,
-  width = 440,
-  dark = false,
+  width = 460,
 }: {
   open: boolean;
   onClose: () => void;
@@ -18,6 +18,7 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
   width?: number;
+  /** Legado: o console era escuro fixo. O tema agora é global, então é ignorado. */
   dark?: boolean;
 }) {
   useEffect(() => {
@@ -31,54 +32,50 @@ export function Modal({
 
   if (!open) return null;
 
-  const surface = dark ? c.darkSurface : c.surface;
-  const border = dark ? c.darkLine : c.border;
-  const titleColor = dark ? c.darkText : c.inkTitle;
-  const closeColor = dark ? c.darkMuted : c.ink3;
-
   return (
     <div
       onClick={onClose}
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(8,19,15,.5)",
+        background: "var(--oc-overlay)",
+        backdropFilter: "blur(4px)",
+        WebkitBackdropFilter: "blur(4px)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         zIndex: 50,
-        padding: 20,
+        padding: 16,
       }}
       className="oc-fade"
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         onClick={(e) => e.stopPropagation()}
         className="oc-pop"
         style={{
           width: "100%",
           maxWidth: width,
-          maxHeight: "90vh",
+          maxHeight: "92vh",
           overflow: "auto",
-          background: surface,
-          border: `1px solid ${border}`,
-          borderRadius: 16,
-          boxShadow: shadow.pop,
-          padding: "22px 24px",
-          color: dark ? c.darkText : undefined,
+          background: c.surface,
+          border: `1px solid ${c.border}`,
+          borderRadius: 22,
+          boxShadow: shadow.modal,
+          padding: "22px 24px 24px",
+          color: c.ink,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 18 }}>
-          <span style={{ fontFamily: font.serif, fontSize: 20, fontWeight: 600, color: titleColor, flex: 1 }}>{title}</span>
-          <button
-            onClick={onClose}
-            aria-label="Fechar"
-            style={{ border: "none", background: "transparent", cursor: "pointer", color: closeColor, fontSize: 18, lineHeight: 1, padding: 4 }}
-          >
-            ✕
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+          <span style={{ fontSize: 21, fontWeight: 500, letterSpacing: "-0.03em", color: c.ink, flex: 1, minWidth: 0 }}>{title}</span>
+          <button onClick={onClose} aria-label="Fechar" className="oc-icon-btn">
+            <Icon name="fechar" size={16} />
           </button>
         </div>
         {children}
-        {footer ? <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>{footer}</div> : null}
+        {footer ? <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24, flexWrap: "wrap" }}>{footer}</div> : null}
       </div>
     </div>
   );

@@ -17,41 +17,47 @@ export const statusMeta: Record<
   Exclude<AgendamentoStatus, "concluido" | "cancelado" | "bloqueio">,
   { label: string; fg: string; bg: string }
 > = {
-  agendado: { label: STATUS_LABEL.agendado, fg: "#0A5560", bg: "#E6F6F8" },
+  agendado: { label: STATUS_LABEL.agendado, fg: c.blueText, bg: c.blueBg },
   confirmado: { label: STATUS_LABEL.confirmado, fg: c.greenText, bg: c.greenBg },
   atendimento: { label: STATUS_LABEL.atendimento, fg: c.amberText, bg: c.amberBg },
   noshow: { label: STATUS_LABEL.noshow, fg: c.redText, bg: c.redBg },
 };
 
-// Calendar block palettes (background + left bar + text colors)
+// Paleta dos blocos da agenda (fundo + barra lateral + textos). Tudo em variável:
+// segue o tema claro/escuro.
 export const blocoMeta: Record<
   AgendamentoStatus,
   { bg: string; bar: string; title: string; sub: string }
 > = {
-  confirmado: { bg: "#E3F5EE", bar: "#0EA37A", title: "#0C5C46", sub: "#3F7A6A" },
-  agendado: { bg: "#E6F6F8", bar: "#0FB6C8", title: "#0A5560", sub: "#3E7480" },
-  atendimento: { bg: "#FBF1DC", bar: "#E0A21A", title: "#7A5610", sub: "#9A6E0E" },
-  noshow: { bg: "#FDEAEA", bar: "#E5484D", title: "#A8333A", sub: "#C0353A" },
-  bloqueio: { bg: "repeating-linear-gradient(45deg,#E7ECEE,#E7ECEE 7px,#DCE3E6 7px,#DCE3E6 14px)", bar: "#9AA7A4", title: "#51605D", sub: "#74827F" },
-  concluido: { bg: "#EDF1F3", bar: "#5B6B69", title: "#2C3A37", sub: "#6B7A77" },
-  cancelado: { bg: "#EFF2F3", bar: "#9AA7A4", title: "#5B6B69", sub: "#82908D" },
+  confirmado: { bg: c.greenBg, bar: c.green, title: c.greenText, sub: c.ink2 },
+  agendado: { bg: c.blueBg, bar: c.blue, title: c.blueText, sub: c.ink2 },
+  atendimento: { bg: c.amberBg, bar: c.amber, title: c.amberText, sub: c.ink2 },
+  noshow: { bg: c.redBg, bar: c.red, title: c.redText, sub: c.ink2 },
+  bloqueio: {
+    bg: `repeating-linear-gradient(45deg, ${c.surfaceAlt}, ${c.surfaceAlt} 7px, ${c.borderSoft} 7px, ${c.borderSoft} 14px)`,
+    bar: c.ink4,
+    title: c.ink2,
+    sub: c.ink3,
+  },
+  concluido: { bg: c.surfaceAlt, bar: c.ink3, title: c.ink, sub: c.ink3 },
+  cancelado: { bg: c.surfaceAlt, bar: c.ink4, title: c.ink3, sub: c.ink4 },
 };
 
 export function tagMeta(tag: ClienteTag): { fg: string; bg: string } | null {
   if (!tag) return null;
   const map: Record<Exclude<ClienteTag, "">, { fg: string; bg: string }> = {
-    VIP: { fg: c.amberText, bg: c.amberBg },
-    Novo: { fg: c.greenText, bg: c.greenBg },
+    VIP: { fg: c.brassDeep, bg: c.brassSoft },
+    Novo: { fg: c.blueText, bg: c.blueBg },
     Inadimplente: { fg: c.redText, bg: c.redBg },
   };
   return map[tag];
 }
 
 export const tenantStatusMeta: Record<TenantStatus, { label: string; fg: string; bg: string }> = {
-  pendente: { label: "Aguardando aprovação", fg: c.darkAmber, bg: "rgba(231,192,120,.18)" },
-  ativo: { label: "Ativo", fg: c.darkGreen, bg: "rgba(52,214,166,.18)" },
-  trial: { label: "Trial", fg: c.darkAmber, bg: "rgba(231,192,120,.18)" },
-  atrasado: { label: "Atrasado", fg: c.darkRed, bg: "rgba(240,151,138,.20)" },
+  pendente: { label: "Aguardando aprovação", fg: c.amberText, bg: c.amberBg },
+  ativo: { label: "Ativo", fg: c.greenText, bg: c.greenBg },
+  trial: { label: "Trial", fg: c.blueText, bg: c.blueBg },
+  atrasado: { label: "Atrasado", fg: c.redText, bg: c.redBg },
 };
 
 // 30min = 44px na grade da agenda.

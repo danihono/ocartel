@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
 import { c, shadow } from "@/lib/theme";
+import { Icon, type IconName } from "./Icon";
 
 type Tone = "success" | "info" | "error";
 /** Ação opcional no toast (ex.: "Desfazer" logo depois de mudar um status). */
@@ -33,32 +34,45 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setItems((list) => list.filter((x) => x.id !== id)), action ? MS_COM_ACAO : MS_SIMPLES);
   }, []);
 
-  const toneColor: Record<Tone, string> = { success: c.accentDark, info: c.brass, error: c.red };
+  // Pílula floresta (escura em qualquer tema) com o ícone do tom em neon/vermelho.
+  const toneIcon: Record<Tone, { icon: IconName; cor: string }> = {
+    success: { icon: "check", cor: c.neon },
+    info: { icon: "info", cor: c.neon },
+    error: { icon: "alerta", cor: "#FF8A9A" },
+  };
 
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 60, display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-end" }}>
+      <div
+        role="status"
+        aria-live="polite"
+        style={{ position: "fixed", bottom: 22, left: 16, right: 16, zIndex: 60, display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-end", pointerEvents: "none" }}
+      >
         {items.map((t) => (
           <div
             key={t.id}
             className="oc-toast"
             style={{
+              pointerEvents: "auto",
               display: "flex",
               alignItems: "center",
               gap: 11,
-              background: c.espresso,
+              background: c.forest,
               color: c.darkText,
-              borderRadius: 11,
-              padding: "12px 16px 12px 13px",
+              border: `1px solid ${c.espressoLine}`,
+              borderRadius: 999,
+              padding: "10px 12px 10px 14px",
               boxShadow: shadow.pop,
               fontSize: 13.5,
-              fontWeight: 600,
-              maxWidth: 340,
-              borderLeft: `3px solid ${toneColor[t.tone]}`,
+              fontWeight: 500,
+              maxWidth: 440,
             }}
           >
-            <span style={{ flex: 1 }}>{t.msg}</span>
+            <span style={{ width: 22, height: 22, borderRadius: "50%", background: "rgba(183,255,24,.14)", color: toneIcon[t.tone].cor, display: "grid", placeItems: "center", flex: "none" }}>
+              <Icon name={toneIcon[t.tone].icon} size={13} stroke={2.4} />
+            </span>
+            <span style={{ flex: 1, paddingRight: t.action ? 0 : 6 }}>{t.msg}</span>
             {t.action ? (
               <button
                 onClick={() => {
@@ -67,12 +81,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 }}
                 style={{
                   flex: "none",
-                  // accentDark é o hero sobre o shell escuro — o brass some no espresso.
-                  border: `1px solid ${c.accentDark}`,
-                  background: "transparent",
-                  color: c.accentDark,
-                  borderRadius: 8,
-                  padding: "5px 11px",
+                  border: "none",
+                  background: c.neon,
+                  color: c.onNeon,
+                  borderRadius: 999,
+                  padding: "6px 12px",
                   fontSize: 12.5,
                   fontWeight: 700,
                   cursor: "pointer",
