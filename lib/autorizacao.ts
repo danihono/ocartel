@@ -31,7 +31,7 @@ export interface QuemGerencia {
 
 /**
  * Espelha no servidor a mesma regra do Firestore (`canManage` em firestore.rules):
- * o dono daquele tenant, ou um superAdmin.
+ * o dono daquele tenant (papel diferente de `barbeiro`), ou um superAdmin.
  *
  * Lança em vez de devolver booleano para não haver caminho em que o chamador esqueça de
  * checar o retorno e siga adiante.
@@ -58,7 +58,10 @@ export async function exigirQuemGerencia(idToken: string, tenantId: string): Pro
   };
 
   if (role === "superAdmin") return quem;
-  if (perfil.get("tenantId") === tenantId) return quem;
+  // Mesmo tenant não basta: o barbeiro também tem `tenantId` no perfil e NÃO administra
+  // (é o `role != 'barbeiro'` do canManage). Sem isto, um barbeiro chamaria pela própria
+  // sessão as actions da dona — pareamento do WhatsApp, boletos, backup dos dados.
+  if (perfil.get("tenantId") === tenantId && role !== "barbeiro") return quem;
 
   throw new Error(NAO_AUTORIZADO);
 }

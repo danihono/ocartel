@@ -43,6 +43,7 @@ import type {
   Tenant,
   Transacao,
 } from "@/lib/types";
+import type { EquipeAcessos } from "@/lib/equipe";
 
 // ---- helpers ----
 // Firestore limita um writeBatch a 500 operações; fatiamos em commits sequenciais.
@@ -452,5 +453,18 @@ export const fechamentos = {
   /** Reabre o mês (apaga o fechamento) — ação explícita, nunca efeito colateral. */
   reabrir(tenantId: string, id: string) {
     return deleteDoc(sub(tenantId, "fechamentos/" + id));
+  },
+};
+
+// ---- Equipe: quem tem login de barbeiro ----
+// Leitura só; quem escreve é o servidor (app/(admin)/configuracoes/equipe-actions.ts),
+// porque criar conta e perfil de barbeiro exige o Admin SDK.
+export const equipe = {
+  subscribe(tenantId: string, cb: (e: EquipeAcessos) => void) {
+    return onSnapshot(
+      sub(tenantId, "private/equipe"),
+      (s) => cb(s.exists() ? (s.data() as EquipeAcessos) : {}),
+      () => cb({}),
+    );
   },
 };

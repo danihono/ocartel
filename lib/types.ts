@@ -81,6 +81,11 @@ export interface Cliente {
   iniciais: string;
   /** Texto livre (preferências de corte etc.); editável no painel de detalhe. */
   observacoes?: string;
+  /**
+   * Data de nascimento, "YYYY-MM-DD" (o ano pode ser desconhecido: "0000-MM-DD"). Só o
+   * dia e o mês importam — é o que alimenta a lista de aniversariantes.
+   */
+  nascimento?: string;
 }
 
 export interface AtendimentoHistorico {

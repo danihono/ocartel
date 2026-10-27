@@ -1,5 +1,7 @@
 "use client";
 
+import { ExportarBotao } from "@/components/ui/ExportarBotao";
+import { baixarPlanilha, linhasAgendamentos, nomeArquivo, type FormatoExportacao } from "@/lib/exportar";
 import { useMemo, useRef, useState } from "react";
 import { c, font, shadow } from "@/lib/theme";
 import { Icon } from "@/components/ui/Icon";
@@ -391,6 +393,15 @@ export function TelaAgenda() {
     }
   }
 
+  /** Exporta o período que está na tela (o dia, a semana ou o mês), no filtro de barbeiro atual. */
+  function exportarAgenda(f: FormatoExportacao) {
+    const dias = view === "dia" ? [dateISO] : view === "semana" ? diasDaSemana(dateISO) : diasDoMes(dateISO).filter((d) => !d.foraDoMes).map((d) => d.iso);
+    const noPeriodo = new Set(dias);
+    const ags = state.agendamentos.filter((a) => noPeriodo.has(a.date) && (!barbId || a.barbeiroId === barbId));
+    const arquivo = view === "dia" ? nomeArquivo("agenda", dateISO, f) : view === "semana" ? nomeArquivo("agenda-semana", dias[0], f) : nomeArquivo("agenda", dateISO.slice(0, 7), f);
+    return baixarPlanilha(arquivo, [{ nome: "Agenda", linhas: linhasAgendamentos(ags, state.barbeiros) }], f);
+  }
+
   const moverAgendamento = (id: string, novoInicio: string) => aplicarMudanca(id, { inicio: novoInicio }, "Horário atualizado.");
   const redimensionar = (id: string, novaDur: number) => aplicarMudanca(id, { duracaoMin: novaDur }, "Duração atualizada.");
 
@@ -444,6 +455,7 @@ export function TelaAgenda() {
             { value: "mes", label: "Mês" },
           ]}
         />
+        <ExportarBotao onExportar={exportarAgenda} />
         <Button variant="ghost" size="sm" icon="repetir" onClick={() => setRecorrenteOpen(true)}>
           Recorrente
         </Button>

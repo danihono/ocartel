@@ -1,5 +1,7 @@
 "use client";
 
+import { ExportarBotao } from "@/components/ui/ExportarBotao";
+import { abasComissoes, baixarPlanilha, nomeArquivo } from "@/lib/exportar";
 import { useEffect, useMemo, useState } from "react";
 import { c, font } from "@/lib/theme";
 import { Card } from "@/components/ui/Card";
@@ -201,6 +203,8 @@ export function TelaComissoes() {
           <span className="oc-chip num" style={{ color: c.ink2, background: c.surfaceAlt, fontWeight: 500 }}>
             {mesLabel(`${mes}-01`)}
           </span>
+          <span style={{ flex: 1 }} />
+          <ExportarBotao onExportar={(f) => baixarPlanilha(nomeArquivo("comissoes", mes, f), abasComissoes(apuracao), f)} />
         </div>
 
         {!narrow ? (

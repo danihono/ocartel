@@ -16,6 +16,12 @@ import { signOutApp, useAuth } from "@/lib/firebase/auth";
 import { useToast } from "@/components/ui/Toast";
 import { PAPEL_LABEL, iniciaisDe } from "@/lib/pessoa";
 import type { Barbeiro } from "@/lib/types";
+import type { EquipeAcessos } from "@/lib/equipe";
+import { AcessoBarbeiroModal } from "@/components/admin/AcessoBarbeiroModal";
+import { acaoRemoverAcessoBarbeiro } from "@/app/(admin)/configuracoes/equipe-actions";
+import { acaoBackupCompleto } from "@/app/(admin)/configuracoes/dados-actions";
+import { abasBackup } from "@/lib/backup";
+import { baixarPlanilha, nomeArquivo } from "@/lib/exportar";
 import {
   acaoConsultarPareamento,
   acaoDesconectarPareamento,
@@ -92,6 +98,36 @@ export function TelaConfiguracoes() {
   const { profile } = useAuth();
   const toast = useToast();
   const router = useRouter();
+
+  /**
+   * Tirar alguém da equipe tira também o login dele: senão a conta continuaria entrando
+   * em /barbeiro, ligada a um barbeiro que não existe mais.
+   */
+  async function removerBarbeiro(b: Barbeiro) {
+    try {
+      if (acessos.acessos?.[b.id] && userEquipe && tenantEquipe) {
+        if (!window.confirm(`${b.nome} tem login no sistema. Remover da equipe também tira o acesso dele. Continuar?`)) return;
+        const r = await acaoRemoverAcessoBarbeiro(await userEquipe.getIdToken(), tenantEquipe, b.id);
+        if (!r.ok) {
+          toast(r.erro ?? "Não foi possível tirar o acesso.", "error");
+          return;
+        }
+      }
+      await actions.barbeiros.remove(b.id);
+      toast("Barbeiro removido.");
+    } catch {
+      toast("Não foi possível remover.", "error");
+    }
+  }
+
+  // Quem da equipe tem login (private/equipe — só leitura no navegador).
+  const { tenantId: tenantEquipe, user: userEquipe } = useAuth();
+  const [acessos, setAcessos] = useState<EquipeAcessos>({});
+  const [acessoDe, setAcessoDe] = useState<Barbeiro | null>(null);
+  useEffect(() => {
+    if (!tenantEquipe) return;
+    return repo.equipe.subscribe(tenantEquipe, setAcessos);
+  }, [tenantEquipe]);
 
   const [nome, setNome] = useState(state.config.nome);
   const [endereco, setEndereco] = useState(state.config.endereco);
@@ -643,13 +679,22 @@ export function TelaConfiguracoes() {
 
         {/* Barbeiros */}
         <Card>
-          <CardTitle sub="Cada barbeiro vira uma coluna na agenda">Equipe</CardTitle>
+          <CardTitle sub="Cada barbeiro vira uma coluna na agenda — e pode ter login próprio">Equipe</CardTitle>
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
             {state.barbeiros.map((b) => (
               <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 11 }}>
                 <div style={{ width: 38, height: 38, borderRadius: "50%", background: b.cor, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, flex: "none" }}>{b.iniciais}</div>
                 <TextInput value={b.nome} onChange={(e) => setBarb(b, { nome: e.target.value, iniciais: iniciaisDe(e.target.value) })} />
-                <button onClick={() => { void actions.barbeiros.remove(b.id).then(() => toast("Barbeiro removido.")).catch(() => toast("Não foi possível remover.", "error")); }} aria-label="Remover" className="oc-icon-btn" style={{ color: c.red, width: 40, height: 40 }}>
+                {acessos.acessos?.[b.id] ? (
+                  <button onClick={() => setAcessoDe(b)} className="oc-btn oc-btn-pill oc-btn-sm" title={acessos.acessos[b.id].email} style={{ flex: "none" }}>
+                    <Icon name="escudo" size={14} /> Com acesso
+                  </button>
+                ) : (
+                  <button onClick={() => setAcessoDe(b)} className="oc-btn oc-btn-ghost oc-btn-sm" style={{ flex: "none" }}>
+                    <Icon name="escudo" size={14} /> Dar acesso
+                  </button>
+                )}
+                <button onClick={() => void removerBarbeiro(b)} aria-label="Remover" className="oc-icon-btn" style={{ color: c.red, width: 40, height: 40 }}>
                   <Icon name="lixo" size={16} />
                 </button>
               </div>
@@ -659,6 +704,13 @@ export function TelaConfiguracoes() {
             <TextInput value={novoBarbeiro} onChange={(e) => setNovoBarbeiro(e.target.value)} placeholder="Nome do novo barbeiro" />
             <Button icon="mais" onClick={adicionarBarbeiro}>Adicionar</Button>
           </div>
+          <AcessoBarbeiroModal
+            open={acessoDe !== null}
+            onClose={() => setAcessoDe(null)}
+            barbeiro={acessoDe}
+            acesso={acessoDe ? acessos.acessos?.[acessoDe.id] : undefined}
+            barbearia={state.config.nome}
+          />
         </Card>
 
         {/* Comissões */}
@@ -727,7 +779,56 @@ export function TelaConfiguracoes() {
             <Icon name="sair" size={16} /> Sair da conta
           </button>
         </Card>
+
+        {/* Seus dados: o backup completo */}
+        <BackupCard />
       </div>
     </div>
+  );
+}
+
+/**
+ * "Seus dados": baixa tudo da barbearia numa planilha só. Os dados são seus — dá para
+ * guardar, abrir no Excel ou levar para outro sistema.
+ */
+function BackupCard() {
+  const { user, tenantId } = useAuth();
+  const { state } = useStore();
+  const toast = useToast();
+  const [baixando, setBaixando] = useState(false);
+
+  async function baixar() {
+    if (!user || !tenantId || baixando) return;
+    setBaixando(true);
+    try {
+      const r = await acaoBackupCompleto(await user.getIdToken(), tenantId);
+      if (!r.ok || !r.dados) {
+        toast(r.erro ?? "Não foi possível gerar o backup.", "error");
+        return;
+      }
+      const hoje = new Date().toISOString().slice(0, 10);
+      await baixarPlanilha(nomeArquivo(`backup ${state.config.nome || "barbearia"}`, hoje, "xlsx"), abasBackup(r.dados, hoje), "xlsx");
+      toast("Backup baixado.");
+    } catch {
+      toast("Não foi possível gerar o backup.", "error");
+    } finally {
+      setBaixando(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardTitle sub="Tudo da barbearia numa planilha">Seus dados</CardTitle>
+      <p style={{ fontSize: 13, color: c.ink2, lineHeight: 1.55, margin: "14px 0 0" }}>
+        Clientes, agenda completa, cobranças, serviços, equipe e comissões fechadas — uma aba para cada. Bom para guardar uma cópia ou levar
+        para outro sistema.
+      </p>
+      <Button block icon="download" onClick={baixar} disabled={baixando} style={{ marginTop: 16 }}>
+        {baixando ? "Gerando…" : "Baixar backup (Excel)"}
+      </Button>
+      <p style={{ fontSize: 11.5, color: c.ink3, lineHeight: 1.5, margin: "10px 0 0" }}>
+        Chaves de integração e dados de cartão não entram no arquivo.
+      </p>
+    </Card>
   );
 }

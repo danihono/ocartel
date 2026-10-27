@@ -1,5 +1,7 @@
 "use client";
 
+import { baixarPlanilha, linhasTransacoes, nomeArquivo } from "@/lib/exportar";
+import { ExportarBotao } from "@/components/ui/ExportarBotao";
 import { useEffect, useMemo, useState } from "react";
 import { c } from "@/lib/theme";
 import { Card } from "@/components/ui/Card";
@@ -250,6 +252,10 @@ export function TelaPagamentos() {
             <Icon name="busca" size={15} />
             <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cliente…" aria-label="Buscar cobrança por cliente" />
           </div>
+          <ExportarBotao
+            disabled={transacoes.length === 0}
+            onExportar={(f) => baixarPlanilha(nomeArquivo("cobrancas", hoje, f), [{ nome: "Cobranças", linhas: linhasTransacoes(transacoes, hoje) }], f)}
+          />
           <Button variant="ghost" size="sm" icon="repetir" onClick={gerarMensalidades}>Gerar mensalidades do mês</Button>
           <Button size="sm" icon="mais" onClick={() => setNovaOpen(true)}>Nova cobrança</Button>
         </div>

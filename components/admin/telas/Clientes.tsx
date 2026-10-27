@@ -1,5 +1,7 @@
 "use client";
 
+import { baixarPlanilha, linhasClientes, nomeArquivo } from "@/lib/exportar";
+import { ExportarBotao } from "@/components/ui/ExportarBotao";
 import { useEffect, useMemo, useState } from "react";
 import { c, font } from "@/lib/theme";
 import { Card } from "@/components/ui/Card";
@@ -201,6 +203,13 @@ export function TelaClientes() {
             <Button variant="ghost" size="sm" icon="upload" onClick={() => setImportOpen(true)}>
               Importar
             </Button>
+            {/* Exporta a lista COMO ESTÁ na tela: filtro, busca e ordem valem. */}
+            <ExportarBotao
+              disabled={lista.length === 0}
+              onExportar={(f) =>
+                baixarPlanilha(nomeArquivo(filtro === "Todos" ? "clientes" : `clientes ${filtro}`, hoje, f), [{ nome: "Clientes", linhas: linhasClientes(lista) }], f)
+              }
+            />
             <Button size="sm" icon="mais" onClick={() => setNovoOpen(true)}>
               Novo cliente
             </Button>
