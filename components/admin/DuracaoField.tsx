@@ -40,13 +40,13 @@ export function DuracaoField({
               type="button"
               onClick={() => onChange(min)}
               style={{
-                border: `1.5px solid ${on ? c.brass : c.border}`,
-                background: on ? c.brassTint : c.surface,
-                color: on ? c.inkTitle : c.ink2,
+                border: `1px solid ${on ? "transparent" : c.border}`,
+                background: on ? "var(--oc-sel-bg)" : c.surface,
+                color: on ? "var(--oc-sel-text)" : c.ink2,
                 borderRadius: 999,
-                padding: "6px 11px",
+                padding: "7px 12px",
                 fontSize: 12.5,
-                fontWeight: on ? 700 : 600,
+                fontWeight: 500,
                 cursor: "pointer",
               }}
             >
@@ -62,9 +62,9 @@ export function DuracaoField({
           inputMode="numeric"
           onChange={(e) => onChange(Math.max(DURACAO_MIN, Number(e.target.value) || DURACAO_MIN))}
           onBlur={(e) => onChange(normalizaDuracao(Number(e.target.value)))}
-          style={{ width: 88, padding: "9px 10px", fontSize: 13 }}
+          style={{ width: 76, padding: "8px 10px", fontSize: 13, borderRadius: 999, textAlign: "center" }}
         />
-        <span style={{ fontSize: 12, color: c.ink3 }}>min</span>
+        <span style={{ fontSize: 12, color: c.ink3, whiteSpace: "nowrap" }}>min</span>
       </div>
       {padrao && padrao !== valor ? (
         <span style={{ display: "block", marginTop: 6, fontSize: 11.5, color: c.ink3 }}>

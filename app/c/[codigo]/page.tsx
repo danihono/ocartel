@@ -10,7 +10,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { c, font, shadow } from "@/lib/theme";
+import { c, shadow } from "@/lib/theme";
+import { Icon } from "@/components/ui/Icon";
 import { Seal } from "@/components/ui/Seal";
 import { fmtDur } from "@/lib/selectors";
 import { isoParaLabelLongo } from "@/lib/date";
@@ -21,17 +22,17 @@ type Fase = "carregando" | "pronto" | "confirmado" | "recusado" | "erro";
 
 const cartao: React.CSSProperties = {
   background: c.surface,
-  border: `1px solid ${c.border}`,
-  borderRadius: 16,
-  padding: "22px 20px",
+  border: `1px solid ${c.borderSoft}`,
+  borderRadius: 24,
+  padding: "24px 22px",
   boxShadow: shadow.card,
 };
 
 function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
     <div style={{ display: "flex", gap: 12, padding: "11px 0", borderBottom: `1px solid ${c.borderSoft}` }}>
-      <span style={{ fontSize: 12.5, color: c.ink3, fontWeight: 600, width: 96, flex: "none" }}>{rotulo}</span>
-      <span style={{ fontSize: 14, color: c.inkTitle, fontWeight: 600, flex: 1 }}>{valor}</span>
+      <span style={{ fontSize: 12.5, color: c.ink3, width: 96, flex: "none" }}>{rotulo}</span>
+      <span style={{ fontSize: 14, color: c.inkTitle, fontWeight: 500, flex: 1 }}>{valor}</span>
     </div>
   );
 }
@@ -87,13 +88,16 @@ export default function ConfirmacaoPage() {
     dados !== null && dados.status !== "agendado" && dados.status !== "confirmado";
 
   return (
-    <div style={{ minHeight: "100vh", background: c.bg, display: "flex", flexDirection: "column", alignItems: "center", padding: "28px 18px 40px" }}>
-      <div style={{ width: "100%", maxWidth: 420 }}>
-        {/* Marca */}
-        <div style={{ display: "flex", alignItems: "center", gap: 11, justifyContent: "center", marginBottom: 22 }}>
-          <Seal size={38} />
-          <div style={{ fontFamily: font.cinzel, fontWeight: 600, fontSize: 15, letterSpacing: 2.5, color: c.inkTitle }}>
-            {dados?.barbearia?.toUpperCase() ?? "O CARTEL"}
+    <div className="oc-public-bg" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "28px 16px 40px" }}>
+      <div style={{ width: "100%", maxWidth: 440 }}>
+        {/* Marca: faixa floresta "barber pole" */}
+        <div className="oc-card-hero" style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 18px", borderRadius: 24, marginBottom: 14 }}>
+          <Seal size={40} />
+          <div style={{ minWidth: 0 }}>
+            <div className="oc-wordmark" style={{ fontSize: 14.5, letterSpacing: "0.12em", color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {dados?.barbearia?.toUpperCase() ?? "O CARTEL"}
+            </div>
+            <div style={{ fontSize: 11.5, color: c.darkMuted, marginTop: 2 }}>Confirmação de horário</div>
           </div>
         </div>
 
@@ -101,7 +105,9 @@ export default function ConfirmacaoPage() {
           <div style={{ ...cartao, textAlign: "center", color: c.ink3, fontSize: 13.5 }}>Carregando seu agendamento…</div>
         ) : fase === "erro" ? (
           <div style={{ ...cartao, textAlign: "center" }}>
-            <div style={{ fontSize: 34 }}>🤔</div>
+            <span style={{ width: 56, height: 56, borderRadius: "50%", background: c.surfaceAlt, color: c.ink3, display: "inline-grid", placeItems: "center" }}>
+              <Icon name="alerta" size={24} />
+            </span>
             <div style={{ fontSize: 20, fontWeight: 500, letterSpacing: "-0.035em", color: c.inkTitle, marginTop: 10 }}>
               Não deu certo
             </div>
@@ -114,22 +120,21 @@ export default function ConfirmacaoPage() {
               <div style={{ ...cartao, textAlign: "center", marginBottom: 14 }}>
                 <div
                   style={{
-                    width: 62,
-                    height: 62,
+                    width: 72,
+                    height: 72,
                     borderRadius: "50%",
-                    margin: "0 auto",
-                    background: fase === "confirmado" ? c.brass : c.surfaceAlt,
-                    color: fase === "confirmado" ? "#FFFFFF" : c.ink2,
+                    margin: "6px auto 0",
+                    background: fase === "confirmado" ? c.neon : c.surfaceAlt,
+                    color: fase === "confirmado" ? c.onNeon : c.ink2,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    fontSize: 28,
-                    fontWeight: 800,
+                    boxShadow: fase === "confirmado" ? "0 0 0 10px rgba(183,255,24,.16), 0 14px 30px -10px rgba(140,200,0,.7)" : "none",
                   }}
                 >
-                  {fase === "confirmado" ? "✓" : "✕"}
+                  <Icon name={fase === "confirmado" ? "check" : "fechar"} size={32} stroke={2.6} />
                 </div>
-                <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.035em", color: c.inkTitle, marginTop: 14 }}>
+                <div style={{ fontSize: 24, fontWeight: 500, letterSpacing: "-0.04em", color: c.inkTitle, marginTop: 20 }}>
                   {fase === "confirmado" ? "Presença confirmada" : "Tudo bem, avisamos"}
                 </div>
                 <p style={{ fontSize: 13.5, color: c.ink2, lineHeight: 1.55, marginTop: 6 }}>
@@ -144,7 +149,7 @@ export default function ConfirmacaoPage() {
             <div style={cartao}>
               {fase === "pronto" ? (
                 <>
-                  <div style={{ fontSize: 21, fontWeight: 500, letterSpacing: "-0.035em", color: c.inkTitle }}>
+                  <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.04em", color: c.inkTitle, lineHeight: 1.1 }}>
                     {dados?.cliente ? `Oi, ${dados.cliente.split(" ")[0]}!` : "Seu horário"}
                   </div>
                   <p style={{ fontSize: 13.5, color: c.ink2, lineHeight: 1.55, margin: "6px 0 4px" }}>
@@ -167,22 +172,11 @@ export default function ConfirmacaoPage() {
                   <button
                     onClick={() => responder("confirmar")}
                     disabled={enviando !== null}
-                    className="oc-btn oc-btn-primary"
-                    style={{
-                      width: "100%",
-                      marginTop: 20,
-                      border: "none",
-                      cursor: enviando ? "default" : "pointer",
-                      opacity: enviando ? 0.7 : 1,
-                      background: c.primaryBtnBg,
-                      color: c.primaryBtnText,
-                      padding: 16,
-                      borderRadius: 13,
-                      fontSize: 15.5,
-                      fontWeight: 700,
-                    }}
+                    className="oc-btn oc-btn-neon oc-btn-block"
+                    style={{ marginTop: 22, padding: 16, fontSize: 15.5 }}
                   >
                     {enviando === "confirmar" ? "Confirmando…" : "Confirmar presença"}
+                    {enviando !== "confirmar" ? <Icon name="check" size={18} stroke={2.4} /> : null}
                   </button>
                   <button
                     onClick={() => responder("recusar")}
@@ -196,8 +190,9 @@ export default function ConfirmacaoPage() {
                       color: c.ink3,
                       padding: 12,
                       fontSize: 13.5,
-                      fontWeight: 600,
+                      fontWeight: 500,
                       textDecoration: "underline",
+                      textUnderlineOffset: 3,
                     }}
                   >
                     {enviando === "recusar" ? "Avisando…" : "Não vou poder ir"}

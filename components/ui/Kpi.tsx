@@ -26,7 +26,7 @@ export function Kpi({
         <span className="oc-label">{label}</span>
         {delta ? <Delta {...delta} onHero={hero} /> : null}
       </div>
-      <div className="num" style={{ fontSize: hero ? 40 : 30, fontWeight: 500, letterSpacing: "-0.05em", lineHeight: 1, color: hero ? "var(--oc-on-forest)" : "var(--oc-ink)" }}>
+      <div className="num" style={{ fontSize: hero ? "clamp(26px, 6.4vw, 40px)" : "clamp(23px, 5.6vw, 30px)", fontWeight: 500, whiteSpace: "nowrap", letterSpacing: "-0.05em", lineHeight: 1, color: hero ? "var(--oc-on-forest)" : "var(--oc-ink)" }}>
         {value}
       </div>
       {sub ? <div style={{ fontSize: 12, color: hero ? "var(--oc-on-forest-dim)" : "var(--oc-muted)" }}>{sub}</div> : null}

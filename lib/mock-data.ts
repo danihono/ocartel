@@ -41,11 +41,11 @@ export const faturamento30d = [150, 138, 156, 128, 140, 108, 120, 92, 104, 74, 8
   .map((v) => 210 - v); // invert so higher = more revenue
 
 export const servicosMaisVendidos = [
-  { nome: "Corte + Barba", qtd: 64, pct: 100, cor: "#0EA37A" },
-  { nome: "Corte", qtd: 52, pct: 81, cor: "#0FB6C8" },
-  { nome: "Barba", qtd: 38, pct: 59, cor: "#7C5CFC" },
-  { nome: "Luzes", qtd: 21, pct: 33, cor: "#E0A21A" },
-  { nome: "Raspar", qtd: 14, pct: 22, cor: "#F0476A" },
+  { nome: "Corte + Barba", qtd: 64, pct: 100, cor: "#7FB520" },
+  { nome: "Corte", qtd: 52, pct: 81, cor: "#3D7FC4" },
+  { nome: "Barba", qtd: 38, pct: 59, cor: "#7A5FE0" },
+  { nome: "Luzes", qtd: 21, pct: 33, cor: "#C98A1A" },
+  { nome: "Raspar", qtd: 14, pct: 22, cor: "#D9527A" },
 ];
 
 export const proximos: ProximoAgendamento[] = [
@@ -74,9 +74,9 @@ export const financeiro = {
 
 // ---- Agenda (day view, 09:00–19:00) ----
 export const agendaBarbeiros = [
-  { nome: "Everton", iniciais: "EV", cor: "#0EA37A", hoje: 4 },
-  { nome: "Raimundo", iniciais: "RA", cor: "#0FB6C8", hoje: 4 },
-  { nome: "Eduardo", iniciais: "ED", cor: "#7C5CFC", hoje: 3 },
+  { nome: "Everton", iniciais: "EV", cor: "#7FB520", hoje: 4 },
+  { nome: "Raimundo", iniciais: "RA", cor: "#3D7FC4", hoje: 4 },
+  { nome: "Eduardo", iniciais: "ED", cor: "#7A5FE0", hoje: 3 },
 ];
 
 export const agendaBlocos: BlocoAgenda[][] = [

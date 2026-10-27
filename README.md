@@ -1,6 +1,6 @@
 # O Cartel — SaaS de Barbearia (Next.js + Firebase)
 
-Telas do O Cartel em **Next.js 15 (App Router) + TypeScript + React 19**, agora com **Firebase Auth (e-mail/senha) + Firestore multi-tenant**. Fiel ao protótipo: paleta marrom/preto/off-white, tipografia Cinzel (marca) + Spectral (títulos) + Hanken Grotesk (UI).
+Telas do O Cartel em **Next.js 15 (App Router) + TypeScript + React 19**, agora com **Firebase Auth (e-mail/senha) + Firestore multi-tenant**. Visual "Navalha": base clara e quente com o par da marca (floresta quase preta + limão neon), tema claro/escuro, tipografia Geist + Geist Mono (UI e números) e Cinzel só no wordmark — ver [Design](#design).
 
 Os dados ficam no **Firestore**, escopados por barbearia em `tenants/{tenantId}/...` (clientes, agendamentos, serviços, barbeiros, transações, config). O store no cliente (`lib/store.tsx`, Context + reducer) virou um **cache alimentado por listeners em tempo real** (`onSnapshot`): as escritas vão pelos repositórios em `lib/firebase/repos.ts` e o snapshot reflete de volta. O perfil do usuário (`users/{uid}` com `role`/`tenantId`) define o que ele acessa; `superAdmin` vê todas as barbearias no console `/super-admin`. O booking público (`/book/[slug]`) lê o catálogo da barbearia e grava por uma **server action** (Admin SDK).
 
@@ -64,11 +64,11 @@ anual, política formal). Antes de mexer em `lib/cobrador/` ou no modal
 
 ```
 app/
-  layout.tsx              fontes (next/font) + reset
+  layout.tsx              fontes (next/font) + script de tema sem flash
   page.tsx                redirect -> /dashboard
-  globals.css
+  globals.css             tokens do tema (claro/escuro) + primitivas .oc-*
   login/page.tsx          Login / Onboarding (client)
-  super-admin/page.tsx    Console SaaS (dark)
+  super-admin/page.tsx    Console SaaS
   book/[slug]/page.tsx    Booking público mobile (client)
   (admin)/
     layout.tsx            shell: Sidebar + Topbar (client, usePathname)
@@ -80,11 +80,13 @@ components/
   admin/     Sidebar, Topbar
   book/[slug]/actions.ts  server action do booking (Admin SDK)
 components/
-  ui/        Card, StatusPill/Tag, Seal/Avatar, LineChart
+  ui/        Button, Card, Field, Modal, Kpi, PageHeader, Segmented, ThemeSwitch,
+             Icon, StatusPill/Tag, Seal/Avatar, LineChart, PhoneFrame, Toast
   admin/     Sidebar, Topbar, modais
   auth/      AuthGuard (protege rotas + splash)
 lib/
-  theme.ts        tokens de cor / fonte / sombra
+  theme.ts        tokens de cor / fonte / sombra (referências às variáveis CSS)
+  tema.ts         hook useTema (claro / escuro / sistema)
   types.ts        tipos de domínio (espelham o schema Firestore)
   mock-data.ts    sementes do onboarding + dados de exemplo dos gráficos
   status.ts       mapas de status (pills, blocos da agenda, tags)
@@ -149,9 +151,33 @@ Quatro coisas que não são óbvias:
    no repositório, mas o `firebase deploy` ignora — inclusive as variáveis de
    ambiente declaradas nele, que valem só no App Hosting.
 
+## Design
+
+Paleta **"Navalha"**, no mesmo espírito do crm-titas e do FisioUp (off-white quente,
+cartão branco de borda fina e sombra larga, Geist, títulos em dois tons), mas com o
+destaque saindo da marca: **floresta quase preta `#0B1A12` + limão neon `#B7FF18`**.
+
+- **Tokens** moram em `app/globals.css`: `:root` é o tema claro e
+  `:root[data-theme="dark"]` o escuro. `lib/theme.ts` só aponta para eles
+  (`c.bg = "var(--oc-page)"`), então os estilos inline seguem o tema sozinhos.
+  Para tinta translúcida use as variáveis `*Tint`/`*Bg` prontas — não concatene alfa
+  em hex (`c.x + "22"` quebra com `var()`).
+- **Regra de ouro do neon:** nunca como texto sobre fundo claro (sem contraste). No
+  claro o acento legível é `c.accent` (oliva escuro); o neon aparece sobre floresta,
+  no tema escuro, ou como preenchimento com texto floresta (`.oc-btn-neon`).
+- **Um herói por tela:** o card floresta "barber pole" (`<Kpi hero>` ou
+  `<Card hero>`) guarda o número que importa. O resto são cartões brancos.
+- **Selecionado = floresta** (neon no escuro): nav ativa, segmentados, filtros.
+- **Números em Geist Mono** (`.num`), títulos com peso 500 e tracking negativo.
+- **Tema:** claro, escuro ou seguir o sistema (`ThemeSwitch`, preferência em
+  `localStorage["ocartel.tema"]`). O script inline do `app/layout.tsx` aplica o tema
+  antes da primeira pintura.
+- **Responsivo:** abaixo de 900px o menu vira gaveta e as grades empilham; as telas
+  públicas ocupam a tela inteira no celular e viram um cartão centralizado no desktop.
+
 ## Decisões
 
-- **Estilo via inline styles** (objetos `React.CSSProperties`) com tokens centralizados em `lib/theme.ts`. Sem Tailwind por enquanto — fácil de migrar depois se quiser; os valores exatos (hex, px) já estão isolados em `theme.ts`/`status.ts`.
+- **Estilo via inline styles** (objetos `React.CSSProperties`) lendo os tokens de `lib/theme.ts`, mais um punhado de primitivas em `app/globals.css` (`.oc-card`, `.oc-btn-*`, `.oc-seg`, `.oc-chip`, `.oc-nav`…) para o que precisa de hover/foco ou se repete. Sem Tailwind.
 - **Sem dependências de UI/gráficos**: o gráfico é um componente SVG próprio (`components/ui/LineChart.tsx`).
 - **Charts/calendário** desenhados com SVG + posicionamento absoluto (44px = 30 min na agenda).
 - Server Components por padrão; `"use client"` só onde há estado (login, clientes, booking) ou `usePathname` (shell admin).
@@ -162,4 +188,4 @@ Quatro coisas que não são óbvias:
 2. **Custom claims**: migrar `role`/`tenantId` para custom claims do Auth (reduz o custo do `get(users/{uid})` nas regras) e considerar **App Check** contra abuso.
 3. **RBAC real**: hoje a "visão" no menu é cosmética; restringir os dados por papel (barbeiro vê só a própria agenda).
 4. **Dados reais nos gráficos**: dashboard e `/super-admin` ainda usam séries de exemplo de `mock-data.ts` (faturamento, MRR, atividade).
-5. (Opcional) migrar inline styles para Tailwind ou CSS Modules.
+5. (Opcional) levar mais estilos inline para as primitivas `.oc-*` de `globals.css`.

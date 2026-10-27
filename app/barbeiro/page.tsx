@@ -10,8 +10,9 @@
 
 import { Suspense, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useSearchParams } from "next/navigation";
-import { c, font } from "@/lib/theme";
+import { c } from "@/lib/theme";
 import AuthGuard from "@/components/auth/AuthGuard";
+import { Icon } from "@/components/ui/Icon";
 import { PhoneFrame } from "@/components/ui/PhoneFrame";
 import { Avatar } from "@/components/ui/Seal";
 import { fieldInput, fieldLabel } from "@/components/ui/Field";
@@ -92,7 +93,7 @@ function BarbeiroMobile() {
     <PhoneFrame
       title={(state.config.nome || "Barbearia").toUpperCase()}
       subtitle={barbeiro ? `Agenda de ${barbeiro.nome}` : "Sua agenda"}
-      right={barbeiro ? <Avatar initials={barbeiro.iniciais} size={36} bg={c.leather} color={c.darkText} /> : null}
+      right={barbeiro ? <Avatar initials={barbeiro.iniciais} size={38} bg={c.neon} color={c.onNeon} /> : null}
     >
       {/* corpo rolável */}
       <div style={{ flex: 1, overflow: "auto", padding: "16px 16px 18px" }}>
@@ -106,32 +107,36 @@ function BarbeiroMobile() {
           <>
             {/* navegação de dia */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-              <button style={btnNav} onClick={() => setDate((d) => addDias(d, -1))} aria-label="Dia anterior">‹</button>
+              <button className="oc-icon-btn" onClick={() => setDate((d) => addDias(d, -1))} aria-label="Dia anterior">
+                <Icon name="chevronEsq" size={16} />
+              </button>
               <div style={{ flex: 1, textAlign: "center" }}>
-                <div style={{ fontFamily: font.serif, fontSize: 15, fontWeight: 700, color: c.inkTitle }}>{isoParaLabelLongo(date)}</div>
+                <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.02em", color: c.inkTitle }}>{isoParaLabelLongo(date)}</div>
                 {date !== hoje ? (
-                  <button onClick={() => setDate(hoje)} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 11.5, fontWeight: 700, color: c.brassDeep }}>
+                  <button onClick={() => setDate(hoje)} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 12, fontWeight: 600, color: c.accent }}>
                     Voltar para hoje
                   </button>
                 ) : (
-                  <div style={{ fontSize: 11.5, color: c.ink3, fontWeight: 600 }}>{atendimentos.length} atendimento(s)</div>
+                  <div style={{ fontSize: 12, color: c.ink3, marginTop: 2 }}>{atendimentos.length} atendimento(s)</div>
                 )}
               </div>
-              <button style={btnNav} onClick={() => setDate((d) => addDias(d, 1))} aria-label="Próximo dia">›</button>
+              <button className="oc-icon-btn" onClick={() => setDate((d) => addDias(d, 1))} aria-label="Próximo dia">
+                <Icon name="chevronDir" size={16} />
+              </button>
             </div>
 
             <button
               onClick={() => setBloquearOpen(true)}
               disabled={!barbId}
-              style={{ width: "100%", border: `1px dashed ${c.borderInput}`, background: c.surface, cursor: barbId ? "pointer" : "not-allowed", color: c.brassDeep, padding: "11px", borderRadius: 12, fontSize: 13.5, fontWeight: 700, marginBottom: 14 }}
+              style={{ width: "100%", border: `1px dashed ${c.borderInput}`, background: c.surface, cursor: barbId ? "pointer" : "not-allowed", color: c.accent, padding: "11px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}
             >
-              + Bloquear horário
+              <Icon name="bloqueio" size={15} /> Bloquear horário
             </button>
 
             {doDia.length === 0 ? (
               <Vazio texto="Nenhum horário para este dia." />
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              <div className="oc-card" style={{ padding: "4px 14px" }}>
                 {doDia.map((a) => (
                   <AgendaRow key={a.id} ag={a} onClick={() => setDetalhe(a)} />
                 ))}
@@ -144,7 +149,8 @@ function BarbeiroMobile() {
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar cliente…"
-              style={{ ...fieldInput, marginBottom: 14 }}
+              className="oc-input"
+              style={{ ...fieldInput, borderRadius: 999, marginBottom: 14 }}
             />
             {clientes.length === 0 ? (
               <Vazio texto="Nenhum cliente encontrado." />
@@ -154,12 +160,12 @@ function BarbeiroMobile() {
                   const tm = tagMeta(cl.tag);
                   return (
                     <div key={cl.id} style={{ ...card, display: "flex", alignItems: "center", gap: 11, padding: "11px 13px" }}>
-                      <Avatar initials={cl.iniciais} size={36} bg={c.brassSoft} color={c.brassDeep} />
+                      <Avatar initials={cl.iniciais} size={36} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13.5, fontWeight: 600, color: c.inkTitle, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cl.nome}</div>
                         <div style={{ fontSize: 11.5, color: c.ink2, marginTop: 1 }}>{cl.telefone}</div>
                       </div>
-                      {tm ? <span style={{ fontSize: 10.5, fontWeight: 700, color: tm.fg, background: tm.bg, borderRadius: 999, padding: "3px 9px" }}>{cl.tag}</span> : null}
+                      {tm ? <span className="oc-chip" style={{ fontSize: 10.5, color: tm.fg, background: tm.bg }}>{cl.tag}</span> : null}
                     </div>
                   );
                 })}
@@ -169,16 +175,16 @@ function BarbeiroMobile() {
         ) : (
           <>
             <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+              <KpiCard label="Previsto hoje" valor={formatBRL(faturamentoDia)} hero />
               <KpiCard label="Atendimentos" valor={String(atendimentos.length)} />
-              <KpiCard label="Previsto" valor={formatBRL(faturamentoDia)} />
             </div>
-            <div style={{ fontSize: 11, letterSpacing: 1, textTransform: "uppercase", color: c.ink3, fontWeight: 700, margin: "4px 0 10px" }}>
+            <div className="oc-label" style={{ margin: "6px 0 10px" }}>
               Próximos hoje
             </div>
             {atendimentos.length === 0 ? (
               <Vazio texto="Sem atendimentos hoje." />
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              <div className="oc-card" style={{ padding: "4px 14px" }}>
                 {atendimentos.slice(0, 6).map((a) => (
                   <AgendaRow key={a.id} ag={a} onClick={() => setDetalhe(a)} />
                 ))}
@@ -188,20 +194,24 @@ function BarbeiroMobile() {
         )}
       </div>
 
-      {/* rodapé de abas */}
-      <div style={{ flex: "none", display: "flex", borderTop: `1px solid ${c.border}`, background: c.surface }}>
+      {/* rodapé de abas: pílula de indicador, como no app */}
+      <div className="oc-phone-foot" style={{ justifyContent: "space-around", padding: "8px 12px", paddingBottom: "max(12px, env(safe-area-inset-bottom))", gap: 4 }}>
         {([
-          ["agenda", "Agenda"],
-          ["clientes", "Clientes"],
-          ["resumo", "Resumo"],
-        ] as const).map(([value, label]) => {
+          ["agenda", "Agenda", "agenda"],
+          ["clientes", "Clientes", "clientes"],
+          ["resumo", "Resumo", "grafico"],
+        ] as const).map(([value, label, icon]) => {
           const on = tab === value;
           return (
             <button
               key={value}
               onClick={() => setTab(value)}
-              style={{ flex: 1, border: "none", background: "transparent", cursor: "pointer", padding: "13px 0 18px", fontSize: 12.5, fontWeight: on ? 800 : 600, color: on ? c.brassDeep : c.ink3 }}
+              aria-pressed={on}
+              style={{ flex: 1, border: "none", background: "transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "4px 0", fontSize: 11.5, fontWeight: on ? 600 : 500, color: on ? c.ink : c.ink3 }}
             >
+              <span style={{ width: 56, height: 30, borderRadius: 999, display: "grid", placeItems: "center", background: on ? c.primaryBtnBg : "transparent", color: on ? "var(--oc-btn-icon)" : c.ink3, transition: "background .15s" }}>
+                <Icon name={icon} size={18} />
+              </span>
               {label}
             </button>
           );
@@ -264,29 +274,33 @@ function AgendaRow({ ag, onClick }: { ag: Agendamento; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      style={{ display: "flex", alignItems: "stretch", gap: 11, width: "100%", textAlign: "left", border: "none", cursor: "pointer", background: c.surface, borderRadius: 12, padding: 0, overflow: "hidden", boxShadow: "0 1px 2px rgba(15,27,25,.05)" }}
+      className="oc-agenda-row"
+      style={{ display: "grid", gridTemplateColumns: "46px 3px minmax(0,1fr) auto", alignItems: "center", gap: 12, width: "100%", textAlign: "left", border: "none", cursor: "pointer", background: "transparent", padding: "12px 0" }}
     >
-      <span style={{ width: 4, background: m.bar, flex: "none" }} />
-      <span style={{ flex: 1, minWidth: 0, padding: "11px 12px 11px 4px" }}>
-        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontFamily: font.serif, fontSize: 15, fontWeight: 700, color: c.inkTitle }}>{ag.inicio}</span>
-          <span style={{ fontSize: 11, color: c.ink3, fontWeight: 600 }}>· {fmtDur(ag.duracaoMin)}</span>
-        </span>
-        <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: c.ink, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+      <span className="num" style={{ fontSize: 14.5, fontWeight: 500, color: c.inkTitle }}>{ag.inicio}</span>
+      <span style={{ height: 34, borderRadius: 2, background: m.bar }} />
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: 13.5, fontWeight: 500, color: c.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {ag.status === "bloqueio" ? `Bloqueado · ${ag.clienteNome}` : ag.clienteNome}
         </span>
-        {ag.status !== "bloqueio" ? <span style={{ display: "block", fontSize: 11.5, color: c.ink2, marginTop: 1 }}>{ag.servico}</span> : null}
+        <span style={{ display: "block", fontSize: 12, color: c.ink3, marginTop: 2 }}>
+          {ag.status !== "bloqueio" ? `${ag.servico} · ` : ""}
+          {fmtDur(ag.duracaoMin)}
+        </span>
       </span>
+      {ag.status !== "bloqueio" ? (
+        <span className="oc-chip" style={{ fontSize: 10.5, background: m.bg, color: m.title }}>{STATUS_LABEL[ag.status]}</span>
+      ) : null}
     </button>
   );
 }
 
 // ---- cartão KPI ----
-function KpiCard({ label, valor }: { label: string; valor: string }) {
+function KpiCard({ label, valor, hero = false }: { label: string; valor: string; hero?: boolean }) {
   return (
-    <div style={{ ...card, flex: 1, padding: "13px 15px" }}>
-      <div style={{ fontSize: 11, color: c.ink3, fontWeight: 600 }}>{label}</div>
-      <div style={{ fontFamily: font.serif, fontSize: 22, fontWeight: 700, color: c.inkTitle, marginTop: 5 }}>{valor}</div>
+    <div className={hero ? "oc-card-hero" : "oc-card"} style={{ flex: 1, padding: "14px 16px" }}>
+      <div className="oc-label">{label}</div>
+      <div className="num" style={{ fontSize: 24, fontWeight: 500, color: hero ? "#fff" : c.inkTitle, marginTop: 8 }}>{valor}</div>
     </div>
   );
 }
@@ -305,7 +319,7 @@ function BloquearSheet({ onClose, onSalvar }: { onClose: () => void; onSalvar: (
       <div style={{ display: "flex", gap: 12 }}>
         <label style={{ flex: 1 }}>
           <span style={fieldLabel}>Início</span>
-          <input type="time" value={inicio} onChange={(e) => setInicio(e.target.value)} style={fieldInput} />
+          <input type="time" className="oc-input" value={inicio} onChange={(e) => setInicio(e.target.value)} style={fieldInput} />
         </label>
         <label style={{ flex: 1 }}>
           <span style={fieldLabel}>Duração</span>
@@ -323,7 +337,8 @@ function BloquearSheet({ onClose, onSalvar }: { onClose: () => void; onSalvar: (
       </label>
       <button
         onClick={() => onSalvar(inicio, duracaoMin, motivo)}
-        style={{ width: "100%", marginTop: 16, border: "none", cursor: "pointer", background: c.primaryBtnBg, color: c.primaryBtnText, padding: 14, borderRadius: 999, fontSize: 14.5, fontWeight: 600 }}
+        className="oc-btn oc-btn-primary oc-btn-block"
+        style={{ marginTop: 18, padding: 14, fontSize: 14.5 }}
       >
         Bloquear
       </button>
@@ -343,7 +358,8 @@ function DetalheSheet({ ag, onClose, onRemover }: { ag: Agendamento; onClose: ()
       {bloqueio ? (
         <button
           onClick={onRemover}
-          style={{ width: "100%", marginTop: 16, border: `1px solid ${c.borderInput}`, cursor: "pointer", background: c.surface, color: c.redText, padding: 13, borderRadius: 12, fontSize: 14, fontWeight: 700 }}
+          className="oc-btn oc-btn-danger oc-btn-block"
+          style={{ marginTop: 18, padding: 13 }}
         >
           Remover bloqueio
         </button>
@@ -354,9 +370,9 @@ function DetalheSheet({ ag, onClose, onRemover }: { ag: Agendamento; onClose: ()
 
 function Linha({ l, v }: { l: string; v: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${c.borderSoft}` }}>
-      <span style={{ flex: 1, fontSize: 12.5, color: c.ink3, fontWeight: 600 }}>{l}</span>
-      <span style={{ fontSize: 13.5, fontWeight: 700, color: c.inkTitle }}>{v}</span>
+    <div style={{ display: "flex", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${c.borderSoft}` }}>
+      <span style={{ flex: 1, fontSize: 12.5, color: c.ink3 }}>{l}</span>
+      <span style={{ fontSize: 13.5, fontWeight: 500, color: c.inkTitle }}>{v}</span>
     </div>
   );
 }
@@ -364,12 +380,14 @@ function Linha({ l, v }: { l: string; v: string }) {
 // ---- folha inferior genérica (dentro da moldura do celular) ----
 function Sheet({ titulo, children, onClose }: { titulo: string; children: React.ReactNode; onClose: () => void }) {
   return (
-    <div onClick={onClose} style={{ position: "absolute", inset: 0, zIndex: 20, background: "rgba(7,23,20,.45)", display: "flex", alignItems: "flex-end" }} className="oc-fade">
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", background: c.surface, borderRadius: "20px 20px 0 0", padding: "16px 18px 24px" }}>
+    <div onClick={onClose} style={{ position: "absolute", inset: 0, zIndex: 20, background: "var(--oc-overlay)", display: "flex", alignItems: "flex-end" }} className="oc-fade">
+      <div onClick={(e) => e.stopPropagation()} className="oc-toast" style={{ width: "100%", background: c.surface, borderRadius: "26px 26px 0 0", padding: "10px 20px", paddingBottom: "max(24px, env(safe-area-inset-bottom))", boxShadow: "var(--oc-shadow-modal)" }}>
         <div style={{ width: 40, height: 4, borderRadius: 999, background: c.borderInput, margin: "0 auto 14px" }} />
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 14 }}>
-          <span style={{ flex: 1, fontFamily: font.serif, fontSize: 18, fontWeight: 700, color: c.inkTitle }}>{titulo}</span>
-          <button onClick={onClose} aria-label="Fechar" style={{ border: "none", background: "transparent", cursor: "pointer", color: c.ink3, fontSize: 18 }}>✕</button>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
+          <span style={{ flex: 1, fontSize: 20, fontWeight: 500, letterSpacing: "-0.03em", color: c.inkTitle }}>{titulo}</span>
+          <button onClick={onClose} aria-label="Fechar" className="oc-icon-btn">
+            <Icon name="fechar" size={16} />
+          </button>
         </div>
         {children}
       </div>
@@ -377,17 +395,6 @@ function Sheet({ titulo, children, onClose }: { titulo: string; children: React.
   );
 }
 
-const btnNav: CSSProperties = {
-  width: 34,
-  height: 34,
-  border: `1px solid ${c.borderInput}`,
-  background: c.surface,
-  borderRadius: 999,
-  cursor: "pointer",
-  color: c.ink2,
-  fontSize: 17,
-  flex: "none",
-};
 
 const card: CSSProperties = {
   background: c.surface,

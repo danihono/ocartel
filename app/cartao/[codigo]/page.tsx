@@ -12,7 +12,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { c, font, shadow } from "@/lib/theme";
+import { c, shadow } from "@/lib/theme";
+import { Icon } from "@/components/ui/Icon";
 import { Seal } from "@/components/ui/Seal";
 import { formatBRL } from "@/lib/selectors";
 import { isoParaLabelLongo } from "@/lib/date";
@@ -22,17 +23,17 @@ type Fase = "carregando" | "pronto" | "erro";
 
 const cartao: React.CSSProperties = {
   background: c.surface,
-  border: `1px solid ${c.border}`,
-  borderRadius: 16,
-  padding: "22px 20px",
+  border: `1px solid ${c.borderSoft}`,
+  borderRadius: 24,
+  padding: "24px 22px",
   boxShadow: shadow.card,
 };
 
 function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
     <div style={{ display: "flex", gap: 12, padding: "11px 0", borderBottom: `1px solid ${c.borderSoft}` }}>
-      <span style={{ fontSize: 12.5, color: c.ink3, fontWeight: 600, width: 96, flex: "none" }}>{rotulo}</span>
-      <span style={{ fontSize: 14, color: c.inkTitle, fontWeight: 600, flex: 1 }}>{valor}</span>
+      <span style={{ fontSize: 12.5, color: c.ink3, width: 96, flex: "none" }}>{rotulo}</span>
+      <span style={{ fontSize: 14, color: c.inkTitle, fontWeight: 500, flex: 1 }}>{valor}</span>
     </div>
   );
 }
@@ -96,30 +97,16 @@ export default function CartaoPage() {
   }, [codigo]);
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: c.bg,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        padding: "28px 18px 40px",
-      }}
-    >
-      <div style={{ width: "100%", maxWidth: 420 }}>
-        {/* Marca */}
-        <div style={{ display: "flex", alignItems: "center", gap: 11, justifyContent: "center", marginBottom: 22 }}>
-          <Seal size={38} />
-          <div
-            style={{
-              fontFamily: font.cinzel,
-              fontWeight: 600,
-              fontSize: 15,
-              letterSpacing: 2.5,
-              color: c.inkTitle,
-            }}
-          >
-            {dados?.barbearia?.toUpperCase() ?? "O CARTEL"}
+    <div className="oc-public-bg" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "28px 16px 40px" }}>
+      <div style={{ width: "100%", maxWidth: 440 }}>
+        {/* Marca: faixa floresta "barber pole" */}
+        <div className="oc-card-hero" style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 18px", borderRadius: 24, marginBottom: 14 }}>
+          <Seal size={40} />
+          <div style={{ minWidth: 0 }}>
+            <div className="oc-wordmark" style={{ fontSize: 14.5, letterSpacing: "0.12em", color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {dados?.barbearia?.toUpperCase() ?? "O CARTEL"}
+            </div>
+            <div style={{ fontSize: 11.5, color: c.darkMuted, marginTop: 2 }}>Mensalidade no cartão</div>
           </div>
         </div>
 
@@ -127,7 +114,9 @@ export default function CartaoPage() {
           <div style={{ ...cartao, textAlign: "center", color: c.ink3, fontSize: 13.5 }}>Carregando…</div>
         ) : fase === "erro" ? (
           <div style={{ ...cartao, textAlign: "center" }}>
-            <div style={{ fontSize: 34 }}>🤔</div>
+            <span style={{ width: 56, height: 56, borderRadius: "50%", background: c.surfaceAlt, color: c.ink3, display: "inline-grid", placeItems: "center" }}>
+              <Icon name="alerta" size={24} />
+            </span>
             <div style={{ fontSize: 20, fontWeight: 500, letterSpacing: "-0.035em", color: c.inkTitle, marginTop: 10 }}>
               Não deu certo
             </div>
@@ -138,28 +127,27 @@ export default function CartaoPage() {
           <div style={cartao}>
             <div
               style={{
-                width: 62,
-                height: 62,
+                width: 72,
+                height: 72,
                 borderRadius: "50%",
-                margin: "0 auto",
-                background: c.brass,
-                color: "#FFFFFF",
+                margin: "6px auto 0",
+                background: c.neon,
+                color: c.onNeon,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: 28,
-                fontWeight: 800,
+                boxShadow: "0 0 0 10px rgba(183,255,24,.16), 0 14px 30px -10px rgba(140,200,0,.7)",
               }}
             >
-              ✓
+              <Icon name="check" size={32} stroke={2.6} />
             </div>
             <div
               style={{
-                fontFamily: font.serif,
-                fontSize: 22,
-                fontWeight: 600,
+                fontSize: 24,
+                fontWeight: 500,
+                letterSpacing: "-0.04em",
                 color: c.inkTitle,
-                marginTop: 14,
+                marginTop: 20,
                 textAlign: "center",
               }}
             >
@@ -193,8 +181,9 @@ export default function CartaoPage() {
                 color: c.ink3,
                 padding: 12,
                 fontSize: 13.5,
-                fontWeight: 600,
+                fontWeight: 500,
                 textDecoration: "underline",
+                textUnderlineOffset: 3,
               }}
             >
               {ocupado === "remover" ? "Removendo…" : "Remover meu cartão"}
@@ -203,7 +192,7 @@ export default function CartaoPage() {
         ) : (
           /* ---- Cadastro ---- */
           <div style={cartao}>
-            <div style={{ fontSize: 21, fontWeight: 500, letterSpacing: "-0.035em", color: c.inkTitle }}>
+            <div style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.04em", color: c.inkTitle, lineHeight: 1.1 }}>
               {dados?.cliente ? `Oi, ${dados.cliente.split(" ")[0]}!` : "Sua mensalidade"}
             </div>
             <p style={{ fontSize: 13.5, color: c.ink2, lineHeight: 1.55, margin: "6px 0 4px" }}>
@@ -238,17 +227,17 @@ export default function CartaoPage() {
                     alignItems: "flex-start",
                     marginTop: 18,
                     cursor: "pointer",
-                    background: c.surfaceAlt,
+                    background: c.field,
                     border: `1px solid ${c.borderSoft}`,
-                    borderRadius: 12,
-                    padding: "13px 14px",
+                    borderRadius: 16,
+                    padding: "14px 15px",
                   }}
                 >
                   <input
                     type="checkbox"
                     checked={aceite}
                     onChange={(e) => setAceite(e.target.checked)}
-                    style={{ marginTop: 2, width: 17, height: 17, flex: "none", accentColor: c.brass }}
+                    style={{ marginTop: 2, width: 17, height: 17, flex: "none" }}
                   />
                   <span style={{ fontSize: 12.5, color: c.ink2, lineHeight: 1.5 }}>{dados.textoAutorizacao}</span>
                 </label>
@@ -256,21 +245,10 @@ export default function CartaoPage() {
                 <button
                   onClick={cadastrar}
                   disabled={ocupado !== null || !aceite}
-                  className="oc-btn oc-btn-primary"
-                  style={{
-                    width: "100%",
-                    marginTop: 14,
-                    border: "none",
-                    cursor: ocupado || !aceite ? "default" : "pointer",
-                    opacity: ocupado || !aceite ? 0.55 : 1,
-                    background: c.primaryBtnBg,
-                    color: c.primaryBtnText,
-                    padding: 16,
-                    borderRadius: 13,
-                    fontSize: 15.5,
-                    fontWeight: 700,
-                  }}
+                  className="oc-btn oc-btn-neon oc-btn-block"
+                  style={{ marginTop: 16, padding: 16, fontSize: 15.5 }}
                 >
+                  {ocupado !== "cadastrar" ? <Icon name="cartao" size={18} /> : null}
                   {ocupado === "cadastrar" ? "Abrindo…" : "Cadastrar cartão"}
                 </button>
 

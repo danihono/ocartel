@@ -6,7 +6,7 @@
 
 import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { c, font } from "@/lib/theme";
+import { c } from "@/lib/theme";
 import { Seal } from "@/components/ui/Seal";
 import { useAuth } from "@/lib/firebase/auth";
 
@@ -17,9 +17,9 @@ const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : use
 function Splash() {
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: c.bg }}>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14, opacity: 0.85 }}>
+      <div className="oc-breathe" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
         <Seal size={52} />
-        <div style={{ fontFamily: font.cinzel, fontSize: 13, letterSpacing: 3, color: c.ink3 }}>O CARTEL</div>
+        <div className="oc-wordmark" style={{ fontSize: 13, color: c.ink3 }}>O CARTEL</div>
       </div>
     </div>
   );

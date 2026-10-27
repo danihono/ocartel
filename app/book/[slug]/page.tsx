@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { c, font, shadow } from "@/lib/theme";
-import { Seal } from "@/components/ui/Seal";
+import { c } from "@/lib/theme";
+import { PhoneFrame } from "@/components/ui/PhoneFrame";
+import { Button } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
 import { fieldInput, fieldLabel } from "@/components/ui/Field";
 import { useToast } from "@/components/ui/Toast";
 import { formatBRL, fmtDur } from "@/lib/selectors";
@@ -13,7 +15,7 @@ import { horaParaMin, horarioLivre, type IntervaloOcupado } from "@/lib/agenda";
 import { gerarHorarios } from "@/lib/disponibilidade";
 import { criarAgendamentoPublico, disponibilidadePublica } from "./actions";
 
-const sectionTitle: React.CSSProperties = { fontSize: 15, fontWeight: 600, letterSpacing: "-0.015em", color: c.inkTitle, margin: "20px 0 10px" };
+const sectionTitle: React.CSSProperties = { fontSize: 15, fontWeight: 600, letterSpacing: "-0.02em", color: c.inkTitle, margin: "22px 0 10px" };
 
 type Step = "selecao" | "dados" | "sucesso";
 
@@ -150,209 +152,195 @@ export default function BookingPage() {
     setTelefone("");
   }
 
-  const eyebrowTxt =
-    step === "selecao" ? "Passo 2 de 3 · Agende seu horário" : step === "dados" ? "Passo 3 de 3 · Seus dados" : "Confirmado";
+  const passo = step === "selecao" ? 1 : step === "dados" ? 2 : 3;
 
   return (
-    <div style={{ minHeight: "100vh", background: c.border, display: "flex", justifyContent: "center", alignItems: "flex-start", padding: "36px 20px" }}>
-      <div style={{ width: 392, height: 812, background: c.espressoDeep, borderRadius: 46, padding: 11, boxShadow: shadow.phone }}>
-        <div style={{ position: "relative", width: "100%", height: "100%", background: c.surfaceAlt, borderRadius: 36, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          {/* status bar */}
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 34, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 26px", zIndex: 5, color: c.darkText, fontSize: 12, fontWeight: 600 }}>
-            <span>9:41</span>
-            <div style={{ width: 120, height: 26, background: c.espressoDeep, borderRadius: "0 0 16px 16px", position: "absolute", left: "50%", transform: "translateX(-50%)", top: 0 }} />
-            <span>● ● ●</span>
-          </div>
-
-          {/* header */}
-          <div style={{ background: c.espressoDeep, color: c.darkText, padding: "46px 22px 20px", flex: "none" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
-              <Seal size={42} />
-              <div>
-                <div style={{ fontFamily: font.cinzel, fontWeight: 600, fontSize: 15, letterSpacing: 1.5, color: c.darkText }}>{(catalog?.nome ?? "Barbearia").toUpperCase()}</div>
-                <div style={{ fontSize: 11, color: c.darkMuted, marginTop: 2 }}>{catalog?.endereco ?? ""}</div>
-              </div>
-            </div>
-          </div>
-
-          {carregando ? (
-            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: c.ink3, fontSize: 13 }}>Carregando…</div>
-          ) : erro || !catalog ? (
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 26px", textAlign: "center" }}>
-              <div style={{ fontSize: 20, fontWeight: 500, letterSpacing: "-0.035em", color: c.inkTitle }}>Barbearia não encontrada</div>
-              <p style={{ fontSize: 13.5, color: c.ink2, marginTop: 8, lineHeight: 1.5 }}>Confira o link de agendamento com a barbearia.</p>
-            </div>
-          ) : step === "sucesso" ? (
-            /* Sucesso */
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px 26px", textAlign: "center" }}>
-              <div style={{ width: 66, height: 66, borderRadius: "50%", background: c.brass, color: c.espressoDeep, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, fontWeight: 800 }}>✓</div>
-              <div style={{ fontSize: 23, fontWeight: 500, letterSpacing: "-0.035em", color: c.inkTitle, marginTop: 18 }}>Agendamento confirmado</div>
-              <p style={{ fontSize: 13.5, color: c.ink2, marginTop: 6, lineHeight: 1.5 }}>Enviamos os detalhes por mensagem. Até logo, {nome.split(" ")[0]}!</p>
-              <div style={{ width: "100%", background: c.surface, border: `1px solid ${c.borderSoft}`, borderRadius: 18, padding: 16, marginTop: 22, textAlign: "left" }}>
-                <Resumo l="Serviço" v={svc?.nome ?? ""} />
-                <Resumo l="Profissional" v={barb?.nome ?? ""} />
-                <Resumo l="Quando" v={quando} />
-                <div style={{ display: "flex", alignItems: "center", marginTop: 10, paddingTop: 12, borderTop: `1px solid ${c.borderSoft}` }}>
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: c.inkTitle }}>Total</span>
-                  <span style={{ fontSize: 15, fontWeight: 600, letterSpacing: "-0.015em", color: c.inkTitle }}>{svc ? formatBRL(svc.preco) : ""}</span>
-                </div>
-              </div>
-              <button onClick={reset} style={{ marginTop: 20, width: "100%", border: "none", cursor: "pointer", background: c.primaryBtnBg, color: c.primaryBtnText, padding: 14, borderRadius: 999, fontSize: 14.5, fontWeight: 600 }}>Fazer novo agendamento</button>
-            </div>
-          ) : (
-            <>
-              {/* body */}
-              <div style={{ flex: 1, overflow: "auto", padding: "18px 20px 16px" }}>
-                <div style={{ fontSize: 11, letterSpacing: 1, textTransform: "uppercase", color: c.ink3, fontWeight: 700, marginBottom: 14 }}>
-                  {eyebrowTxt}
-                </div>
-
-                {step === "selecao" ? (
-                  <>
-                    {/* Serviço */}
-                    <div style={{ ...sectionTitle, marginTop: 0 }}>Serviço</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {catalog.servicos.map((s) => {
-                        const on = s.id === servicoId;
-                        return (
-                          <button
-                            key={s.id}
-                            onClick={() => setServicoId(s.id)}
-                            style={{ display: "flex", alignItems: "center", gap: 10, background: on ? c.brassTint : c.surface, border: `1.5px solid ${on ? c.brass : c.border}`, borderRadius: 12, padding: "13px 14px", cursor: "pointer", textAlign: "left" }}
-                          >
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: 14, fontWeight: 600, color: c.inkTitle }}>{s.nome}</div>
-                              <div style={{ fontSize: 11.5, color: c.ink2, marginTop: 1 }}>{fmtDur(s.duracaoMin)}</div>
-                            </div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: c.inkTitle }}>{formatBRL(s.preco)}</div>
-                            <div style={{ width: 20, height: 20, borderRadius: "50%", background: c.brass, color: c.espressoDeep, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, opacity: on ? 1 : 0 }}>✓</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Profissional */}
-                    <div style={sectionTitle}>Profissional</div>
-                    <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
-                      {catalog.barbeiros.map((b) => {
-                        const on = b.id === barbeiroId;
-                        return (
-                          <button
-                            key={b.id}
-                            onClick={() => setBarbeiroId(b.id)}
-                            style={{ flex: "1 1 30%", minWidth: 88, background: on ? c.brassTint : c.surface, border: `1.5px solid ${on ? c.brass : c.border}`, borderRadius: 12, padding: "13px 8px", textAlign: "center", cursor: "pointer" }}
-                          >
-                            <div style={{ width: 38, height: 38, borderRadius: "50%", background: c.leather, color: c.darkText, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, margin: "0 auto 7px" }}>{b.iniciais}</div>
-                            <div style={{ fontSize: 12.5, fontWeight: 600, color: c.inkTitle }}>{b.nome}</div>
-                            {b.rating || b.especialidade ? (
-                              <div style={{ fontSize: 10.5, color: c.ink2, marginTop: 1 }}>{b.rating ? `★ ${b.rating}` : ""}{b.rating && b.especialidade ? " · " : ""}{b.especialidade ?? ""}</div>
-                            ) : null}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Data */}
-                    <div style={sectionTitle}>Data</div>
-                    <div style={{ display: "flex", gap: 7 }}>
-                      {dias.map((d) => {
-                        const on = d === dia;
-                        return (
-                          <button
-                            key={d}
-                            onClick={() => setDia(d)}
-                            style={{ flex: 1, background: on ? c.brass : c.surface, border: `1.5px solid ${on ? c.brass : c.border}`, borderRadius: 11, padding: "9px 4px", textAlign: "center", cursor: "pointer" }}
-                          >
-                            <div style={{ fontSize: 10.5, fontWeight: 600, color: on ? c.inkTitle : c.ink3 }}>{diaSemanaCurtoLabel(d)}</div>
-                            <div style={{ fontSize: 15, fontWeight: 700, color: on ? c.espressoDeep : c.inkTitle, marginTop: 2, fontFamily: font.serif }}>{Number(d.slice(8, 10))}</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Horário */}
-                    <div style={sectionTitle}>Horário</div>
-                    {!temSlotLivre ? (
-                      <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 12, padding: "16px 14px", textAlign: "center", fontSize: 13, color: c.ink2 }}>
-                        Sem horários disponíveis neste dia. Escolha outra data.
-                      </div>
-                    ) : null}
-                    <div style={{ display: temSlotLivre ? "grid" : "none", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
-                      {horarios.map((h) => {
-                        const on = h === hora;
-                        const livre = slotDisponivel(h);
-                        return (
-                          <button
-                            key={h}
-                            onClick={() => livre && setHora(h)}
-                            disabled={!livre}
-                            title={livre ? undefined : "Horário indisponível"}
-                            style={{
-                              background: on ? c.brass : c.surface,
-                              border: `1.5px solid ${on ? c.brass : c.border}`,
-                              borderRadius: 10,
-                              padding: "11px 4px",
-                              textAlign: "center",
-                              fontSize: 13,
-                              fontWeight: on ? 700 : 500,
-                              color: on ? c.espressoDeep : livre ? c.inkTitle : c.ink4,
-                              cursor: livre ? "pointer" : "not-allowed",
-                              opacity: livre ? 1 : 0.5,
-                              textDecoration: livre ? "none" : "line-through",
-                            }}
-                          >
-                            {h}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                ) : (
-                  /* dados */
-                  <>
-                    <div style={{ ...sectionTitle, marginTop: 0 }}>Seus dados</div>
-                    <div style={{ marginBottom: 14 }}>
-                      <label style={fieldLabel}>Nome completo</label>
-                      <input style={fieldInput} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Como devemos te chamar?" />
-                    </div>
-                    <div style={{ marginBottom: 18 }}>
-                      <label style={fieldLabel}>Telefone (WhatsApp)</label>
-                      <input style={fieldInput} value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(11) 90000-0000" />
-                    </div>
-                    <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 12, padding: 14 }}>
-                      <Resumo l="Serviço" v={svc?.nome ?? ""} />
-                      <Resumo l="Profissional" v={barb?.nome ?? ""} />
-                      <Resumo l="Quando" v={quando} />
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* footer */}
-              <div style={{ flex: "none", background: c.surface, borderTop: `1px solid ${c.border}`, padding: "14px 20px 22px", display: "flex", alignItems: "center", gap: 14 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 11, color: c.ink3, fontWeight: 600 }}>{svc?.nome ?? ""} · {quando}</div>
-                  <div style={{ fontFamily: font.mono, fontSize: 20, fontWeight: 500, letterSpacing: "-0.04em", color: c.inkTitle }}>{svc ? formatBRL(svc.preco) : ""}</div>
-                </div>
-                {step === "selecao" ? (
-                  <button onClick={() => hora && setStep("dados")} disabled={!hora} style={{ border: "none", cursor: hora ? "pointer" : "not-allowed", opacity: hora ? 1 : 0.5, background: c.primaryBtnBg, color: c.primaryBtnText, padding: "14px 22px", borderRadius: 999, fontSize: 14.5, fontWeight: 600 }}>Continuar</button>
-                ) : (
-                  <button onClick={confirmar} disabled={enviando} style={{ border: "none", cursor: enviando ? "default" : "pointer", opacity: enviando ? 0.7 : 1, background: c.primaryBtnBg, color: c.primaryBtnText, padding: "14px 22px", borderRadius: 999, fontSize: 14.5, fontWeight: 600 }}>{enviando ? "Enviando…" : "Confirmar"}</button>
-                )}
-              </div>
-            </>
-          )}
+    <PhoneFrame title={(catalog?.nome ?? "Barbearia").toUpperCase()} subtitle={catalog?.endereco ?? ""}>
+      {carregando ? (
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: c.ink3, fontSize: 13 }}>Carregando…</div>
+      ) : erro || !catalog ? (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 26px", textAlign: "center", gap: 10 }}>
+          <span style={{ width: 52, height: 52, borderRadius: "50%", background: c.surfaceAlt, color: c.ink3, display: "grid", placeItems: "center" }}>
+            <Icon name="alerta" size={22} />
+          </span>
+          <div style={{ fontSize: 20, fontWeight: 500, letterSpacing: "-0.035em", color: c.inkTitle }}>Barbearia não encontrada</div>
+          <p style={{ fontSize: 13.5, color: c.ink2, margin: 0, lineHeight: 1.5 }}>Confira o link de agendamento com a barbearia.</p>
         </div>
-      </div>
-    </div>
+      ) : step === "sucesso" ? (
+        /* Sucesso */
+        <div className="oc-pop" style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 22px", textAlign: "center" }}>
+          <div style={{ width: 76, height: 76, borderRadius: "50%", background: c.neon, color: c.onNeon, display: "grid", placeItems: "center", boxShadow: "0 0 0 10px rgba(183,255,24,.16), 0 14px 32px -10px rgba(140,200,0,.7)" }}>
+            <Icon name="check" size={34} stroke={2.6} />
+          </div>
+          <h1 className="oc-h1" style={{ fontSize: 28, marginTop: 24 }}>
+            Agendamento confirmado.
+            <span>Até logo, {nome.split(" ")[0]}!</span>
+          </h1>
+          <p style={{ fontSize: 13.5, color: c.ink2, marginTop: 10, lineHeight: 1.5 }}>Enviamos os detalhes por mensagem.</p>
+          <div className="oc-card" style={{ width: "100%", padding: "8px 18px", marginTop: 20, textAlign: "left" }}>
+            <Resumo l="Serviço" v={svc?.nome ?? ""} />
+            <Resumo l="Profissional" v={barb?.nome ?? ""} />
+            <Resumo l="Quando" v={quando} />
+            <div style={{ display: "flex", alignItems: "center", padding: "12px 0 10px", borderTop: `1px solid ${c.borderSoft}`, marginTop: 4 }}>
+              <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: c.inkTitle }}>Total</span>
+              <span className="num" style={{ fontSize: 17, fontWeight: 500, color: c.inkTitle }}>{svc ? formatBRL(svc.preco) : ""}</span>
+            </div>
+          </div>
+          <Button variant="ghost" block onClick={reset} style={{ marginTop: 18, padding: "13px 18px" }}>
+            Fazer novo agendamento
+          </Button>
+        </div>
+      ) : (
+        <>
+          {/* body */}
+          <div style={{ flex: 1, overflow: "auto", padding: "20px 20px 18px" }}>
+            {/* Passos */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              {[1, 2].map((n) => (
+                <span key={n} style={{ flex: 1, height: 4, borderRadius: 999, background: n <= passo ? c.accent : c.borderInput, transition: "background .3s" }} />
+              ))}
+            </div>
+            <div className="oc-label" style={{ marginBottom: 4 }}>
+              {step === "selecao" ? "Passo 1 de 2 · Escolha o horário" : "Passo 2 de 2 · Seus dados"}
+            </div>
+
+            {step === "selecao" ? (
+              <>
+                {/* Serviço */}
+                <div style={sectionTitle}>Serviço</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {catalog.servicos.map((s) => {
+                    const on = s.id === servicoId;
+                    return (
+                      <button key={s.id} onClick={() => setServicoId(s.id)} aria-pressed={on} className="oc-tile" style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+                        <span style={{ width: 36, height: 36, borderRadius: 12, background: on ? c.forest : c.surfaceAlt, color: on ? c.neon : c.ink3, display: "grid", placeItems: "center", flex: "none", transition: "background .15s" }}>
+                          <Icon name="tesoura" size={17} />
+                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 500, color: c.inkTitle }}>{s.nome}</div>
+                          <div style={{ fontSize: 12, color: c.ink3, marginTop: 2 }}>{fmtDur(s.duracaoMin)}</div>
+                        </div>
+                        <div className="num" style={{ fontSize: 14, fontWeight: 500, color: c.inkTitle }}>{formatBRL(s.preco)}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Profissional */}
+                <div style={sectionTitle}>Profissional</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {catalog.barbeiros.map((b) => {
+                    const on = b.id === barbeiroId;
+                    return (
+                      <button key={b.id} onClick={() => setBarbeiroId(b.id)} aria-pressed={on} className="oc-tile" style={{ flex: "1 1 30%", minWidth: 92, padding: "14px 8px", textAlign: "center" }}>
+                        <div style={{ width: 42, height: 42, borderRadius: "50%", background: on ? c.forest : c.surfaceAlt, color: on ? c.neon : c.ink, display: "grid", placeItems: "center", fontSize: 13, fontWeight: 600, margin: "0 auto 8px", transition: "background .15s" }}>{b.iniciais}</div>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: c.inkTitle }}>{b.nome}</div>
+                        {b.rating || b.especialidade ? (
+                          <div style={{ fontSize: 11, color: c.ink3, marginTop: 2 }}>{b.rating ? `★ ${b.rating}` : ""}{b.rating && b.especialidade ? " · " : ""}{b.especialidade ?? ""}</div>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Data */}
+                <div style={sectionTitle}>Data</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {dias.map((d) => {
+                    const on = d === dia;
+                    return (
+                      <button
+                        key={d}
+                        onClick={() => setDia(d)}
+                        aria-pressed={on}
+                        style={{ flex: 1, background: on ? c.primaryBtnBg : c.surface, border: `1px solid ${on ? "transparent" : c.border}`, borderRadius: 16, padding: "10px 2px", textAlign: "center", cursor: "pointer", transition: "background .15s" }}
+                      >
+                        <div style={{ fontSize: 10.5, fontWeight: 500, textTransform: "capitalize", color: on ? "var(--oc-btn-icon)" : c.ink3 }}>{diaSemanaCurtoLabel(d)}</div>
+                        <div className="num" style={{ fontSize: 17, fontWeight: 500, color: on ? c.primaryBtnText : c.inkTitle, marginTop: 3 }}>{Number(d.slice(8, 10))}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Horário */}
+                <div style={sectionTitle}>Horário</div>
+                {!temSlotLivre ? (
+                  <div className="oc-card" style={{ padding: "16px 14px", textAlign: "center", fontSize: 13, color: c.ink2 }}>
+                    Sem horários disponíveis neste dia. Escolha outra data.
+                  </div>
+                ) : null}
+                <div style={{ display: temSlotLivre ? "grid" : "none", gridTemplateColumns: "repeat(4,1fr)", gap: 7 }}>
+                  {horarios.map((h) => {
+                    const on = h === hora;
+                    const livre = slotDisponivel(h);
+                    return (
+                      <button
+                        key={h}
+                        onClick={() => livre && setHora(h)}
+                        disabled={!livre}
+                        aria-pressed={on}
+                        title={livre ? undefined : "Horário indisponível"}
+                        className="oc-tile num"
+                        style={{ padding: "11px 2px", textAlign: "center", fontSize: 13.5, fontWeight: 500, borderRadius: 999, textDecoration: livre ? "none" : "line-through" }}
+                      >
+                        {h}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              /* dados */
+              <>
+                <div style={sectionTitle}>Seus dados</div>
+                <div style={{ marginBottom: 14 }}>
+                  <label style={fieldLabel}>Nome completo</label>
+                  <input className="oc-input" autoComplete="name" style={fieldInput} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Como devemos te chamar?" />
+                </div>
+                <div style={{ marginBottom: 18 }}>
+                  <label style={fieldLabel}>Telefone (WhatsApp)</label>
+                  <input className="oc-input" type="tel" autoComplete="tel" inputMode="tel" style={fieldInput} value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(11) 90000-0000" />
+                </div>
+                <div className="oc-card" style={{ padding: "8px 16px" }}>
+                  <Resumo l="Serviço" v={svc?.nome ?? ""} />
+                  <Resumo l="Profissional" v={barb?.nome ?? ""} />
+                  <Resumo l="Quando" v={quando} />
+                </div>
+                <button onClick={() => setStep("selecao")} style={{ marginTop: 14, border: "none", background: "transparent", color: c.accent, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, padding: 0 }}>
+                  <Icon name="setaEsq" size={14} /> Trocar horário
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* rodapé com o CTA neon */}
+          <div className="oc-phone-foot">
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11.5, color: c.ink3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{svc?.nome ?? ""} · {quando}</div>
+              <div className="num" style={{ fontSize: 21, fontWeight: 500, color: c.inkTitle, marginTop: 2 }}>{svc ? formatBRL(svc.preco) : ""}</div>
+            </div>
+            {step === "selecao" ? (
+              <Button variant="neon" onClick={() => hora && setStep("dados")} disabled={!hora}>
+                Continuar <Icon name="seta" size={16} stroke={2.2} />
+              </Button>
+            ) : (
+              <Button variant="neon" onClick={confirmar} disabled={enviando}>
+                {enviando ? "Enviando…" : "Confirmar"}
+                {!enviando ? <Icon name="check" size={16} stroke={2.4} /> : null}
+              </Button>
+            )}
+          </div>
+        </>
+      )}
+    </PhoneFrame>
   );
 }
 
 function Resumo({ l, v }: { l: string; v: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", padding: "5px 0" }}>
-      <span style={{ flex: 1, fontSize: 12.5, color: c.ink3, fontWeight: 600 }}>{l}</span>
-      <span style={{ fontSize: 13.5, fontWeight: 700, color: c.inkTitle }}>{v}</span>
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 0" }}>
+      <span style={{ flex: 1, fontSize: 12.5, color: c.ink3 }}>{l}</span>
+      <span style={{ fontSize: 13.5, fontWeight: 500, color: c.inkTitle, textAlign: "right" }}>{v}</span>
     </div>
   );
 }

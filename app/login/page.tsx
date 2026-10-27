@@ -155,6 +155,10 @@ export default function LoginPage() {
             <div className="oc-wordmark" style={{ fontSize: 17, color: "#FFFFFF" }}>O CARTEL</div>
             <div style={{ fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: c.darkMuted, marginTop: 3 }}>Clube de barbearia</div>
           </div>
+          <span style={{ flex: 1 }} />
+          <span className="oc-only-mobile">
+            <ThemeSwitch />
+          </span>
         </div>
 
         <div className="oc-login-razor" aria-hidden>
@@ -176,7 +180,7 @@ export default function LoginPage() {
 
       {/* Direita — formulário */}
       <div className="oc-login-form">
-        <div style={{ position: "absolute", top: 20, right: 20 }}>
+        <div className="oc-only-desktop" style={{ position: "absolute", top: 20, right: 20 }}>
           <ThemeSwitch />
         </div>
         <div style={{ width: "100%", maxWidth: 380 }}>

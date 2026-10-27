@@ -1113,3 +1113,94 @@ input[type="radio"] {
     padding: 30px 20px 48px;
   }
 }
+
+/* ------------------------------------------- telas públicas (mobile) */
+.oc-phone-wrap {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px 16px;
+}
+.oc-phone {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  height: min(880px, calc(100dvh - 48px));
+  background: var(--oc-page);
+  border: 1px solid var(--oc-line);
+  border-radius: 32px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--oc-shadow-modal);
+}
+.oc-phone-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 22px 24px;
+  padding-top: max(22px, env(safe-area-inset-top));
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+.oc-phone-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  padding-bottom: max(18px, env(safe-area-inset-bottom));
+  background: var(--oc-surface);
+  border-top: 1px solid var(--oc-line);
+}
+/* Tile selecionável (serviço, barbeiro, dia, horário). */
+.oc-tile {
+  border: 1px solid var(--oc-line);
+  background: var(--oc-surface);
+  border-radius: 16px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--oc-ink);
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s var(--oc-ease);
+}
+.oc-tile:hover:not(:disabled) {
+  border-color: var(--oc-line-strong);
+}
+.oc-tile[aria-pressed="true"] {
+  border-color: var(--oc-accent);
+  background: var(--oc-accent-tint);
+  box-shadow: 0 0 0 1px var(--oc-accent) inset;
+}
+.oc-tile:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+@media (max-width: 599px) {
+  .oc-phone-wrap {
+    padding: 0;
+    align-items: stretch;
+    background-image: none;
+  }
+  .oc-phone {
+    max-width: none;
+    height: 100vh;
+    height: 100dvh;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+  }
+}
+.oc-agenda-row + .oc-agenda-row {
+  border-top: 1px solid var(--oc-hair) !important;
+}
+
+/* No celular o herói ocupa a linha inteira. */
+@media (max-width: 599px) {
+  .oc-kpis > .oc-card-hero:first-child {
+    grid-column: 1 / -1;
+  }
+}

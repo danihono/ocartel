@@ -255,12 +255,12 @@ export function AgendamentoRecorrenteModal({
                     style={{
                       flex: 1,
                       padding: "9px 0",
-                      borderRadius: 9,
-                      border: `1px solid ${on ? c.brass : c.borderInput}`,
-                      background: on ? c.brass : c.surface,
-                      color: on ? "#fff" : c.ink2,
+                      borderRadius: 999,
+                      border: `1px solid ${on ? "transparent" : c.border}`,
+                      background: on ? "var(--oc-sel-bg)" : c.surface,
+                      color: on ? "var(--oc-sel-text)" : c.ink2,
                       fontSize: 12.5,
-                      fontWeight: 700,
+                      fontWeight: 500,
                       cursor: "pointer",
                     }}
                   >

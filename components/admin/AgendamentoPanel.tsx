@@ -10,7 +10,7 @@ import { useToast } from "@/components/ui/Toast";
 import { barbeiroNomePorId, fmtDur, formatBRL, precoServico, tagDerivadaCliente } from "@/lib/selectors";
 import { isoParaLabelLongo } from "@/lib/date";
 import { useHoje } from "@/lib/useRelogio";
-import { c, font } from "@/lib/theme";
+import { c } from "@/lib/theme";
 import { blocoMeta, STATUS_LABEL, tagMeta } from "@/lib/status";
 import { telefoneWhatsApp } from "@/lib/clientes-import";
 import { linkConfirmacao, linkWhatsApp, mensagemWhatsApp, montarCodigo, novoToken } from "@/lib/confirmacao";
