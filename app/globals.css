@@ -1204,3 +1204,130 @@ input[type="radio"] {
     grid-column: 1 / -1;
   }
 }
+
+/* Impressão (Relatórios → Imprimir / PDF): só o conteúdo, em fundo branco. */
+@media print {
+  :root {
+    color-scheme: light;
+  }
+  body {
+    background: #fff !important;
+  }
+  .oc-shell,
+  .oc-main,
+  .oc-tela {
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+  .oc-tela[hidden] {
+    display: none !important;
+  }
+  .oc-no-print,
+  .oc-eyebrow {
+    display: none !important;
+  }
+  .oc-card,
+  .oc-card-hero {
+    box-shadow: none !important;
+    break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .oc-stagger > * {
+    animation: none !important;
+  }
+}
+
+/* Impressão sempre no tema claro, mesmo com o painel no escuro: papel é branco. */
+@media print {
+  :root[data-theme="dark"] {
+    color-scheme: light;
+
+  /* superfícies */
+  --oc-page: #f4f4f0;
+  --oc-surface: #ffffff;
+  --oc-raised: #eeeee9;
+  --oc-field: #f9f9f6;
+  --oc-overlay: rgba(10, 16, 12, 0.38);
+
+  /* tinta */
+  --oc-ink: #0e1411;
+  --oc-sub: #545b57;
+  --oc-muted: #7a817d;
+  --oc-faint: #a3a8a4;
+  --oc-dim: #a3a8a4; /* segundo tom dos títulos */
+
+  /* bordas */
+  --oc-line: #e6e6e0;
+  --oc-hair: #efefea;
+  --oc-line-strong: #dddcd5;
+
+  /* floresta: superfícies escuras em QUALQUER tema (herói, nav ativa, toast) */
+  --oc-forest: #0b1a12;
+  --oc-forest-deep: #06110b;
+  --oc-forest-2: #16291e;
+  --oc-forest-line: rgba(183, 255, 24, 0.12);
+  --oc-on-forest: #eef4ec;
+  --oc-on-forest-dim: #9aaa9f;
+
+  /* neon da marca */
+  --oc-neon: #b7ff18;
+  --oc-neon-press: #a6ef00;
+  --oc-on-neon: #0b1a12;
+
+  /* acento legível sobre a superfície do tema */
+  --oc-accent: #4a7300;
+  --oc-accent-strong: #365500;
+  --oc-accent-soft: rgba(183, 255, 24, 0.28);
+  --oc-accent-tint: rgba(183, 255, 24, 0.14);
+  --oc-accent-line: rgba(74, 115, 0, 0.28);
+
+  /* botão principal / item ativo */
+  --oc-btn-bg: #0b1a12;
+  --oc-btn-bg-hover: #16291e;
+  --oc-btn-ink: #ffffff;
+  --oc-btn-icon: #b7ff18;
+  --oc-sel-bg: #0b1a12;
+  --oc-sel-ink: #b7ff18;
+  --oc-sel-text: #ffffff;
+
+  /* status: texto + tint */
+  --oc-green: #1f8a5b;
+  --oc-green-ink: #17704a;
+  --oc-green-tint: #e5f3ec;
+  --oc-amber: #b07a12;
+  --oc-amber-ink: #8a5d0a;
+  --oc-amber-tint: #faf0dc;
+  --oc-red: #c2334b;
+  --oc-red-ink: #a52a3f;
+  --oc-red-tint: #fbe8eb;
+  --oc-blue: #2f6fb3;
+  --oc-blue-ink: #245a93;
+  --oc-blue-tint: #e6eff8;
+  --oc-violet: #6a4fd6;
+  --oc-violet-tint: #eeeafb;
+  --oc-pink: #d63f6b;
+
+  /* série categórica (barbeiros, planos, gráficos) */
+  --oc-s1: #4a7300;
+  --oc-s2: #2f6fb3;
+  --oc-s3: #6a4fd6;
+  --oc-s4: #b07a12;
+  --oc-s5: #d63f6b;
+
+  /* sombras: baixas e largas, o cartão flutua, não pesa */
+  --oc-shadow-sm: 0 1px 2px rgba(14, 20, 17, 0.04);
+  --oc-shadow-card: 0 1px 2px rgba(14, 20, 17, 0.03), 0 10px 30px -14px rgba(14, 20, 17, 0.1);
+  --oc-shadow-pop: 0 14px 36px -8px rgba(14, 20, 17, 0.18);
+  --oc-shadow-modal: 0 30px 80px rgba(14, 20, 17, 0.24);
+  --oc-shadow-phone: 0 30px 70px rgba(6, 17, 11, 0.4);
+  --oc-glow: 0 0 0 3px rgba(183, 255, 24, 0.35), 0 8px 22px -8px rgba(11, 26, 18, 0.45);
+  --oc-ring: 0 0 0 3px rgba(183, 255, 24, 0.32);
+  --oc-scrollbar: rgba(14, 20, 17, 0.14);
+  --oc-scrollbar-hover: rgba(14, 20, 17, 0.28);
+
+  --oc-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --oc-radius: 18px;
+  }
+}

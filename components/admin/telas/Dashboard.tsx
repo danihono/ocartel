@@ -29,6 +29,9 @@ import {
 import { isoParaDiaMes, mesLabel } from "@/lib/date";
 import { useHoje } from "@/lib/useRelogio";
 import { AgendamentoModal } from "@/components/admin/AgendamentoModal";
+import { BotaoWhatsApp, motivoParaChamar, useLinkAgendamento } from "@/components/admin/ChamarDeVolta";
+import { aniversariantes, clientesSumidos, comHorarioMarcado, DIAS_SUMIDO } from "@/lib/reativacao";
+import type { Cliente } from "@/lib/types";
 
 type Periodo = "7d" | "30d" | "90d";
 const diasPeriodo: Record<Periodo, number> = { "7d": 7, "30d": 30, "90d": 90 };
@@ -82,6 +85,9 @@ export function TelaDashboard() {
       {/* Renovações — o alerta da BARBEARIA. O cliente é avisado pelo WhatsApp; a dona,
           aqui. Só aparece quando há o que fazer: uma faixa permanente vira paisagem. */}
       <Renovacoes hojeISO={hoje} />
+
+      {/* Quem chamar hoje: aniversariantes da semana e clientes sumidos. */}
+      <ChamarHoje hojeISO={hoje} />
 
       {/* Faturamento + Serviços */}
       <div className="oc-stack-mobile" style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr)", gap: 18 }}>
@@ -360,6 +366,66 @@ function Renovacoes({ hojeISO }: { hojeISO: string }) {
           </div>
         </div>
       ) : null}
+    </Card>
+  );
+}
+
+/**
+ * "Chamar de volta": aniversariantes dos próximos dias e quem não volta há muito tempo,
+ * cada um com a mensagem pronta no WhatsApp. Some quando não há ninguém para chamar.
+ */
+function ChamarHoje({ hojeISO }: { hojeISO: string }) {
+  const { state } = useStore();
+  const link = useLinkAgendamento();
+  const aniv = aniversariantes(state.clientes, hojeISO);
+  const sumidos = clientesSumidos(state.clientes, state.agendamentos, hojeISO);
+  if (!aniv.length && !sumidos.length) return null;
+  const marcados = comHorarioMarcado(state.agendamentos, hojeISO);
+
+  const coluna = (titulo: string, icone: "estrela" | "relogio", lista: Cliente[], vazio: string) => (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <span style={{ color: c.accent }}>
+          <Icon name={icone} size={15} />
+        </span>
+        <span className="oc-label">{titulo}</span>
+        <span className="oc-chip num" style={{ background: c.surfaceAlt, color: c.ink2, fontWeight: 500, padding: "1px 8px" }}>{lista.length}</span>
+      </div>
+      {lista.length === 0 ? <div style={{ fontSize: 13, color: c.ink3, padding: "12px 0" }}>{vazio}</div> : null}
+      {lista.slice(0, 4).map((cl, i) => {
+        const m = motivoParaChamar(cl, hojeISO, marcados, state.config.nome, link);
+        return (
+          <div key={cl.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i ? `1px solid ${c.borderSoft}` : "none" }}>
+            <Avatar initials={cl.iniciais} size={34} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 500, color: c.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cl.nome}</div>
+              <div style={{ fontSize: 12, color: c.ink3, marginTop: 1 }}>{m?.texto ?? ""}</div>
+            </div>
+            {m ? <BotaoWhatsApp telefone={cl.telefone} mensagem={m.mensagem} /> : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  return (
+    <Card>
+      <CardTitle
+        sub="Uma mensagem na hora certa traz o cliente de volta"
+        right={
+          <LinkAba href="/clientes">
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 600, color: c.accent, cursor: "pointer" }}>
+              Ver todos <Icon name="seta" size={14} />
+            </span>
+          </LinkAba>
+        }
+      >
+        Chamar de volta
+      </CardTitle>
+      <div className="oc-stack-mobile" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 28, marginTop: 16 }}>
+        {coluna("Aniversariantes da semana", "estrela", aniv, "Ninguém faz aniversário nos próximos dias.")}
+        {coluna(`Sumidos há ${DIAS_SUMIDO}+ dias`, "relogio", sumidos, "Todo mundo voltando — ótimo sinal.")}
+      </div>
     </Card>
   );
 }

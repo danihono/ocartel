@@ -18,6 +18,7 @@ import type {
 import { addDias, comparaHora, HOJE_ISO, isoParaDiaMes } from "./date";
 import { horaParaMin, ocupaHorario } from "./agenda";
 import { validarCpf } from "./clientes-import";
+import { aniversariantes, clientesSumidos, comHorarioMarcado, estaSumido } from "./reativacao";
 
 /** Slug estável para ids (minúsculo, sem acento). */
 export function slug(nome: string): string {
@@ -142,7 +143,7 @@ export function normaliza(s: string): string {
   return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
-export type FiltroCliente = "Todos" | "VIP" | "Avulsos" | "Inadimplentes";
+export type FiltroCliente = "Todos" | "VIP" | "Avulsos" | "Inadimplentes" | "Sumidos" | "Aniversariantes";
 
 export type OrdemCliente = "nome" | "atendimento-recente" | "atendimento-antigo" | "recentes";
 
@@ -202,6 +203,14 @@ export function selectClientesFiltrados(
   // "Inadimplente" é DERIVADO das cobranças (fonte única), não do tag manual.
   else if (filtro === "Inadimplentes") lista = lista.filter((c) => clienteEstaInadimplente(state, c, hojeISO));
   else if (filtro === "Avulsos") lista = lista.filter((c) => /avulso/i.test(c.plano));
+  else if (filtro === "Sumidos") {
+    const marcados = comHorarioMarcado(state.agendamentos, hojeISO);
+    lista = lista.filter((c) => estaSumido(c, hojeISO, marcados));
+  } else if (filtro === "Aniversariantes") {
+    // Mantém a ordem "quem faz primeiro" — mais útil aqui que a ordem escolhida.
+    const q = normaliza(busca.trim());
+    return aniversariantes(lista, hojeISO).filter((c) => !q || normaliza(c.nome).includes(q) || normaliza(c.telefone).includes(q));
+  }
   const q = normaliza(busca.trim());
   if (q) {
     lista = lista.filter(
@@ -219,6 +228,8 @@ export function selectContagensCliente(state: AppState, hojeISO: string = HOJE_I
     VIP: state.clientes.filter((c) => c.tag === "VIP").length,
     Avulsos: state.clientes.filter((c) => /avulso/i.test(c.plano)).length,
     Inadimplentes: state.clientes.filter((c) => clienteEstaInadimplente(state, c, hojeISO)).length,
+    Sumidos: clientesSumidos(state.clientes, state.agendamentos, hojeISO).length,
+    Aniversariantes: aniversariantes(state.clientes, hojeISO).length,
   };
 }
 

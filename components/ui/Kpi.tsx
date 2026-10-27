@@ -16,7 +16,8 @@ export function Kpi({
   label: string;
   value: ReactNode;
   sub?: ReactNode;
-  delta?: { text: string; tone: "up" | "down" | "flat" };
+  /** `invertido`: subir é ruim (ex.: faltas) — a seta segue o número, a cor inverte. */
+  delta?: { text: string; tone: "up" | "down" | "flat"; invertido?: boolean };
   hero?: boolean;
   foot?: ReactNode;
 }) {
@@ -35,11 +36,12 @@ export function Kpi({
   );
 }
 
-export function Delta({ text, tone, onHero = false }: { text: string; tone: "up" | "down" | "flat"; onHero?: boolean }) {
+export function Delta({ text, tone, onHero = false, invertido = false }: { text: string; tone: "up" | "down" | "flat"; onHero?: boolean; invertido?: boolean }) {
   const cores = onHero
     ? { up: ["var(--oc-neon)", "rgba(183,255,24,.14)"], down: ["#FFB4C0", "rgba(255,180,192,.14)"], flat: ["var(--oc-on-forest-dim)", "rgba(255,255,255,.08)"] }
     : { up: ["var(--oc-green-ink)", "var(--oc-green-tint)"], down: ["var(--oc-red-ink)", "var(--oc-red-tint)"], flat: ["var(--oc-sub)", "var(--oc-raised)"] };
-  const [fg, bg] = cores[tone];
+  const corDe = invertido && tone !== "flat" ? (tone === "up" ? "down" : "up") : tone;
+  const [fg, bg] = cores[corDe];
   return (
     <span className="num" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10.5, fontWeight: 500, borderRadius: 999, padding: "2px 8px", color: fg, background: bg, whiteSpace: "nowrap" }}>
       {tone === "up" ? "▲ " : tone === "down" ? "▼ " : ""}

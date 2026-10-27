@@ -42,6 +42,7 @@ export function ClienteModal({
   const [diaVencimento, setDiaVencimento] = useState(DIA_VENCIMENTO_PADRAO);
   const [tag, setTag] = useState<ClienteTag>("");
   const [observacoes, setObservacoes] = useState("");
+  const [nascimento, setNascimento] = useState("");
   const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
@@ -59,6 +60,7 @@ export function ClienteModal({
     setDiaVencimento(diaVencimentoCliente(cliente, state.planos.find((p) => p.id === idPlano)));
     setTag(cliente?.tag ?? "");
     setObservacoes(cliente?.observacoes ?? "");
+    setNascimento(cliente?.nascimento ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -86,7 +88,7 @@ export function ClienteModal({
     setSalvando(true);
     try {
       if (editando && cliente) {
-        const atualizado: Cliente = { ...cliente, nome: nome.trim(), telefone, telefoneNorm: normalizarTelefone(telefone), cpf: cpfNorm, email: email.trim(), plano: planoLabel, planId, diaVencimento, tag, observacoes: observacoes.trim(), iniciais: iniciaisDe(nome) };
+        const atualizado: Cliente = { ...cliente, nome: nome.trim(), telefone, telefoneNorm: normalizarTelefone(telefone), cpf: cpfNorm, email: email.trim(), plano: planoLabel, planId, diaVencimento, tag, observacoes: observacoes.trim(), nascimento, iniciais: iniciaisDe(nome) };
         await actions.clientes.update(atualizado);
         toast("Cliente atualizado.");
         onSaved?.(cliente.id);
@@ -103,6 +105,7 @@ export function ClienteModal({
           diaVencimento,
           tag,
           observacoes: observacoes.trim(),
+          nascimento,
           ultimoAtendimento: "—",
           totalGasto: 0,
           atendimentos: 0,
@@ -145,9 +148,15 @@ export function ClienteModal({
             <TextInput value={cpf} onChange={(e) => setCpf(maskCpf(e.target.value))} placeholder="000.000.000-00" inputMode="numeric" />
           </Field>
         </div>
-        <Field label="E-mail">
-          <TextInput value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@exemplo.com" />
-        </Field>
+        <div style={{ display: "flex", gap: 12 }}>
+          <Field label="E-mail" style={{ flex: 1 }}>
+            <TextInput value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@exemplo.com" />
+          </Field>
+          {/* Para a lista de aniversariantes: só dia e mês importam. */}
+          <Field label="Nascimento" style={{ width: 170, flex: "none" }}>
+            <TextInput type="date" value={nascimento} onChange={(e) => setNascimento(e.target.value)} max={hojeLocalISO()} />
+          </Field>
+        </div>
         <div style={{ display: "flex", gap: 12 }}>
           <Field label="Plano" style={{ flex: 1 }}>
             <Select

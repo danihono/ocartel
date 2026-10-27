@@ -151,6 +151,28 @@ Quatro coisas que não são óbvias:
    no repositório, mas o `firebase deploy` ignora — inclusive as variáveis de
    ambiente declaradas nele, que valem só no App Hosting.
 
+## Ferramentas
+
+- **Exportar** (Excel ou CSV) em Clientes, Agenda, Pagamentos, Comissões e Relatórios —
+  sai o que está na tela, com filtros e período. Mapeadores em `lib/exportar.ts`.
+- **Backup completo** em Configurações → Seus dados: lido no servidor
+  (`app/(admin)/configuracoes/dados-actions.ts`), uma aba por coleção, sem
+  `private/**` nem cartões.
+- **Relatórios** (`/relatorios`): período livre, comparação com o período anterior,
+  receita por serviço/barbeiro/forma, faltas e mapa de horários de pico. Os dados do
+  período vêm do servidor (`app/(admin)/relatorios/actions.ts`) porque o navegador só
+  guarda uma janela recente; o cálculo é puro em `lib/relatorios.ts`. Imprime em PDF.
+- **Login de barbeiros** (Configurações → Equipe → Dar acesso): cria a conta com o Admin
+  SDK e devolve um link para o barbeiro criar a própria senha. O vínculo fica em
+  `tenants/{t}/private/equipe`. O barbeiro cai em `/barbeiro` e as regras limitam o
+  resto. `exigirQuemGerencia` recusa o papel `barbeiro`.
+- **Chamar de volta**: aniversariantes da semana (campo nascimento no cliente) e clientes
+  sem vir há 45+ dias sem horário marcado, com mensagem pronta no WhatsApp — no
+  Dashboard, nos filtros de Clientes e no perfil. Regras em `lib/reativacao.ts`.
+
+Em desenvolvimento com emulador, o login de barbeiros precisa também de
+`FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099` no `.env.local` (o Admin SDK cria a conta).
+
 ## Design
 
 Paleta **"Navalha"**, no mesmo espírito do crm-titas e do FisioUp (off-white quente,

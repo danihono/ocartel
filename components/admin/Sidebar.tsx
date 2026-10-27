@@ -34,6 +34,7 @@ const grupos: { titulo?: string; itens: Item[] }[] = [
       { label: "Pagamentos", href: "/pagamentos", icon: "pagamentos" },
       { label: "Planos", href: "/planos", icon: "planos" },
       { label: "Comissões", href: "/comissoes", icon: "comissoes" },
+      { label: "Relatórios", href: "/relatorios", icon: "grafico" },
     ],
   },
 ];

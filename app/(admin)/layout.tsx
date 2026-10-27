@@ -24,6 +24,7 @@ import { TelaDashboard } from "@/components/admin/telas/Dashboard";
 import { TelaPagamentos } from "@/components/admin/telas/Pagamentos";
 import { TelaComissoes } from "@/components/admin/telas/Comissoes";
 import { TelaPlanos } from "@/components/admin/telas/Planos";
+import { TelaRelatorios } from "@/components/admin/telas/Relatorios";
 
 // Cabeçalho de cada aba: eyebrow + título em dois tons. O subtítulo (o tom apagado)
 // sai do estado ao vivo, então já diz alguma coisa sobre o dia em vez de repetir o nome.
@@ -71,6 +72,7 @@ function cabecalhos(state: AppState, hoje: string, agora: string, nome?: string 
       title: "Comissões.",
       subtitle: `${plural(state.barbeiros.length, "barbeiro", "barbeiros")} no time.`,
     },
+    "/relatorios": { eyebrow: "Análise", title: "Relatórios.", subtitle: "Como a barbearia foi no período." },
     "/configuracoes": { eyebrow: "Conta", title: "Configurações.", subtitle: state.config.nome ? `${state.config.nome}.` : undefined },
   };
 }
@@ -147,6 +149,9 @@ function PainelAdmin({ children }: { children: React.ReactNode }) {
             </Tela>
             <Tela ativa={path === "/comissoes"} header={head("/comissoes")}>
               <TelaComissoes />
+            </Tela>
+            <Tela ativa={path === "/relatorios"} header={head("/relatorios")}>
+              <TelaRelatorios />
             </Tela>
             <Tela ativa={path === "/configuracoes"} header={head("/configuracoes")}>
               <TelaConfiguracoes />

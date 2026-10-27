@@ -38,11 +38,13 @@ import { useAuth } from "@/lib/firebase/auth";
 import { linkWhatsApp } from "@/lib/confirmacao";
 import { mensagemConviteCartao } from "@/lib/cobranca-mensagem";
 import { telefoneWhatsApp } from "@/lib/clientes-import";
+import { aniversarioCurto } from "@/lib/reativacao";
+import { ChamarDeVolta } from "@/components/admin/ChamarDeVolta";
 
 const eyebrow = { fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: c.ink3, fontWeight: 600 };
 /** Caixinha de informação dentro do perfil. */
 const caixa: React.CSSProperties = { background: c.field, border: `1px solid ${c.borderSoft}`, borderRadius: 14, padding: "14px 16px" };
-const FILTROS: FiltroCliente[] = ["Todos", "VIP", "Avulsos", "Inadimplentes"];
+const FILTROS: FiltroCliente[] = ["Todos", "VIP", "Avulsos", "Inadimplentes", "Sumidos", "Aniversariantes"];
 const ORDENS: { value: OrdemCliente; label: string }[] = [
   { value: "nome", label: "Nome (A–Z)" },
   { value: "atendimento-recente", label: "Atendimento mais recente" },
@@ -96,9 +98,10 @@ export function TelaClientes() {
   /* eslint-disable react-hooks/exhaustive-deps -- deps são as fatias de `state` lidas por cada seletor (ver comentário acima) */
   const lista = useMemo(
     () => selectClientesFiltrados(state, filtro, busca, hoje, ordem),
-    [clientes, transacoes, filtro, busca, hoje, ordem],
+    // A agenda entra porque "Sumidos" descarta quem já tem horário marcado.
+    [clientes, transacoes, agendamentos, filtro, busca, hoje, ordem],
   );
-  const contagens = useMemo(() => selectContagensCliente(state, hoje), [clientes, transacoes, hoje]);
+  const contagens = useMemo(() => selectContagensCliente(state, hoje), [clientes, transacoes, agendamentos, hoje]);
 
   // Seleção restrita à lista filtrada; cai no 1º item, ou null (estado vazio).
   const sel = lista.find((x) => x.id === selId) ?? lista[0] ?? null;
@@ -219,7 +222,7 @@ export function TelaClientes() {
             <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, telefone ou e-mail…" aria-label="Buscar cliente" />
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <div className="oc-seg" role="group" aria-label="Filtro">
+            <div className="oc-seg" role="group" aria-label="Filtro" style={{ maxWidth: "100%", overflowX: "auto" }}>
               {FILTROS.map((f) => (
                 <button key={f} type="button" aria-pressed={f === filtro} onClick={() => setFiltro(f)}>
                   {f} <span className="oc-seg-count">{contagens[f]}</span>
@@ -315,6 +318,7 @@ export function TelaClientes() {
               </div>
               <div style={{ fontSize: 13, color: c.ink2, marginTop: 3 }}>
                 {[sel.telefone, sel.email].filter(Boolean).join(" · ") || "Sem contato cadastrado"}
+                {sel.nascimento ? <span style={{ color: c.ink3 }}> · aniversário {aniversarioCurto(sel.nascimento)}</span> : null}
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 7, flex: "none" }}>
@@ -344,6 +348,9 @@ export function TelaClientes() {
               </div>
             ))}
           </div>
+
+          {/* Chamar de volta: aniversário chegando ou cliente sumido */}
+          <ChamarDeVolta cliente={sel} hoje={hoje} />
 
           {/* Plano */}
           <div style={{ border: `1px solid ${c.border}`, background: c.surface, borderRadius: 14, padding: 16, marginTop: 18, display: "flex", alignItems: "center", gap: 10 }}>
