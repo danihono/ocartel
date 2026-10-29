@@ -1,38 +1,60 @@
 # Comissões
 
-Cada barbearia calcula comissão de um jeito, e a regra depende de coisas que só o dono do
-negócio sabe: se o atendimento foi coberto por plano, se o cliente pagou na hora, quantidade
-no mês. A fórmula definitiva do O Cartel **ainda não foi definida** — então este módulo foi
-construído para receber essa fórmula depois **sem migração de dados, sem mexer na tela e sem
-reescrever o que já foi fechado**.
+A comissão do mês de cada barbeiro tem duas partes, somadas:
 
-## Onde a fórmula mora
+1. **Pote da assinatura** — uma fatia das mensalidades recebidas, repartida por **fichas**.
+2. **Avulsos** — percentual sobre o valor recebido de cada atendimento pago na hora.
 
-Um lugar só:
+## Pote da assinatura (a conta da casa)
 
-```ts
-// lib/comissao.ts
-export function comissaoDaLinha(linha: Omit<LinhaComissao, "comissao">, regra: RegraComissao): number
+```
+pote          = mensalidades recebidas no mês × 40%
+fichas        = soma das fichas de cada atendimento coberto pelo plano
+parte do X    = pote × (fichas do X ÷ fichas da equipe)
 ```
 
-Trocar a regra da barbearia é reescrever **esta função**. Nada mais.
+Exemplo: R$ 10.000 de assinaturas → pote de R$ 4.000. A equipe fez 2.400 fichas; o barbeiro
+A fez 1.840 (76,67%) e leva R$ 3.066,67; o B fez 560 (23,33%) e leva R$ 933,33.
 
-A regra **provisória** em vigor é percentual sobre o valor recebido:
+**Tabela de fichas** (pelo tempo de cada peça; editável em *Configurações → Comissões*):
+
+| Peça   | Fichas | Repetido na semana |
+|--------|-------:|-------------------:|
+| Cabelo |     30 |                 10 |
+| Barba  |     30 |                 10 |
+| Raspar |     20 |                  5 |
+
+- Só contam atendimentos **concluídos e cobertos pelo plano**. O avulso é pago pelo percentual.
+- Um serviço pode ter mais de uma peça: "Corte + Barba" = cabelo + barba = 60 fichas. As peças
+  são deduzidas do nome do serviço e podem ser corrigidas na mesma tela.
+- **Repetido**: se o mesmo cliente já fez aquela peça na semana (segunda a domingo), ela vale a
+  ficha reduzida. A semana atravessa a virada do mês: o corte do dia 2 conta como repetido se o
+  cliente cortou no dia 31 anterior e os dois caem na mesma semana.
+- A divisão usa a **fração exata** (1.840 ÷ 2.400), não a porcentagem arredondada, e os
+  centavos de arredondamento vão para as maiores frações — a soma das partes é sempre o pote.
+- Mensalidade conta pelo que foi **recebido** no mês (pela data de pagamento). Cobrança em
+  aberto não entra no pote.
+- Pote em 0% (o padrão) = desligado. Nenhuma barbearia começa a dever comissão sozinha.
+
+A tela de Comissões mostra o resuminho do mês com esses números passo a passo, e no detalhe de
+cada barbeiro as fichas de cada atendimento (marcando os repetidos).
+
+Código: `apurarMes` e `distribuirPote` em `lib/comissao.ts`; testes em `tests/comissao.test.ts`
+(inclui o exemplo acima).
+
+## Avulsos (percentual)
+
+Fórmula por linha, em `comissaoDaLinha` (`lib/comissao.ts`):
 
 - percentual por barbeiro, com o percentual geral da casa como fallback
   (`pctDoBarbeiro`, configurado em *Configurações → Comissões*);
-- atendimento coberto pelo plano entra como R$ 0, logo comissão 0;
-- cobrança em aberto não gera comissão enquanto não for recebida;
-- mensalidade **não** gera comissão: não é de um barbeiro específico, e a regra de rateio não
-  foi definida. A linha existe na apuração (aparece no rodapé da tela), com comissão 0.
-
-Nenhuma barbearia começa a dever comissão sozinha: sem regra gravada vale `REGRA_PADRAO`
-(0%), a mesma disciplina da confirmação automática e do ciclo de cobrança.
+- atendimento coberto pelo plano entra como R$ 0 aqui (ele é pago pelo pote);
+- cobrança em aberto não gera comissão enquanto não for recebida.
 
 ## Por que `LinhaComissao` tem campos que a regra de hoje ignora
 
 `quantidade`, `pagoNoAto`, `forma`, `tipoCobranca`, `cobertoPorPlano`, `valorCobrado` **e**
-`valorRecebido` separados. A regra provisória usa dois deles. Os outros estão lá porque a
+`valorRecebido` separados. A regra de hoje usa só alguns deles. Os outros estão lá porque a
 fórmula futura vai precisar — e o dia de descobrir que o dado não foi guardado é o pior dia
 possível para descobrir. Montar a linha completa é o que transforma a troca da fórmula num
 `git diff` de uma função em vez de uma migração.
@@ -58,7 +80,8 @@ atendimentos.
 
 O relatório é **sempre recalculado** — corrigir um atendimento errado corrige a comissão junto.
 O que se grava é o fechamento (`tenants/{t}/fechamentos`), e só quando a dona fecha o mês:
-valor apurado, faturamento que o gerou, quem fechou, quando, e um **retrato da regra usada**.
+valor apurado (pote + avulsos), fichas e parte do pote, faturamento que o gerou, quem fechou,
+quando, e um **retrato da regra usada** (inclusive a tabela de fichas). É o histórico do módulo.
 
 - Id determinístico `{mes}_{barbeiroId}` — clicar duas vezes em *Fechar mês* não duplica.
 - `total`, `regra`, `mes`, `barbeiroId` e `fechadoEm` são **imutáveis** nas regras do Firestore.

@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   REGRA_PADRAO,
   apurarMes,
+  FICHAS_PADRAO,
   comissaoDaLinha,
+  distribuirPote,
   idFechamento,
+  itensPeloNome,
   mesVizinho,
   montarFechamento,
   pctDoBarbeiro,
@@ -83,6 +86,8 @@ describe("comissaoDaLinha (regra provisória)", () => {
     valorCobrado: 50,
     valorRecebido: 50,
     vinculo: "forte",
+    fichas: 0,
+    repetidaNaSemana: false,
   };
 
   it("aplica o percentual sobre o valor recebido", () => {
@@ -264,6 +269,112 @@ describe("apurarMes", () => {
   });
 });
 
+describe("pote da assinatura", () => {
+  // Junho/2026 começa numa segunda-feira: dias 1–7 são uma semana, 8–14 a seguinte.
+  const POTE: RegraComissao = { ...REGRA, pote: { pct: 40, fichas: FICHAS_PADRAO } };
+  const coberto = (p: Partial<Agendamento> & { id: string; date: string; barbeiroId: string }) =>
+    agendamento({ cobertoPorPlano: true, ...p });
+  const mensalidade = (id: string, valor: number, extra: Partial<Transacao> = {}) =>
+    transacao({ id, type: "mensalidade", valor, servico: "Plano", barbeiroNome: "", paidAt: "2026-06-05", ...extra });
+
+  it("o exemplo da casa: 4.000 de pote, 1.840 e 560 fichas", () => {
+    const partes = distribuirPote(4000, new Map([["a", 1840], ["b", 560]]));
+    expect(partes.get("a")).toBe(3066.67);
+    expect(partes.get("b")).toBe(933.33);
+  });
+
+  it("usa a fração exata, e a soma das partes fecha o pote", () => {
+    const partes = distribuirPote(5104.8, new Map([["a", 1840], ["b", 560]]));
+    expect(partes.get("a")).toBe(3913.68);
+    expect(partes.get("b")).toBe(1191.12);
+
+    const tres = distribuirPote(100, new Map([["a", 1], ["b", 1], ["c", 1]]));
+    expect([...tres.values()].reduce((s, v) => s + v, 0)).toBeCloseTo(100, 10);
+  });
+
+  it("sem fichas no mês o pote não sai para ninguém", () => {
+    expect(distribuirPote(4000, new Map([["a", 0]])).get("a")).toBe(0);
+  });
+
+  it("deduz as peças pelo nome do serviço", () => {
+    expect(itensPeloNome("Corte + Barba")).toEqual(["cabelo", "barba"]);
+    expect(itensPeloNome("Raspar")).toEqual(["raspar"]);
+    expect(itensPeloNome("Luzes")).toEqual([]);
+  });
+
+  it("apura o mês: 40% das mensalidades recebidas, repartido pelas fichas", () => {
+    const dados: DadosComissao = {
+      barbeiros: BARBEIROS,
+      agendamentos: [
+        coberto({ id: "a1", date: "2026-06-02", barbeiroId: "b1", clienteId: "c1", servico: "Corte + Barba" }), // 30 + 30
+        coberto({ id: "a2", date: "2026-06-04", barbeiroId: "b2", clienteId: "c1", servico: "Corte" }), // repetido: 10
+        coberto({ id: "a3", date: "2026-06-03", barbeiroId: "b2", clienteId: "c2", servico: "Raspar" }), // 20
+        coberto({ id: "a4", date: "2026-06-09", barbeiroId: "b1", clienteId: "c1", servico: "Corte" }), // semana nova: 30
+        agendamento({ id: "a5", date: "2026-06-10", barbeiroId: "b1", servico: "Corte" }), // avulso, fora do pote
+      ],
+      transacoes: [
+        transacao({ id: "t5", agendamentoId: "a5", valor: 50, paidAt: "2026-06-10" }),
+        mensalidade("m1", 500),
+        mensalidade("m2", 500),
+        mensalidade("m3", 500, { status: "pendente", paidAt: undefined, dueDate: "2026-06-20" }),
+      ],
+    };
+    const ap = apurarMes(dados, "2026-06", POTE, [], "2026-06-15");
+
+    expect(ap.pote).toMatchObject({ ativo: true, receitaAssinaturas: 1000, valor: 400, totalFichas: 120 });
+    expect(ap.linhas.find((l) => l.id === "a2")).toMatchObject({ fichas: 10, repetidaNaSemana: true });
+
+    const rafa = ap.porBarbeiro.find((r) => r.barbeiroId === "b1")!;
+    expect(rafa).toMatchObject({ fichas: 90, valorPote: 300, comissaoAvulso: 25, comissao: 325 });
+    expect(rafa.participacao).toBeCloseTo(0.75);
+    const leo = ap.porBarbeiro.find((r) => r.barbeiroId === "b2")!;
+    expect(leo).toMatchObject({ fichas: 30, valorPote: 100, comissao: 100 });
+    expect(ap.totalComissao).toBe(425);
+
+    const f = montarFechamento(rafa, "2026-06", POTE, "Dona", "2026-07-01T10:00:00.000Z");
+    expect(f).toMatchObject({ total: 325, fichas: 90, valorPote: 300 });
+  });
+
+  it("a semana atravessa a virada do mês", () => {
+    // 30/jun é terça e 2/jul quinta: mesma semana, o corte de julho vale repetido.
+    const dados: DadosComissao = {
+      barbeiros: BARBEIROS,
+      agendamentos: [
+        coberto({ id: "j1", date: "2026-06-30", barbeiroId: "b1", clienteId: "c1" }),
+        coberto({ id: "j2", date: "2026-07-02", barbeiroId: "b2", clienteId: "c1" }),
+      ],
+      transacoes: [],
+    };
+    const ap = apurarMes(dados, "2026-07", POTE, [], "2026-07-15");
+    expect(ap.linhas.map((l) => [l.id, l.fichas])).toEqual([["j2", 10]]);
+  });
+
+  it("as peças marcadas em Configurações valem mais que o nome", () => {
+    const regra: RegraComissao = {
+      ...REGRA,
+      pote: { pct: 40, fichas: FICHAS_PADRAO, itensPorServico: { "s-luzes": ["cabelo"] } },
+    };
+    const dados: DadosComissao = {
+      barbeiros: BARBEIROS,
+      servicos: [{ id: "s-luzes", nome: "Luzes", duracaoMin: 90, preco: 120 }],
+      agendamentos: [coberto({ id: "l1", date: "2026-06-02", barbeiroId: "b1", servico: "Luzes" })],
+      transacoes: [],
+    };
+    expect(apurarMes(dados, "2026-06", regra, [], "2026-06-15").linhas[0].fichas).toBe(30);
+  });
+
+  it("sem pote configurado a mensalidade continua sem comissão", () => {
+    const dados: DadosComissao = {
+      barbeiros: BARBEIROS,
+      agendamentos: [coberto({ id: "a1", date: "2026-06-02", barbeiroId: "b1" })],
+      transacoes: [mensalidade("m1", 500)],
+    };
+    const ap = apurarMes(dados, "2026-06", REGRA, [], "2026-06-15");
+    expect(ap.pote).toMatchObject({ ativo: false, receitaAssinaturas: 500, valor: 0, totalFichas: 0 });
+    expect(ap.totalComissao).toBe(0);
+  });
+});
+
 describe("fechamento", () => {
   it("o id é determinístico — fechar duas vezes escreve no mesmo doc", () => {
     expect(idFechamento("2026-06", "b1")).toBe("2026-06_b1");
@@ -271,7 +382,10 @@ describe("fechamento", () => {
   });
 
   it("congela o total e um retrato da regra usada", () => {
-    const resumo = { barbeiroId: "b1", barbeiroNome: "Rafa", atendimentos: 2, faturamento: 100, comissao: 50, pct: 50 };
+    const resumo = {
+      barbeiroId: "b1", barbeiroNome: "Rafa", atendimentos: 2, faturamento: 100, comissao: 50, pct: 50,
+      comissaoAvulso: 50, fichas: 0, participacao: 0, valorPote: 0,
+    };
     const f = montarFechamento(resumo, "2026-06", REGRA, "Dona", "2026-07-01T10:00:00.000Z");
 
     expect(f).toMatchObject({ id: "2026-06_b1", mes: "2026-06", total: 50, faturamento: 100, qtdLinhas: 2, fechadoPor: "Dona" });

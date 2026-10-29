@@ -64,8 +64,12 @@ describe("abasComissoes", () => {
   it("resumo por barbeiro e detalhe por atendimento", () => {
     const ap: ApuracaoMes = {
       mes: "2026-10", totalFaturamento: 100, totalComissao: 40, qtdInferidas: 0, qtdSemCobranca: 0,
-      porBarbeiro: [{ barbeiroId: "b1", barbeiroNome: "Everton", atendimentos: 2, faturamento: 100, comissao: 40, pct: 40 }],
+      porBarbeiro: [{
+        barbeiroId: "b1", barbeiroNome: "Everton", atendimentos: 2, faturamento: 100, comissao: 40, pct: 40,
+        comissaoAvulso: 40, fichas: 0, participacao: 0, valorPote: 0,
+      }],
       linhas: [],
+      pote: { ativo: false, pct: 0, receitaAssinaturas: 0, valor: 0, totalFichas: 0, valorPorFicha: 0 },
     };
     const [resumo, detalhe] = abasComissoes(ap);
     expect(resumo.linhas[0]["Comissão (R$)"]).toBe(40);

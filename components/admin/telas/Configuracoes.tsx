@@ -11,11 +11,11 @@ import { useStore, makeId } from "@/lib/store";
 import * as repo from "@/lib/firebase/repos";
 import { novoToken } from "@/lib/confirmacao";
 import { PADRAO_DIAS_ANTES_ALERTA, PADRAO_DIAS_VENCIMENTO_BOLETO } from "@/lib/cobranca-ciclo";
-import { pctDoBarbeiro } from "@/lib/comissao";
+import { ITENS_FICHA, POTE_PADRAO, itensDoServico, pctDoBarbeiro } from "@/lib/comissao";
 import { signOutApp, useAuth } from "@/lib/firebase/auth";
 import { useToast } from "@/components/ui/Toast";
 import { PAPEL_LABEL, iniciaisDe } from "@/lib/pessoa";
-import type { Barbeiro } from "@/lib/types";
+import type { Barbeiro, ItemFicha, RegraPote } from "@/lib/types";
 import type { EquipeAcessos } from "@/lib/equipe";
 import { AcessoBarbeiroModal } from "@/components/admin/AcessoBarbeiroModal";
 import { acaoRemoverAcessoBarbeiro } from "@/app/(admin)/configuracoes/equipe-actions";
@@ -40,17 +40,22 @@ const DIAS_BOLETO = [1, 2, 3, 5, 7];
 /**
  * Campo de percentual (0..100). Guarda texto enquanto se digita — com número puro, apagar
  * o conteúdo viraria 0 na hora e gravaria "sem comissão" no meio da digitação.
+ * Com `sufixo`/`max` serve também para as fichas do pote.
  */
 function PctInput({
   valor,
   onChange,
   onLimpar,
   placeholder,
+  sufixo = "%",
+  max = 100,
 }: {
   valor: number | null;
   onChange: (n: number) => void;
   onLimpar?: () => void;
   placeholder?: string;
+  sufixo?: string;
+  max?: number;
 }) {
   const [texto, setTexto] = useState(valor === null ? "" : String(valor));
 
@@ -66,7 +71,7 @@ function PctInput({
       return;
     }
     const n = Number(limpo);
-    if (!Number.isFinite(n) || n < 0 || n > 100) {
+    if (!Number.isFinite(n) || n < 0 || n > max) {
       setTexto(valor === null ? "" : String(valor));
       return;
     }
@@ -84,11 +89,13 @@ function PctInput({
         }}
         inputMode="decimal"
         placeholder={placeholder ?? "0"}
-        style={{ paddingRight: 30 }}
+        style={{ paddingRight: sufixo ? 30 : undefined }}
       />
-      <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: c.ink3, pointerEvents: "none" }}>
-        %
-      </span>
+      {sufixo ? (
+        <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: c.ink3, pointerEvents: "none" }}>
+          {sufixo}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -158,6 +165,17 @@ export function TelaConfiguracoes() {
       .catch(() => toast("Não foi possível salvar a comissão.", "error"));
   }
   /** Campo esvaziado = "usa o padrão da casa". Apaga a chave, não grava 0. */
+  // Pote da assinatura: grava sempre o objeto inteiro, partindo da tabela da casa quando
+  // ainda não existe — assim ligar o percentual já leva as fichas junto.
+  const pote: RegraPote = { ...POTE_PADRAO, ...regra.pote, fichas: { ...POTE_PADRAO.fichas, ...regra.pote?.fichas } };
+  function salvarPote(patch: Partial<RegraPote>) {
+    salvarRegra({ pote: { ...pote, ...patch } });
+  }
+  function alternarPeca(servicoId: string, atuais: ItemFicha[], item: ItemFicha) {
+    const novos = atuais.includes(item) ? atuais.filter((i) => i !== item) : [...atuais, item];
+    salvarPote({ itensPorServico: { ...(pote.itensPorServico ?? {}), [servicoId]: novos } });
+  }
+
   function limparPct(barbeiroId: string) {
     void actions.comissoes
       .limparPctBarbeiro(barbeiroId)
@@ -715,10 +733,91 @@ export function TelaConfiguracoes() {
 
         {/* Comissões */}
         <Card>
-          <CardTitle sub="Percentual sobre o valor recebido de cada atendimento">Comissões</CardTitle>
+          <CardTitle sub="Pote da assinatura repartido por fichas + percentual sobre os avulsos">Comissões</CardTitle>
 
+          {/* Pote da assinatura */}
           <div style={{ marginTop: 16 }}>
-            <Field label="Percentual padrão da casa" style={{ maxWidth: 200 }}>
+            <Field label="Pote da assinatura" style={{ maxWidth: 200 }}>
+              <PctInput valor={pote.pct} onChange={(n) => salvarPote({ pct: n })} />
+            </Field>
+            <div style={{ fontSize: 11.5, color: c.ink3, marginTop: 6, lineHeight: 1.5 }}>
+              Parte das mensalidades recebidas no mês que vai para a equipe. Ela é repartida pelas fichas
+              que cada barbeiro fez nos atendimentos cobertos pelo plano. 0% desliga o pote.
+            </div>
+          </div>
+
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 96px 96px", gap: 10, fontSize: 10.5, letterSpacing: "0.07em", textTransform: "uppercase", color: c.ink3, fontWeight: 600 }}>
+              <span>Peça</span>
+              <span>Fichas</span>
+              <span>Repetido</span>
+            </div>
+            {ITENS_FICHA.map((i) => (
+              <div key={i.id} style={{ display: "grid", gridTemplateColumns: "1fr 96px 96px", gap: 10, alignItems: "center", marginTop: 8 }}>
+                <span style={{ fontSize: 13.5, color: c.inkTitle }}>{i.nome}</span>
+                <PctInput
+                  sufixo=""
+                  max={1000}
+                  valor={pote.fichas[i.id].cheia}
+                  onChange={(n) => salvarPote({ fichas: { ...pote.fichas, [i.id]: { ...pote.fichas[i.id], cheia: n } } })}
+                />
+                <PctInput
+                  sufixo=""
+                  max={1000}
+                  valor={pote.fichas[i.id].repetida}
+                  onChange={(n) => salvarPote({ fichas: { ...pote.fichas, [i.id]: { ...pote.fichas[i.id], repetida: n } } })}
+                />
+              </div>
+            ))}
+            <div style={{ fontSize: 11.5, color: c.ink3, marginTop: 8, lineHeight: 1.5 }}>
+              &ldquo;Repetido&rdquo; vale quando o mesmo cliente faz a mesma peça de novo na semana (segunda a domingo).
+            </div>
+          </div>
+
+          {state.servicos.length > 0 ? (
+            <div style={{ marginTop: 14, borderTop: `1px solid ${c.borderSoft}`, paddingTop: 12 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: c.ink2 }}>O que cada serviço inclui</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+                {state.servicos.map((sv) => {
+                  const itens = itensDoServico(sv, pote);
+                  return (
+                    <div key={sv.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ flex: "1 1 120px", fontSize: 13, color: c.inkTitle, minWidth: 0 }}>{sv.nome}</span>
+                      {ITENS_FICHA.map((i) => {
+                        const marcado = itens.includes(i.id);
+                        return (
+                          <button
+                            key={i.id}
+                            type="button"
+                            aria-pressed={marcado}
+                            onClick={() => alternarPeca(sv.id, itens, i.id)}
+                            style={{
+                              border: `1px solid ${marcado ? c.brassDeep : c.border}`,
+                              background: marcado ? c.brassTint : "transparent",
+                              color: marcado ? c.brassDeep : c.ink3,
+                              borderRadius: 999,
+                              padding: "3px 10px",
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                            }}
+                          >
+                            {i.nome}
+                          </button>
+                        );
+                      })}
+                      <span style={{ fontSize: 11.5, color: c.ink3, width: 64, textAlign: "right" }}>
+                        {itens.reduce((t, i) => t + pote.fichas[i].cheia, 0)} fichas
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          <div style={{ marginTop: 16, borderTop: `1px solid ${c.borderSoft}`, paddingTop: 14 }}>
+            <Field label="Percentual padrão sobre avulsos" style={{ maxWidth: 200 }}>
               <PctInput valor={regra.pctPadrao} onChange={(n) => salvarRegra({ pctPadrao: n })} />
             </Field>
             <div style={{ fontSize: 11.5, color: c.ink3, marginTop: 6 }}>

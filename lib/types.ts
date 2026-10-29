@@ -455,17 +455,42 @@ export interface Plano {
  * que são `allow read: if true` nas regras para alimentar a vitrine pública de
  * /book/[slug]. Percentual de comissão ali seria legível pela internet inteira.
  *
- * Esta é a regra PROVISÓRIA (percentual sobre o valor do atendimento). A fórmula real
- * de cada barbearia — que depende de plano, de ter sido pago na hora, de quantidade —
- * entra depois trocando `comissaoDaLinha` em lib/comissao.ts. Por isso a apuração
- * carrega todos esses fatos em `LinhaComissao` desde já: quando a fórmula mudar, o
- * dado de que ela precisa já está lá, sem migração.
+ * Duas partes: o percentual sobre os avulsos (`comissaoDaLinha` em lib/comissao.ts) e
+ * o pote da assinatura repartido por fichas (`pote`). A apuração carrega todos os fatos
+ * em `LinhaComissao`: quando a fórmula mudar, o dado de que ela precisa já está lá.
  */
 export interface RegraComissao {
   /** Percentual (0..100) aplicado a quem não tem um próprio. */
   pctPadrao: number;
   /** Percentual por barbeiro (`barbeiroId` → 0..100). Ausente ⇒ usa `pctPadrao`. */
   pctPorBarbeiro?: Record<string, number>;
+  /** Rateio da assinatura por fichas. Ausente ⇒ mensalidade não gera comissão. */
+  pote?: RegraPote;
+}
+
+/** Peça de um serviço que vale ficha no pote da assinatura. */
+export type ItemFicha = "cabelo" | "barba" | "raspar";
+
+/** Quanto uma peça vale: a primeira vez na semana, e quando o cliente repete na mesma semana. */
+export interface ValorFicha {
+  cheia: number;
+  repetida: number;
+}
+
+/**
+ * Pote da assinatura: uma fatia do que entrou de mensalidade no mês, repartida entre os
+ * barbeiros pela produção de cada um nos atendimentos cobertos pelo plano, medida em fichas.
+ * A conta está em lib/comissao.ts (`apurarMes` / `distribuirPote`) e em docs/comissoes.md.
+ */
+export interface RegraPote {
+  /** Percentual (0..100) da receita de mensalidades do mês que vira pote. */
+  pct: number;
+  fichas: Record<ItemFicha, ValorFicha>;
+  /**
+   * `servicoId` → peças que o serviço inclui ("Corte + Barba" → cabelo e barba).
+   * Serviço fora do mapa tem as peças deduzidas pelo nome (ver `itensDoServico`).
+   */
+  itensPorServico?: Record<string, ItemFicha[]>;
 }
 
 /** De onde a linha da apuração veio. */
@@ -512,7 +537,14 @@ export interface LinhaComissao {
   valorCobrado: number;
   valorRecebido: number;
   vinculo: VinculoComissao;
-  /** O que `comissaoDaLinha` devolveu para esta linha, em R$. */
+  /** Fichas que o atendimento rende no pote da assinatura (0 fora do plano). */
+  fichas: number;
+  /** Alguma peça já tinha sido feita no mesmo cliente nesta semana (valeu ficha reduzida). */
+  repetidaNaSemana: boolean;
+  /**
+   * O que `comissaoDaLinha` devolveu para esta linha, em R$. A parte do pote NÃO está
+   * aqui: ela só existe no total do mês (depende das fichas de todo mundo).
+   */
   comissao: number;
 }
 
@@ -537,6 +569,9 @@ export interface FechamentoComissao {
   /** Faturamento que gerou essa comissão, em R$ — contexto para conferência. */
   faturamento: number;
   qtdLinhas: number;
+  /** Fichas do barbeiro no mês e a parte do pote da assinatura incluída no `total`. */
+  fichas?: number;
+  valorPote?: number;
   /** Retrato da regra aplicada. Imutável depois de gravada. */
   regra: RegraComissao;
   fechadoPor: string;
