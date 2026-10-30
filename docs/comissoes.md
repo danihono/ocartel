@@ -18,11 +18,11 @@ A fez 1.840 (76,67%) e leva R$ 3.066,67; o B fez 560 (23,33%) e leva R$ 933,33.
 
 **Tabela de fichas** (pelo tempo de cada peça; editável em *Configurações → Comissões*):
 
-| Peça   | Fichas | Repetido na semana |
-|--------|-------:|-------------------:|
-| Cabelo |     30 |                 10 |
-| Barba  |     30 |                 10 |
-| Raspar |     20 |                  5 |
+| Peça   | Fichas | Repetido na semana (metade) |
+|--------|-------:|----------------------------:|
+| Cabelo |     30 |                          15 |
+| Barba  |     30 |                          15 |
+| Raspar |     20 |                          10 |
 
 - Só contam atendimentos **concluídos e cobertos pelo plano**. O avulso é pago pelo percentual.
 - Um serviço pode ter mais de uma peça: "Corte + Barba" = cabelo + barba = 60 fichas. As peças

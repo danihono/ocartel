@@ -47,11 +47,11 @@ export const ITENS_FICHA: { id: ItemFicha; nome: string }[] = [
   { id: "raspar", nome: "Raspar" },
 ];
 
-/** Tabela de fichas da casa: pelo tempo de cada peça, e o valor reduzido do repetido na semana. */
+/** Tabela de fichas da casa: pelo tempo de cada peça; repetida na semana vale metade. */
 export const FICHAS_PADRAO: Record<ItemFicha, ValorFicha> = {
-  cabelo: { cheia: 30, repetida: 10 },
-  barba: { cheia: 30, repetida: 10 },
-  raspar: { cheia: 20, repetida: 5 },
+  cabelo: { cheia: 30, repetida: 15 },
+  barba: { cheia: 30, repetida: 15 },
+  raspar: { cheia: 20, repetida: 10 },
 };
 
 /**
