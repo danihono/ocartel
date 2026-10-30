@@ -9,7 +9,7 @@ A comissão do mês de cada barbeiro tem duas partes, somadas:
 
 ```
 pote          = mensalidades recebidas no mês × 40%
-fichas        = soma das fichas de cada atendimento coberto pelo plano
+fichas        = soma das fichas de cada atendimento concluído no mês
 parte do X    = pote × (fichas do X ÷ fichas da equipe)
 ```
 
@@ -24,7 +24,8 @@ A fez 1.840 (76,67%) e leva R$ 3.066,67; o B fez 560 (23,33%) e leva R$ 933,33.
 | Barba  |     30 |                          15 |
 | Raspar |     20 |                          10 |
 
-- Só contam atendimentos **concluídos e cobertos pelo plano**. O avulso é pago pelo percentual.
+- Contam **todos os atendimentos concluídos**, de assinante e avulsos. O avulso também pode
+  ter percentual próprio (abaixo), que soma com a parte do pote; o padrão é 0%.
 - Um serviço pode ter mais de uma peça: "Corte + Barba" = cabelo + barba = 60 fichas. As peças
   são deduzidas do nome do serviço e podem ser corrigidas na mesma tela.
 - **Repetido**: se o mesmo cliente já fez aquela peça na semana (segunda a domingo), ela vale a

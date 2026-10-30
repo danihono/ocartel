@@ -479,7 +479,7 @@ export interface ValorFicha {
 
 /**
  * Pote da assinatura: uma fatia do que entrou de mensalidade no mês, repartida entre os
- * barbeiros pela produção de cada um nos atendimentos cobertos pelo plano, medida em fichas.
+ * barbeiros pela produção de cada um no mês (todo atendimento concluído), medida em fichas.
  * A conta está em lib/comissao.ts (`apurarMes` / `distribuirPote`) e em docs/comissoes.md.
  */
 export interface RegraPote {
@@ -537,7 +537,7 @@ export interface LinhaComissao {
   valorCobrado: number;
   valorRecebido: number;
   vinculo: VinculoComissao;
-  /** Fichas que o atendimento rende no pote da assinatura (0 fora do plano). */
+  /** Fichas que o atendimento rende no pote da assinatura (avulso também rende). */
   fichas: number;
   /** Alguma peça já tinha sido feita no mesmo cliente nesta semana (valeu ficha reduzida). */
   repetidaNaSemana: boolean;

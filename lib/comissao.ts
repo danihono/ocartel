@@ -16,7 +16,7 @@
 //
 // A mensalidade tem conta própria, que não cabe numa linha só: o POTE DA ASSINATURA.
 // Uma fatia do que entrou de mensalidade no mês é repartida pelas fichas que cada
-// barbeiro fez nos atendimentos cobertos pelo plano. Como a parte de cada um depende das
+// barbeiro fez nos atendimentos do mês (de assinante e avulsos). Como a parte de cada um depende das
 // fichas de todo mundo, ela é calculada no fim de `apurarMes`, e não em `comissaoDaLinha`.
 //
 // Mesma disciplina de `lib/cobranca-ciclo.ts`: recebe dados crus, não o store, para ser
@@ -95,7 +95,7 @@ export interface ResumoBarbeiro {
   pct: number;
   /** Só a parte do percentual sobre os avulsos, em R$. */
   comissaoAvulso: number;
-  /** Fichas do barbeiro no mês (atendimentos cobertos pelo plano). */
+  /** Fichas do barbeiro no mês (todos os atendimentos concluídos). */
   fichas: number;
   /** Fatia das fichas do mês que é dele (0..1). */
   participacao: number;
@@ -134,8 +134,8 @@ export function pctDoBarbeiro(regra: RegraComissao, barbeiroId: string): number 
  *
  * Parte por linha: percentual do barbeiro (ou o padrão da casa) sobre o valor
  * efetivamente RECEBIDO do atendimento avulso. Consequências:
- *   - atendimento coberto pelo plano entra como R$ 0 aqui — ele é pago pelo pote da
- *     assinatura, em fichas, no fim de `apurarMes`;
+ *   - atendimento coberto pelo plano entra como R$ 0 aqui; todo atendimento, coberto ou
+ *     avulso, rende fichas no pote da assinatura, no fim de `apurarMes`;
  *   - cobrança em aberto não gera comissão enquanto não for recebida;
  *   - a linha da mensalidade fica em 0: ela não é de ninguém em particular, e é ela que
  *     enche o pote.
@@ -184,12 +184,8 @@ function valorDaPeca(pote: RegraPote, item: ItemFicha): ValorFicha {
   return pote.fichas?.[item] ?? FICHAS_PADRAO[item];
 }
 
-function cobertoPeloPlano(ag: Agendamento, transacoes: Transacao[]): boolean {
-  return Boolean(ag.cobertoPorPlano ?? transacoes.find((t) => t.agendamentoId === ag.id)?.cobertoPorPlano);
-}
-
 /**
- * Fichas de cada atendimento coberto pelo plano no mês (`agendamentoId` → fichas).
+ * Fichas de cada atendimento concluído no mês, de assinante ou avulso (`agendamentoId` → fichas).
  *
  * Cada peça vale a ficha cheia na primeira vez que o cliente a faz na semana (segunda a
  * domingo) e a ficha de repetido nas seguintes. A semana não respeita a virada do mês:
@@ -203,19 +199,13 @@ function fichasDoMes(
 ): Map<string, { fichas: number; repetida: boolean }> {
   const desde = inicioDaSemana(`${mes}-01`);
   const idPorNome = new Map((dados.servicos ?? []).map((s) => [s.nome, s.id]));
-  const cobertos = dados.agendamentos
-    .filter(
-      (a) =>
-        a.status === "concluido" &&
-        a.date >= desde &&
-        mesDe(a.date) <= mes &&
-        cobertoPeloPlano(a, dados.transacoes),
-    )
+  const concluidos = dados.agendamentos
+    .filter((a) => a.status === "concluido" && a.date >= desde && mesDe(a.date) <= mes)
     .sort((a, b) => (a.date === b.date ? a.inicio.localeCompare(b.inicio) : a.date.localeCompare(b.date)));
 
   const feitas = new Set<string>();
   const out = new Map<string, { fichas: number; repetida: boolean }>();
-  for (const ag of cobertos) {
+  for (const ag of concluidos) {
     const cliente = ag.clienteId || semAcento(ag.clienteNome);
     const semana = inicioDaSemana(ag.date);
     let fichas = 0;

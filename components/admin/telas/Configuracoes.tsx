@@ -742,7 +742,7 @@ export function TelaConfiguracoes() {
             </Field>
             <div style={{ fontSize: 11.5, color: c.ink3, marginTop: 6, lineHeight: 1.5 }}>
               Parte das mensalidades recebidas no mês que vai para a equipe. Ela é repartida pelas fichas
-              que cada barbeiro fez nos atendimentos cobertos pelo plano. 0% desliga o pote.
+              que cada barbeiro fez no mês, em todos os atendimentos (de assinante e avulsos). 0% desliga o pote.
             </div>
           </div>
 

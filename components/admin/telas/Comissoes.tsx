@@ -103,13 +103,13 @@ function ResumoPoteCard({ apuracao, regra, mes }: { apuracao: ApuracaoMes; regra
         </div>
       ) : pote.valor > 0 ? (
         <div style={{ fontSize: 12.5, color: c.amberText, marginTop: 12, fontWeight: 600 }}>
-          Nenhum atendimento coberto pelo plano foi concluído neste mês, então o pote ainda não tem pra quem ir.
+          Nenhum atendimento foi concluído neste mês, então o pote ainda não tem pra quem ir.
         </div>
       ) : null}
 
       <div style={{ fontSize: 12, color: c.ink3, marginTop: 12, lineHeight: 1.55, borderTop: `1px solid ${c.borderSoft}`, paddingTop: 10 }}>
         <strong style={{ color: c.ink2 }}>Como a conta é feita:</strong> {fmtNum(pote.pct, pote.pct % 1 ? 2 : 0)}% das
-        mensalidades recebidas no mês formam o pote. Cada atendimento coberto pelo plano rende fichas:{" "}
+        mensalidades recebidas no mês formam o pote. Cada atendimento concluído (de assinante ou avulso) rende fichas:{" "}
         {ITENS_FICHA.map((i) => `${i.nome.toLowerCase()} ${fichas[i.id].cheia}`).join(", ")}. Se o cliente repete a
         mesma peça na semana (segunda a domingo), ela vale{" "}
         {ITENS_FICHA.map((i) => `${i.nome.toLowerCase()} ${fichas[i.id].repetida}`).join(", ")}. A parte de cada
@@ -465,14 +465,14 @@ export function TelaComissoes() {
                               ) : null}
                             </span>
                             <span style={{ textAlign: narrow ? "left" : "right", fontWeight: 700, color: l.comissao > 0 || l.fichas > 0 ? c.brassDeep : c.ink4 }}>
+                              {l.comissao > 0 || l.fichas === 0 ? formatBRLCentavos(l.comissao) : null}
+                              {l.comissao > 0 && l.fichas > 0 ? <span style={{ color: c.ink4, fontWeight: 500 }}> · </span> : null}
                               {l.fichas > 0 ? (
                                 <span title={l.repetidaNaSemana ? "Cliente repetiu a peça na semana: ficha reduzida" : undefined}>
                                   {fmtNum(l.fichas)} fichas
                                   {l.repetidaNaSemana ? <span style={{ color: c.ink4, fontWeight: 500 }}> · repetido</span> : null}
                                 </span>
-                              ) : (
-                                formatBRLCentavos(l.comissao)
-                              )}
+                              ) : null}
                             </span>
                           </div>
                         );

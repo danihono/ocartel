@@ -310,7 +310,7 @@ describe("pote da assinatura", () => {
         coberto({ id: "a2", date: "2026-06-04", barbeiroId: "b2", clienteId: "c1", servico: "Corte" }), // repetido: metade, 15
         coberto({ id: "a3", date: "2026-06-03", barbeiroId: "b2", clienteId: "c2", servico: "Raspar" }), // 20
         coberto({ id: "a4", date: "2026-06-09", barbeiroId: "b1", clienteId: "c1", servico: "Corte" }), // semana nova: 30
-        agendamento({ id: "a5", date: "2026-06-10", barbeiroId: "b1", servico: "Corte" }), // avulso, fora do pote
+        agendamento({ id: "a5", date: "2026-06-10", barbeiroId: "b1", servico: "Corte" }), // avulso também: 30
       ],
       transacoes: [
         transacao({ id: "t5", agendamentoId: "a5", valor: 50, paidAt: "2026-06-10" }),
@@ -321,18 +321,19 @@ describe("pote da assinatura", () => {
     };
     const ap = apurarMes(dados, "2026-06", POTE, [], "2026-06-15");
 
-    expect(ap.pote).toMatchObject({ ativo: true, receitaAssinaturas: 1000, valor: 400, totalFichas: 125 });
+    expect(ap.pote).toMatchObject({ ativo: true, receitaAssinaturas: 1000, valor: 400, totalFichas: 155 });
     expect(ap.linhas.find((l) => l.id === "a2")).toMatchObject({ fichas: 15, repetidaNaSemana: true });
 
     const rafa = ap.porBarbeiro.find((r) => r.barbeiroId === "b1")!;
-    expect(rafa).toMatchObject({ fichas: 90, valorPote: 288, comissaoAvulso: 25, comissao: 313 });
-    expect(rafa.participacao).toBeCloseTo(0.72);
+    // 400 × 120/155 = 309,677… e 400 × 35/155 = 90,322…: o centavo que sobra vai para a maior fração.
+    expect(rafa).toMatchObject({ fichas: 120, valorPote: 309.68, comissaoAvulso: 25, comissao: 334.68 });
+    expect(rafa.participacao).toBeCloseTo(120 / 155);
     const leo = ap.porBarbeiro.find((r) => r.barbeiroId === "b2")!;
-    expect(leo).toMatchObject({ fichas: 35, valorPote: 112, comissao: 112 });
+    expect(leo).toMatchObject({ fichas: 35, valorPote: 90.32, comissao: 90.32 });
     expect(ap.totalComissao).toBe(425);
 
     const f = montarFechamento(rafa, "2026-06", POTE, "Dona", "2026-07-01T10:00:00.000Z");
-    expect(f).toMatchObject({ total: 313, fichas: 90, valorPote: 288 });
+    expect(f).toMatchObject({ total: 334.68, fichas: 120, valorPote: 309.68 });
   });
 
   it("a semana atravessa a virada do mês", () => {
