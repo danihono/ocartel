@@ -88,6 +88,30 @@ export function Pincel(p: Props) {
   );
 }
 
+/** Poste de barbearia em pé: bolinha, tampa, tubo de vidro com as listras e base. */
+export function Poste(p: Props) {
+  const id = useId().replace(/:/g, "");
+  return (
+    <Svg {...p} viewBox="0 0 20 48" ratio={20 / 48}>
+      <defs>
+        <clipPath id={`poste-${id}`}>
+          <rect x="5" y="9" width="10" height="29" rx="1.5" />
+        </clipPath>
+      </defs>
+      <circle cx="10" cy="3.2" r="2" />
+      <path d="M4 7.2c0-1 .8-1.8 1.8-1.8h8.4c1 0 1.8.8 1.8 1.8V9H4Z" />
+      <rect x="5" y="9" width="10" height="29" rx="1.5" />
+      <g clipPath={`url(#poste-${id})`}>
+        {[-2, 4, 10, 16, 22, 28, 34].map((y) => (
+          <path key={y} d={`M4 ${y + 9}L16 ${y + 1}`} />
+        ))}
+      </g>
+      <path d="M4 38h12v1.8c0 1-.8 1.8-1.8 1.8H5.8c-1 0-1.8-.8-1.8-1.8Z" />
+      <path d="M8 41.6v2.6M12 41.6v2.6M6 44.6h8" />
+    </Svg>
+  );
+}
+
 /**
  * Cadeira de barbeiro. `cheia` (0..1) enche a cadeira de baixo para cima com a cor de
  * `corCheia` — é o "gráfico" da ocupação. `tracejada` desenha só o contorno pontilhado

@@ -1,5 +1,5 @@
-// Números do Dashboard que alimentam os desenhos de barbearia (poste, régua com navalha,
-// pente, cadeiras, pictograma). Funções puras sobre o AppState, testadas em
+// Números do Dashboard que alimentam os desenhos de barbearia (gráfico de movimento,
+// "agora na cadeira", pictograma dos serviços). Funções puras sobre o AppState, testadas em
 // tests/painel.test.ts — os componentes em components/ui/barbearia só desenham.
 //
 // Dinheiro vem das cobranças pagas; movimento (cortes, cadeira, régua) vem da agenda. Tudo
@@ -7,8 +7,8 @@
 // cobranças (ver lib/firebase/repos.ts).
 
 import { addDias, addMeses } from "./date";
-import { horaParaMin, ocupaHorario } from "./agenda";
-import { normaliza, precoServico, statusCobranca, valorRecebido } from "./selectors";
+import { horaParaMin } from "./agenda";
+import { normaliza, statusCobranca, valorRecebido } from "./selectors";
 import type { AppState } from "./store";
 import type { Agendamento, AgendamentoStatus, Barbeiro } from "./types";
 
@@ -59,36 +59,11 @@ export function movimentoPorDia(state: AppState, dias: number, hojeISO: string):
   });
 }
 
-/**
- * Ticket médio de cada um dos últimos `dias`: preço dos serviços concluídos ÷ quantos —
- * a mesma conta do KPI "Ticket médio" (selectDashboardKpis), dia a dia. Corte coberto pelo
- * plano entra como R$ 0, como lá.
- */
-export function ticketPorDia(state: AppState, dias: number, hojeISO: string): { dia: string; ticket: number; cortes: number }[] {
-  return Array.from({ length: dias }, (_, i) => {
-    const dia = addDias(hojeISO, i - dias + 1);
-    const feitos = doDia(state.agendamentos, dia).filter((a) => a.status === "concluido");
-    const soma = feitos.reduce((s, a) => s + (a.cobertoPorPlano ? 0 : precoServico(state, a.servico)), 0);
-    return { dia, ticket: feitos.length ? Math.round(soma / feitos.length) : 0, cortes: feitos.length };
-  });
-}
-
 /** Janela de atendimento do dia, em minutos desde 00:00. */
 function janela(state: AppState): { abre: number; fecha: number } {
   const abre = horaParaMin(state.config.horario.abre || "09:00");
   const fecha = horaParaMin(state.config.horario.fecha || "19:00");
   return { abre, fecha: Math.max(abre + 60, fecha) };
-}
-
-/** Quanto da grade de HOJE de cada barbeiro já está tomado (0..100). */
-export function ocupacaoPorBarbeiro(state: AppState, hojeISO: string): { barbeiro: Barbeiro; pct: number }[] {
-  const { abre, fecha } = janela(state);
-  const disp = fecha - abre;
-  const hoje = doDia(state.agendamentos, hojeISO);
-  return state.barbeiros.map((barbeiro) => {
-    const min = hoje.filter((a) => a.barbeiroId === barbeiro.id && ocupaHorario(a.status)).reduce((s, a) => s + a.duracaoMin, 0);
-    return { barbeiro, pct: Math.min(100, Math.round((min / disp) * 100)) };
-  });
 }
 
 export type EstadoCadeira =

@@ -5,10 +5,8 @@ import {
   iconeDoServico,
   mesAnterior,
   movimentoPorDia,
-  ocupacaoPorBarbeiro,
   recebidoNoMes,
   reguaDoDia,
-  ticketPorDia,
 } from "@/lib/painel";
 import type { AppState } from "@/lib/store";
 import type { Agendamento, Transacao } from "@/lib/types";
@@ -71,7 +69,7 @@ describe("mês passado", () => {
   });
 });
 
-describe("movimentoPorDia e ticketPorDia", () => {
+describe("movimentoPorDia", () => {
   const s = estado({
     agendamentos: [
       ag({ status: "concluido" }),
@@ -87,11 +85,6 @@ describe("movimentoPorDia e ticketPorDia", () => {
     expect(m[2]).toEqual({ dia: HOJE, cortes: 2, receita: 100 });
     expect(m[1].cortes).toBe(1);
   });
-  it("ticket do dia = preço dos concluídos ÷ quantos; coberto pelo plano vale 0", () => {
-    const t = ticketPorDia(s, 2, HOJE);
-    expect(t[1]).toEqual({ dia: HOJE, ticket: 50, cortes: 2 });
-    expect(t[0]).toEqual({ dia: "2026-11-04", ticket: 0, cortes: 1 });
-  });
 });
 
 describe("cadeiras", () => {
@@ -102,10 +95,6 @@ describe("cadeiras", () => {
       ag({ inicio: "15:00", duracaoMin: 30, status: "cancelado" }),
       ag({ barbeiroId: "b2", inicio: "16:00", duracaoMin: 30 }),
     ],
-  });
-  it("ocupação por barbeiro sobre a grade do dia (10h)", () => {
-    const o = ocupacaoPorBarbeiro(s, HOJE);
-    expect(o.map((x) => x.pct)).toEqual([20, 5]); // 120 de 600 min; 30 de 600
   });
   it("agora na cadeira: ocupada, pausa, livre até o próximo, fechada", () => {
     const as10 = agoraNaCadeira(s, HOJE, "10:30");

@@ -26,14 +26,11 @@ import {
 } from "@/lib/selectors";
 import { isoParaDiaMes, mesLabel } from "@/lib/date";
 import { useRelogio } from "@/lib/useRelogio";
-import { agoraNaCadeira, iconeDoServico, mesAnterior, movimentoPorDia, ocupacaoPorBarbeiro, recebidoNoMes, reguaDoDia, escalaPictograma, ticketPorDia } from "@/lib/painel";
+import { agoraNaCadeira, iconeDoServico, mesAnterior, movimentoPorDia, recebidoNoMes, reguaDoDia, escalaPictograma } from "@/lib/painel";
 import { PosteProgresso } from "@/components/ui/barbearia/PosteProgresso";
-import { ReguaDoDia } from "@/components/ui/barbearia/ReguaDoDia";
-import { PenteDentes } from "@/components/ui/barbearia/PenteDentes";
-import { CadeirasOcupacao } from "@/components/ui/barbearia/CadeirasOcupacao";
 import { DesenhoServico, Pictograma } from "@/components/ui/barbearia/Pictograma";
 import { GraficoMovimento, type ModoMovimento } from "@/components/ui/barbearia/GraficoMovimento";
-import { Cadeira, Tesoura } from "@/components/ui/barbearia/Desenhos";
+import { Cadeira, Navalha, Poste, Tesoura } from "@/components/ui/barbearia/Desenhos";
 import { AgendamentoModal } from "@/components/admin/AgendamentoModal";
 import { BotaoWhatsApp, motivoParaChamar, useLinkAgendamento } from "@/components/admin/ChamarDeVolta";
 import { aniversariantes, clientesSumidos, comHorarioMarcado, DIAS_SUMIDO } from "@/lib/reativacao";
@@ -63,8 +60,6 @@ export function TelaDashboard() {
   const topServicos = selectServicosMaisVendidos(state, hoje);
   const movimento = movimentoPorDia(state, diasPeriodo[periodo], hoje);
   const regua = reguaDoDia(state, hoje, agora);
-  const cadeiras = ocupacaoPorBarbeiro(state, hoje);
-  const pente = ticketPorDia(state, 7, hoje);
   const naCadeira = agoraNaCadeira(state, hoje, agora);
   const mesPassado = recebidoNoMes(state, mesAnterior(hoje), hoje);
   const pctMesPassado = mesPassado ? Math.round((resumo.recebidoMes / mesPassado) * 100) : resumo.recebidoMes ? 100 : 0;
@@ -75,8 +70,8 @@ export function TelaDashboard() {
   return (
     <div className="oc-stagger" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       {/* KPIs: o primeiro é o herói floresta (o número que importa) */}
+      {/* KPIs limpos: número, frase e um desenho no canto que representa o que é. */}
       <div className="oc-kpis">
-        {/* O poste de barbearia enche até o quanto já se fez do mês passado. */}
         <Kpi
           hero
           label="Faturamento do mês"
@@ -86,21 +81,18 @@ export function TelaDashboard() {
               ? `${pctMesPassado}% do mês passado (${formatBRL(mesPassado)})`
               : resumo.recebidoMes
                 ? `${formatBRL(resumo.aReceber)} ainda a receber`
-                : "O primeiro corte pago acende o poste."
+                : "O primeiro corte pago aparece aqui."
           }
-          foot={<PosteProgresso tom="escuro" altura={20} pct={pctMesPassado} rotulo={`${pctMesPassado}% do faturamento do mês passado`} />}
+          arte={<Poste size={118} stroke={1.3} style={{ transform: "rotate(12deg)" }} />}
         />
-        {/* A régua do dia: cada horário um ponto, a navalha no agora. */}
         <Kpi
           label="Agendamentos hoje"
           value={kpiHoje.total}
           sub={regua.proximo ? `próximo às ${regua.proximo.hora} · ${regua.proximo.cliente.split(" ")[0]}` : kpiHoje.total ? "nada mais por vir hoje" : "agenda livre"}
-          foot={<ReguaDoDia {...regua} />}
+          arte={<Tesoura size={96} stroke={1.4} style={{ transform: "rotate(-24deg)" }} />}
         />
-        {/* O pente: cada dente é o ticket médio de um dia da semana. */}
-        <Kpi label="Ticket médio" value={formatBRL(dk.ticketMedio)} sub="por atendimento · 7 dias" foot={<PenteDentes dias={pente} />} />
-        {/* Uma cadeira por barbeiro, cheia até a ocupação dele hoje. */}
-        <Kpi label="Cadeiras ocupadas" value={`${dk.ocupacaoPct}%`} sub="da grade de hoje" foot={<CadeirasOcupacao itens={cadeiras} />} />
+        <Kpi label="Ticket médio" value={formatBRL(dk.ticketMedio)} sub="por atendimento concluído" arte={<Navalha size={58} stroke={1.3} style={{ transform: "translate(6px, -14px) rotate(-8deg)" }} />} />
+        <Kpi label="Cadeiras ocupadas" value={`${dk.ocupacaoPct}%`} sub="da grade de hoje" arte={<Cadeira size={104} stroke={1.3} />} />
       </div>
 
       {/* Renovações — o alerta da BARBEARIA. O cliente é avisado pelo WhatsApp; a dona,
