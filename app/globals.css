@@ -901,6 +901,111 @@ a {
   background-size: 22px 22px;
 }
 
+/* ------------------------------------------- desenhos de barbearia */
+/* Poste de barbearia deitado (barra de progresso). As listras correm na diagonal, como o
+   poste girando; com prefers-reduced-motion ficam paradas (regra geral lá embaixo). */
+.oc-poste {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: calc(var(--oc-poste-h, 16px) + 8px);
+}
+.oc-poste-tampa {
+  flex: none;
+  width: 9px;
+  height: calc(var(--oc-poste-h, 16px) + 8px);
+  border-radius: 5px;
+  background: linear-gradient(90deg, #6f7d74 0%, #e6ece4 45%, #8d9a91 100%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+.oc-poste-tubo {
+  position: relative;
+  flex: 1;
+  height: var(--oc-poste-h, 16px);
+  margin: 0 -1px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.oc-poste-listras {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background-size: 28px 100%;
+  animation: oc-poste 1.4s linear infinite;
+  transition: width 0.8s var(--oc-ease);
+}
+.oc-poste-brilho {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 45%, rgba(0, 0, 0, 0.12) 100%);
+  pointer-events: none;
+}
+.oc-poste.is-alem .oc-poste-listras {
+  animation-duration: 0.7s;
+}
+/* No herói floresta: vidro escuro, listras neon e branco. */
+.oc-poste-escuro .oc-poste-tubo {
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.oc-poste-escuro .oc-poste-listras {
+  background-image: repeating-linear-gradient(-45deg, var(--oc-neon) 0 7px, #f4fbe9 7px 11px, #0b1a12 11px 14px);
+  box-shadow: 0 0 14px rgba(183, 255, 24, 0.45);
+}
+.oc-poste-escuro.is-vazio .oc-poste-tubo {
+  background-image: repeating-linear-gradient(-45deg, rgba(183, 255, 24, 0.12) 0 7px, transparent 7px 14px);
+}
+/* Em cards claros: vidro do tema, listras do acento. */
+.oc-poste-claro .oc-poste-tubo {
+  background: var(--oc-raised);
+}
+.oc-poste-claro .oc-poste-listras {
+  background-image: repeating-linear-gradient(-45deg, var(--oc-accent) 0 7px, var(--oc-surface) 7px 10px, var(--oc-accent-strong) 10px 14px);
+}
+.oc-poste-claro .oc-poste-tampa {
+  width: 5px;
+  height: calc(var(--oc-poste-h, 16px) + 4px);
+  border-radius: 3px;
+  background: var(--oc-line-strong);
+  box-shadow: none;
+}
+@keyframes oc-poste {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 28px 0;
+  }
+}
+
+/* A navalha do "agora" balança de leve, como quem está cortando. */
+.oc-navalha-agora svg {
+  transform-origin: 70% 80%;
+  animation: oc-navalha 2.8s ease-in-out infinite;
+}
+@keyframes oc-navalha {
+  0%,
+  100% {
+    transform: rotate(-12deg) translateY(-2px);
+  }
+  50% {
+    transform: rotate(-4deg) translateY(-2px);
+  }
+}
+
+/* A tesoura do último dia abre e fecha devagar. */
+.oc-tesoura-fim svg {
+  animation: oc-tesoura 2.4s ease-in-out infinite;
+}
+@keyframes oc-tesoura {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-14deg);
+  }
+}
+
 /* --------------------------------------------------------- animações */
 @keyframes oc-in {
   from {
@@ -1201,6 +1306,10 @@ input[type="radio"] {
 /* No celular o herói ocupa a linha inteira. */
 @media (max-width: 599px) {
   .oc-kpis > .oc-card-hero:first-child {
+    grid-column: 1 / -1;
+  }
+  /* Com o herói ocupando a linha, sobram três: o último fica com a linha inteira. */
+  .oc-kpis > .oc-card-hero:first-child ~ :nth-child(4):last-child {
     grid-column: 1 / -1;
   }
 }
