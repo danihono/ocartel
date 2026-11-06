@@ -20,8 +20,16 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const p = new URL(req.url).searchParams;
-  const esperado = process.env.WHATSAPP_VERIFY_TOKEN;
-  if (p.get("hub.mode") === "subscribe" && esperado && p.get("hub.verify_token") === esperado) {
+  // `trim` dos dois lados: segredo colado no terminal ou no Secret Manager costuma levar
+  // uma quebra de linha junto, invisível — e a verificação falhava sem explicação.
+  const esperado = (process.env.WHATSAPP_VERIFY_TOKEN ?? "").trim();
+  if (!esperado) {
+    // Distinto do 403 de propósito: "o segredo não chegou ao servidor" e "a senha não
+    // bate" se resolvem de jeitos diferentes, e sem isto os dois pareciam o mesmo erro.
+    console.error("[whatsapp/webhook] WHATSAPP_VERIFY_TOKEN não configurado.");
+    return NextResponse.json({ error: "token de verificação não configurado no servidor" }, { status: 500 });
+  }
+  if (p.get("hub.mode") === "subscribe" && (p.get("hub.verify_token") ?? "").trim() === esperado) {
     // A Meta espera o `challenge` de volta, cru, como texto.
     return new Response(p.get("hub.challenge") ?? "", { status: 200, headers: { "content-type": "text/plain" } });
   }
@@ -29,7 +37,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const segredo = process.env.WHATSAPP_APP_SECRET;
+  const segredo = (process.env.WHATSAPP_APP_SECRET ?? "").trim();
   if (!segredo) {
     console.error("[whatsapp/webhook] WHATSAPP_APP_SECRET não configurado — recusando tudo.");
     return NextResponse.json({ error: "não configurado" }, { status: 500 });

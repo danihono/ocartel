@@ -231,7 +231,8 @@ class CanalDaemon implements Canal {
  */
 async function tokenCloud(tenantId: string): Promise<string> {
   const snap = await adminDb.doc(`tenants/${tenantId}/private/whatsapp/credenciais/cloud`).get();
-  return String(snap.get("token") ?? "") || process.env.WHATSAPP_TOKEN || "";
+  // `trim`: uma quebra de linha colada junto com o token vira cabeçalho HTTP inválido.
+  return (String(snap.get("token") ?? "") || process.env.WHATSAPP_TOKEN || "").trim();
 }
 
 /**
