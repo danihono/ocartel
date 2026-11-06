@@ -4,6 +4,7 @@ import { Card } from "./Card";
 /**
  * Tile de KPI. `hero` = o cartão floresta "barber pole" (um por tela, o número que
  * importa). `foot` recebe o visual de rodapé: sparkline, mini-barras, medidor.
+ * `arte` é um desenho decorativo grande no canto (o que o número representa), sem dados.
  */
 export function Kpi({
   label,
@@ -12,6 +13,7 @@ export function Kpi({
   delta,
   hero = false,
   foot,
+  arte,
 }: {
   label: string;
   value: ReactNode;
@@ -20,9 +22,21 @@ export function Kpi({
   delta?: { text: string; tone: "up" | "down" | "flat"; invertido?: boolean };
   hero?: boolean;
   foot?: ReactNode;
+  arte?: ReactNode;
 }) {
   return (
-    <Card hero={hero} lift={!hero} pad="18px 20px" style={{ display: "flex", flexDirection: "column", gap: 10, minHeight: 138 }}>
+    <Card
+      hero={hero}
+      lift={!hero}
+      pad="18px 20px"
+      className={arte ? "oc-kpi-com-arte" : undefined}
+      style={{ display: "flex", flexDirection: "column", gap: 10, minHeight: 138, position: "relative", overflow: "hidden" }}
+    >
+      {arte ? (
+        <span aria-hidden className={`oc-kpi-arte${hero ? " is-hero" : ""}`}>
+          {arte}
+        </span>
+      ) : null}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <span className="oc-label">{label}</span>
         {delta ? <Delta {...delta} onHero={hero} /> : null}

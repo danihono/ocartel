@@ -430,6 +430,11 @@ export function formatBRL(n: number): string {
   return "R$ " + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
+/** Com centavos — para comissão, onde R$ 0,49 de arredondamento por barbeiro é dinheiro de alguém. */
+export function formatBRLCentavos(n: number): string {
+  return "R$ " + n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export function duracaoServico(state: AppState, nome: string): number {
   return state.servicos.find((s) => s.nome === nome)?.duracaoMin ?? 40;
 }
