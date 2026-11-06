@@ -335,17 +335,26 @@ export const config = {
 // Uma chave de API ali seria pública para a internet inteira.
 export const cobrador = {
   /**
-   * Observa apenas o que a TELA precisa mostrar: se está configurado e em qual ambiente.
-   * A chave nunca é devolvida daqui — não porque as regras a escondam do admin (elas não
-   * escondem; é o doc dele), mas porque uma chave que não sobe para o componente não pode
-   * vazar por print, screenshot de suporte ou log de erro do navegador.
+   * Observa apenas o que a TELA precisa mostrar: se está configurado, em qual ambiente e o
+   * token do webhook. A chave nunca é devolvida daqui — não porque as regras a escondam do
+   * admin (elas não escondem; é o doc dele), mas porque uma chave que não sobe para o
+   * componente não pode vazar por print, screenshot de suporte ou log de erro do navegador.
+   *
+   * O token do webhook sobe, e precisa: é a pessoa que o cola no painel do Asaas. Antes ele
+   * era gerado e guardado sem nunca aparecer, e a baixa automática recusava tudo com 401.
+   * Vazado, ele permite forjar um aviso de pagamento: por isso só quem gerencia a
+   * barbearia o vê (as regras de `private/` já são essas), e "Trocar a chave" gera outro.
    */
-  subscribeStatus(tenantId: string, cb: (s: { configurado: boolean; ambiente: "sandbox" | "producao" }) => void) {
+  subscribeStatus(
+    tenantId: string,
+    cb: (s: { configurado: boolean; ambiente: "sandbox" | "producao"; webhookToken?: string }) => void,
+  ) {
     return onSnapshot(sub(tenantId, "private/asaas"), (snap) => {
       const d = snap.exists() ? snap.data() : null;
       cb({
         configurado: !!d?.apiKey,
         ambiente: d?.ambiente === "producao" ? "producao" : "sandbox",
+        ...(typeof d?.webhookToken === "string" && d.webhookToken ? { webhookToken: d.webhookToken } : {}),
       });
     });
   },

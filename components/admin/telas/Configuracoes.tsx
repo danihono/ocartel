@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { c } from "@/lib/theme";
+import { c, font } from "@/lib/theme";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { Field, Select, TextInput } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
@@ -165,9 +165,13 @@ export function TelaConfiguracoes() {
       .catch(() => toast("Não foi possível salvar a comissão.", "error"));
   }
 
-  // Status do gateway. A CHAVE não entra no componente — só o "está configurado" e o
-  // ambiente. Ver `repo.cobrador.subscribeStatus`.
-  const [gateway, setGateway] = useState<{ configurado: boolean; ambiente: "sandbox" | "producao" } | null>(null);
+  // Status do gateway. A CHAVE não entra no componente — só o "está configurado", o
+  // ambiente e o token do webhook. Ver `repo.cobrador.subscribeStatus`.
+  const [gateway, setGateway] = useState<{
+    configurado: boolean;
+    ambiente: "sandbox" | "producao";
+    webhookToken?: string;
+  } | null>(null);
   const [novaChave, setNovaChave] = useState("");
   const [novoAmbiente, setNovoAmbiente] = useState<"sandbox" | "producao">("sandbox");
 
@@ -306,6 +310,15 @@ export function TelaConfiguracoes() {
       toast("Gateway configurado. Falta cadastrar a URL do webhook no painel do Asaas.");
     } catch {
       toast("Não foi possível salvar a chave.", "error");
+    }
+  }
+
+  async function copiar(texto: string, oQue: string) {
+    try {
+      await navigator.clipboard.writeText(texto);
+      toast(`${oQue} copiado.`);
+    } catch {
+      toast("Não foi possível copiar — selecione e copie à mão.", "error");
     }
   }
 
@@ -648,6 +661,39 @@ export function TelaConfiguracoes() {
               ) : (
                 <div style={{ fontSize: 12.5, color: c.amberText, fontWeight: 600, marginBottom: 12 }}>
                   Sem chave: nenhum boleto é emitido, mesmo com a opção acima ligada.
+                </div>
+              )}
+
+              {/* O webhook é o que dá baixa sozinho quando o cliente paga. A URL e o token
+                  são colados no painel do Asaas — sem eles a rota recusa todo aviso (401). */}
+              {gateway?.configurado && (
+                <div style={{ marginBottom: 14, padding: 12, borderRadius: 10, border: `1px solid ${c.borderSoft}` }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: c.inkTitle, marginBottom: 4 }}>
+                    Webhook no painel do Asaas
+                  </div>
+                  <div style={{ fontSize: 12.5, color: c.ink3, lineHeight: 1.45, marginBottom: 10 }}>
+                    No Asaas: <b>Integrações → Webhooks → Adicionar</b>. Cole a URL e o token abaixo e
+                    marque os eventos de cobrança <b>recebida</b> e <b>confirmada</b>.
+                  </div>
+                  {[
+                    { rotulo: "URL", valor: `${window.location.origin}/api/cobrancas/webhook/asaas` },
+                    ...(gateway.webhookToken ? [{ rotulo: "Token de autenticação", valor: gateway.webhookToken }] : []),
+                  ].map(({ rotulo, valor }) => (
+                    <div key={rotulo} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 12, color: c.ink3, minWidth: 150 }}>{rotulo}</span>
+                      <code style={{ fontFamily: font.mono, fontSize: 12, color: c.ink, wordBreak: "break-all", flex: 1, minWidth: 0 }}>
+                        {valor}
+                      </code>
+                      <button onClick={() => void copiar(valor, rotulo)} className="oc-btn oc-btn-ghost oc-btn-sm" style={{ flex: "none" }}>
+                        <Icon name="copiar" size={14} /> Copiar
+                      </button>
+                    </div>
+                  ))}
+                  {!gateway.webhookToken && (
+                    <div style={{ fontSize: 12.5, color: c.amberText, fontWeight: 600 }}>
+                      Esta chave foi salva sem token. Cole a chave de novo em &quot;Trocar a chave&quot; para gerar um.
+                    </div>
+                  )}
                 </div>
               )}
 
