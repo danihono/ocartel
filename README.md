@@ -111,7 +111,7 @@ O site vai ao ar pelo **Firebase Hosting** (`firebase.json`, com
 npm run deploy
 ```
 
-Quatro coisas que não são óbvias:
+Cinco coisas que não são óbvias:
 
 1. **Empurrar para a `main` não publica nada.** O workflow em
    `.github/workflows/ci.yml` roda lint, tipos, testes e build — e para aí. Estar
@@ -150,6 +150,12 @@ Quatro coisas que não são óbvias:
    App Hosting (outro produto, que publica sozinho a partir de uma branch). Está
    no repositório, mas o `firebase deploy` ignora — inclusive as variáveis de
    ambiente declaradas nele, que valem só no App Hosting.
+
+5. **A versão do Node do site vem do `engines` do `package.json` da raiz.** O SSR do
+   Next sai como uma Cloud Function gerada pelo próprio `firebase deploy`, e o CLI usa o
+   `engines.node` daqui; sem ele, escolhe sozinho uma versão que o Google pode já ter
+   desligado (*"Runtime Node.js 20 was decommissioned"*). Quando isso acontecer, suba o
+   número ali (e o do CI). A pasta `functions/` tem o próprio `engines`.
 
 ## Ferramentas
 
