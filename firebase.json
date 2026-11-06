@@ -12,7 +12,10 @@
       "secrets": [
         "COBRANCAS_SECRET",
         "GEMINI_API_KEY",
-        "IA_SECRET"
+        "IA_SECRET",
+        "WHATSAPP_APP_SECRET",
+        "WHATSAPP_TOKEN",
+        "WHATSAPP_VERIFY_TOKEN"
       ]
     }
   },

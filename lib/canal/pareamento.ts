@@ -9,6 +9,16 @@
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
 import { uidDaBarbearia } from "./uid";
+import { vinculoDoTenant } from "./index";
+
+/** Barbearia na API oficial: não há QR nem daemon, e pedir um seria enfileirar no vazio. */
+const MSG_API_OFICIAL = "Esta barbearia usa a API oficial do WhatsApp — não há QR para escanear.";
+
+async function apiOficial(tenantId: string) {
+  return vinculoDoTenant(tenantId)
+    .then((v) => (v.provedor === "cloud" ? v : null))
+    .catch(() => null);
+}
 
 /** Validade do doc de comando — casada com o TTL nativo esperado pelo daemon. */
 const COMANDO_TTL_MS = 3_600_000;
@@ -63,6 +73,7 @@ async function enfileirar(uid: string, type: string, args: Record<string, unknow
  * retornar, e é o estado que a tela acompanha.
  */
 export async function iniciarPareamento(tenantId: string): Promise<{ ok: boolean; erro?: string }> {
+  if (await apiOficial(tenantId)) return { ok: false, erro: MSG_API_OFICIAL };
   if (!(await daemonOnline())) {
     return { ok: false, erro: "O serviço de WhatsApp está fora do ar. Tente novamente em instantes." };
   }
@@ -80,6 +91,12 @@ export async function iniciarPareamento(tenantId: string): Promise<{ ok: boolean
 
 /** Estado atual, para a tela mostrar o QR e saber quando parou de precisar perguntar. */
 export async function lerEstadoPareamento(tenantId: string): Promise<EstadoPareamento> {
+  // Na API oficial a conexão é da Meta, não de um socket nosso: vinculado é conectado.
+  const cloud = await apiOficial(tenantId);
+  if (cloud) {
+    return { status: "conectado", qr: null, numero: cloud.numero ?? null, erro: null, daemonOnline: true };
+  }
+
   const uid = uidDaBarbearia(tenantId);
   const [snap, online] = await Promise.all([adminDb.doc(`whatsappStatus/${uid}`).get(), daemonOnline()]);
 
@@ -110,6 +127,7 @@ export async function lerEstadoPareamento(tenantId: string): Promise<EstadoParea
 
 /** Desconecta mantendo as mensagens (não expurga nada). */
 export async function desconectarPareamento(tenantId: string): Promise<{ ok: boolean; erro?: string }> {
+  if (await apiOficial(tenantId)) return { ok: false, erro: MSG_API_OFICIAL };
   if (!(await daemonOnline())) {
     return { ok: false, erro: "O serviço de WhatsApp está fora do ar. Tente novamente em instantes." };
   }

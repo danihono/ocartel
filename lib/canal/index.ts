@@ -11,6 +11,9 @@ import { FieldValue, Timestamp, type DocumentReference } from "firebase-admin/fi
 import { adminDb } from "@/lib/firebase/admin";
 import { chaveTelefone, contactIdDoTelefone } from "@/lib/telefone";
 import { iniciaisDe } from "@/lib/clientes-import";
+import { enviarTexto, type CredenciaisCloud } from "@/lib/whatsapp/cloud";
+import { gravarEnviada } from "@/lib/whatsapp/cloud-espelho";
+import { uidDaBarbearia } from "./uid";
 
 /** Resultado de um envio. `pendente` = o daemon ainda não respondeu (e pode dar certo). */
 export interface EnvioResultado {
@@ -46,6 +49,10 @@ interface VinculoWhatsApp {
   uid: string;
   /** Número da barbearia, só para exibição/diagnóstico. */
   numero?: string;
+  /** Por onde a mensagem sai. Sem o campo é o daemon — o que toda barbearia antiga usa. */
+  provedor: "daemon" | "cloud";
+  /** Id do número na Meta (só `cloud`). */
+  phoneNumberId?: string;
 }
 
 export class WhatsAppNaoConfigurado extends Error {
@@ -55,11 +62,20 @@ export class WhatsAppNaoConfigurado extends Error {
   }
 }
 
-async function vinculoDoTenant(tenantId: string): Promise<VinculoWhatsApp> {
+export async function vinculoDoTenant(tenantId: string): Promise<VinculoWhatsApp> {
   const snap = await adminDb.doc(`tenants/${tenantId}/private/whatsapp`).get();
   const uid = snap.exists ? String(snap.data()?.uid ?? "") : "";
   if (!uid) throw new WhatsAppNaoConfigurado(tenantId);
-  return { uid, numero: snap.data()?.numero };
+  const provedor = snap.get("provedor") === "cloud" ? "cloud" : "daemon";
+  const phoneNumberId = String(snap.get("phoneNumberId") ?? "");
+  return { uid, numero: snap.data()?.numero, provedor, ...(phoneNumberId ? { phoneNumberId } : {}) };
+}
+
+/** true quando a barbearia fala pela API oficial — e não há daemon para pedir nada. */
+export async function usaApiOficial(tenantId: string): Promise<boolean> {
+  return vinculoDoTenant(tenantId)
+    .then((v) => v.provedor === "cloud")
+    .catch(() => false);
 }
 
 export function apenasDigitos(telefone: string): string {
@@ -130,6 +146,9 @@ export function caminhoMensagem(uid: string, contactId: string, mensagemId: stri
  * atrapalhar o envio de mensagem — foto é enfeite, conversa não é.
  */
 export async function pedirFotoDePerfil(uid: string, contactId: string): Promise<void> {
+  // A API oficial não entrega foto de perfil. Sem este corte o pedido ficaria na fila de
+  // um daemon que não existe até o TTL apagá-lo.
+  if (uid.startsWith("barbearia-") && (await usaApiOficial(uid.slice("barbearia-".length)))) return;
   await adminDb.collection(`users/${uid}/waCommands`).add({
     type: "contact.photoRefresh",
     args: { contactId },
@@ -202,8 +221,69 @@ class CanalDaemon implements Canal {
   }
 }
 
+/**
+ * O token da Meta desta barbearia.
+ *
+ * Mora num documento ANINHADO em `private/whatsapp`, que não casa com
+ * `match /private/{doc}` e cai no deny padrão das regras — nem o dono da barbearia o lê
+ * pelo navegador (mesmo raciocínio do token do cartão). Sem token próprio, usa o da
+ * variável de ambiente: é o caso do número de teste e do token de usuário do sistema.
+ */
+async function tokenCloud(tenantId: string): Promise<string> {
+  const snap = await adminDb.doc(`tenants/${tenantId}/private/whatsapp/credenciais/cloud`).get();
+  return String(snap.get("token") ?? "") || process.env.WHATSAPP_TOKEN || "";
+}
+
+/**
+ * Adaptador da API oficial (Cloud API da Meta).
+ *
+ * O envio é síncrono — a Meta responde na hora com o id da mensagem —, então `aguardarMs`
+ * não tem o que esperar e o `mensagemId` volta sempre. Quem grava a mensagem no espelho é
+ * este adaptador, logo depois do envio: não há daemon vendo a mensagem passar.
+ *
+ * Texto livre só sai dentro das 24 horas desde a última mensagem do cliente. Fora disso a
+ * Meta recusa e o erro explica — mensagem de iniciativa da barbearia (confirmação,
+ * cobrança) precisa de template, que é a próxima etapa.
+ */
+class CanalCloud implements Canal {
+  constructor(
+    private readonly tenantId: string,
+    private readonly cred: CredenciaisCloud,
+  ) {}
+
+  async enviarMensagem(telefone: string, texto: string, opcoes: OpcoesEnvio = {}): Promise<EnvioResultado> {
+    const chave = chaveTelefone(telefone);
+    if (!chave) throw new Error(`Telefone inválido para envio: "${telefone}"`);
+
+    const contactId = await garantirContato(uidDaBarbearia(this.tenantId), chave.wa, {
+      nome: opcoes.nome,
+      clienteId: opcoes.clienteId,
+      tenantId: this.tenantId,
+    });
+
+    // O `wa_id` que a Meta usou da última vez pode não ter o nono dígito. Mandar para ele é
+    // mandar para a conta exatamente como o WhatsApp a conhece.
+    const contato = await adminDb.doc(`users/${uidDaBarbearia(this.tenantId)}/contacts/${contactId}`).get();
+    const para = String(contato.get("waId") ?? "") || chave.wa;
+
+    const envio = await enviarTexto(this.cred, para, texto);
+    if (!envio.ok) {
+      console.warn("[canal/cloud] envio recusado", this.tenantId, envio.codigo);
+      return { ok: false, erro: envio.erro };
+    }
+
+    const mensagemId = await gravarEnviada(this.tenantId, contactId, envio.wamid, texto, envio.waId);
+    return { ok: true, mensagemId };
+  }
+}
+
 /** Devolve o canal da barbearia. Lança `WhatsAppNaoConfigurado` se não houver vínculo. */
 export async function canalDoTenant(tenantId: string): Promise<Canal> {
-  const { uid } = await vinculoDoTenant(tenantId);
-  return new CanalDaemon(uid, tenantId);
+  const vinculo = await vinculoDoTenant(tenantId);
+  if (vinculo.provedor === "cloud") {
+    const token = await tokenCloud(tenantId);
+    if (!vinculo.phoneNumberId || !token) throw new WhatsAppNaoConfigurado(tenantId);
+    return new CanalCloud(tenantId, { phoneNumberId: vinculo.phoneNumberId, token });
+  }
+  return new CanalDaemon(vinculo.uid, tenantId);
 }

@@ -12,6 +12,7 @@
     "emulators:export": "firebase emulators:export ./.seed",
     "provision:super-admin": "tsx scripts/provision-super-admin.ts",
     "whatsapp:parear": "tsx scripts/whatsapp-parear.ts",
+    "whatsapp:cloud-vincular": "tsx scripts/whatsapp-cloud-vincular.ts",
     "limpar:tenants": "tsx scripts/limpar-tenants.ts",
     "test": "vitest run",
     "test:watch": "vitest"
