@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, it, expect, vi } from "vitest";
-import { assinaturaConfere, enviarTexto, idDoc, lerWebhook, numeroDoWaId, resumoWebhook } from "@/lib/whatsapp/cloud";
+import { assinaturaConfere, enviarTexto, erroAmigavel, idDoc, lerWebhook, numeroDoWaId, resumoWebhook } from "@/lib/whatsapp/cloud";
 
 const SEGREDO = "segredo-do-app";
 const assinar = (corpo: string, segredo = SEGREDO) =>
@@ -214,5 +214,11 @@ describe("resumoWebhook", () => {
     const cru = JSON.stringify(resumo);
     expect(cru).not.toContain("segredo");
     expect(cru).not.toContain("551984487271");
+  });
+});
+
+describe("erroAmigavel", () => {
+  it("explica a trava de país da Meta (130497)", () => {
+    expect(erroAmigavel(130497, "Business account is restricted from messaging users in this country.")).toMatch(/país/);
   });
 });

@@ -50,6 +50,10 @@ export interface MensagemWa {
   mediaError?: string;
   /** Resposta escrita pelo atendente automático, não por uma pessoa. */
   porIa?: boolean;
+  /** Só API oficial: o que a Meta disse da mensagem que saiu (ver cloud-espelho). */
+  waStatus?: "accepted" | "sent" | "delivered" | "read" | "failed";
+  /** Por que a Meta não entregou, quando `waStatus` é `failed`. */
+  erroEnvio?: string;
 }
 
 function paraData(v: unknown): Date | undefined {
@@ -122,6 +126,8 @@ export function subscribeMensagens(uid: string, contactId: string, cb: (rows: Me
         pending: v.pending === true,
         mediaError: typeof v.mediaError === "string" ? v.mediaError : undefined,
         porIa: v.porIa === true,
+        waStatus: typeof v.waStatus === "string" ? (v.waStatus as MensagemWa["waStatus"]) : undefined,
+        erroEnvio: typeof v.erroEnvio === "string" ? v.erroEnvio : undefined,
       };
     });
     rows.reverse();

@@ -321,6 +321,10 @@ export function erroAmigavel(codigo: number, original: string): string {
       return "O acesso ao WhatsApp expirou. É preciso gerar um novo token na Meta.";
     case 131031:
       return "A conta do WhatsApp da barbearia está bloqueada pela Meta.";
+    case 130497:
+      // Trava da Meta contra golpe: número de outro país (o de teste é +1) falando com
+      // brasileiro, em conta nova. Com o número brasileiro da barbearia ela não existe.
+      return "A Meta bloqueou o envio para este país: o número que envia é estrangeiro ou a conta é nova. Use o número brasileiro da barbearia.";
     default:
       return original || "O WhatsApp recusou a mensagem.";
   }

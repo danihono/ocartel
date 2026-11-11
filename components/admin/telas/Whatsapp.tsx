@@ -786,6 +786,13 @@ function Balao({ m, mostrarDia }: { m: MensagemWa; mostrarDia: boolean }) {
           </div>
         </div>
       </div>
+      {/* Na API oficial a Meta aceita o envio e só depois avisa que não entregou. Sem isto
+          o balão ficava igual ao de uma mensagem entregue, e ninguém ficava sabendo. */}
+      {minha && m.waStatus === "failed" ? (
+        <div style={{ textAlign: "right", fontSize: 11.5, color: c.redText, margin: "-4px 0 10px", fontWeight: 600 }}>
+          Não entregue{m.erroEnvio ? ` — ${m.erroEnvio}` : ""}
+        </div>
+      ) : null}
     </>
   );
 }

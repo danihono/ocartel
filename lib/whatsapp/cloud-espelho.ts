@@ -14,7 +14,7 @@ import { iniciaisDe } from "@/lib/clientes-import";
 import { contactIdDoTelefone } from "@/lib/telefone";
 import { clienteDoTelefone } from "@/lib/canal/vinculo";
 import { uidDaBarbearia } from "@/lib/canal/uid";
-import { idDoc, type MensagemCloud, type StatusCloud } from "./cloud";
+import { erroAmigavel, idDoc, type MensagemCloud, type StatusCloud } from "./cloud";
 
 /** Índice `phone_number_id → barbearia`: o webhook só sabe o número que recebeu. */
 export function refNumero(phoneNumberId: string) {
@@ -167,7 +167,9 @@ export async function gravarStatus(tenantId: string, s: StatusCloud): Promise<vo
   await ref
     .update({
       waStatus: s.status,
-      ...(s.erro ? { erroEnvio: s.erro.mensagem || `erro ${s.erro.codigo}` } : {}),
+      // A falha chega DEPOIS do envio (a Meta aceita e só então recusa), então é aqui, e
+      // não no retorno do canal, que a tela fica sabendo — em português.
+      ...(s.erro ? { erroEnvio: erroAmigavel(s.erro.codigo, s.erro.mensagem) } : {}),
     })
     .catch((err: { code?: number }) => {
       // 5 = NOT_FOUND. Qualquer outro erro é de verdade e sobe.
