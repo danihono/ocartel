@@ -14,7 +14,7 @@ import { iniciaisDe } from "@/lib/clientes-import";
 import { contactIdDoTelefone } from "@/lib/telefone";
 import { clienteDoTelefone } from "@/lib/canal/vinculo";
 import { uidDaBarbearia } from "@/lib/canal/uid";
-import { erroAmigavel, idDoc, type MensagemCloud, type StatusCloud } from "./cloud";
+import { erroAmigavel, idDoc, type ContatoCloud, type MensagemCloud, type StatusCloud } from "./cloud";
 
 /** Índice `phone_number_id → barbearia`: o webhook só sabe o número que recebeu. */
 export function refNumero(phoneNumberId: string) {
@@ -46,16 +46,23 @@ async function garantirConversa(tenantId: string, m: Pick<MensagemCloud, "numero
     return { ref, contactId };
   }
 
-  const cliente = await clienteDoTelefone(tenantId, m.numero).catch(() => null);
+  const [cliente, celular] = await Promise.all([
+    clienteDoTelefone(tenantId, m.numero).catch(() => null),
+    refAgenda(tenantId, m.numero)
+      .get()
+      .then((d) => String(d.get("nome") ?? ""))
+      .catch(() => ""),
+  ]);
   // Nome de perfil só vale para quem ESCREVEU: num eco, o perfil seria o da barbearia.
   const perfil = m.fromMe ? "" : (m.nomePerfil ?? "").trim();
-  const nome = cliente?.nome || perfil || `+${m.numero}`;
+  // O cadastro vence; depois o nome salvo no celular da barbearia; depois o perfil.
+  const nome = cliente?.nome || celular || perfil || `+${m.numero}`;
 
   await ref.set(
     {
       name: nome,
       initials: iniciaisDe(nome) || "?",
-      nameSource: cliente?.nome ? "agenda" : perfil ? "profile" : "phone",
+      nameSource: cliente?.nome ? "agenda" : celular ? "celular" : perfil ? "profile" : "phone",
       phone: m.numero,
       whatsapp: m.numero,
       whatsappDigits: m.numero,
@@ -82,6 +89,28 @@ async function garantirConversa(tenantId: string, m: Pick<MensagemCloud, "numero
   return { ref, contactId };
 }
 
+/** Os campos de uma mensagem no espelho — os mesmos que o daemon gravava. */
+function camposMensagem(m: MensagemCloud) {
+  return {
+    fromMe: m.fromMe,
+    text: m.text,
+    sentAt: Timestamp.fromDate(m.sentAt),
+    channel: "whatsapp",
+    waMessageId: m.wamid,
+    // Mídia: o arquivo ainda está na Meta. Fica `pending` até alguém baixar.
+    pending: Boolean(m.mediaType),
+    ...(m.mediaType
+      ? {
+          mediaType: m.mediaType,
+          ...(m.waMediaId ? { waMediaId: m.waMediaId } : {}),
+          ...(m.mimeType ? { mimeType: m.mimeType } : {}),
+          ...(m.fileName ? { fileName: m.fileName } : {}),
+          ...(m.caption ? { caption: m.caption } : {}),
+        }
+      : {}),
+  };
+}
+
 /**
  * Grava uma mensagem que chegou pelo webhook (do cliente, ou eco do celular).
  *
@@ -96,24 +125,7 @@ export async function gravarMensagem(tenantId: string, m: MensagemCloud): Promis
   const sentAt = Timestamp.fromDate(m.sentAt);
   const novo = await adminDb.runTransaction(async (tx) => {
     if ((await tx.get(msgRef)).exists) return false;
-    tx.set(msgRef, {
-      fromMe: m.fromMe,
-      text: m.text,
-      sentAt,
-      channel: "whatsapp",
-      waMessageId: m.wamid,
-      // Mídia: o arquivo ainda está na Meta. Fica `pending` até alguém baixar.
-      pending: Boolean(m.mediaType),
-      ...(m.mediaType
-        ? {
-            mediaType: m.mediaType,
-            ...(m.waMediaId ? { waMediaId: m.waMediaId } : {}),
-            ...(m.mimeType ? { mimeType: m.mimeType } : {}),
-            ...(m.fileName ? { fileName: m.fileName } : {}),
-            ...(m.caption ? { caption: m.caption } : {}),
-          }
-        : {}),
-    });
+    tx.set(msgRef, camposMensagem(m));
     tx.set(
       contato,
       {
@@ -128,6 +140,104 @@ export async function gravarMensagem(tenantId: string, m: MensagemCloud): Promis
   });
 
   return novo;
+}
+
+/** Quantas conversas do histórico são gravadas ao mesmo tempo. */
+const CONVERSAS_EM_PARALELO = 8;
+/** Abaixo do teto de 500 operações por lote do Firestore. */
+const MENSAGENS_POR_LOTE = 400;
+
+/**
+ * Grava o histórico que a Meta entrega depois da conexão (Coexistência).
+ *
+ * É outro caminho que o da mensagem ao vivo porque o volume é outro: um único webhook pode
+ * trazer milhares de mensagens, e uma transação por mensagem estouraria o tempo da rota.
+ * Aqui vai em lotes, conversa por conversa, sem contar não lida — é conversa velha, já
+ * vista no celular. O `importedFromHistory` é o que faz a Cloud Function do atendente
+ * ignorá-las (ver functions/src/index.ts): sem ele a IA responderia meses de conversa.
+ *
+ * Idempotente: o id é o wamid, e a Meta reentrega o mesmo pedaço se não receber 200.
+ */
+export async function gravarHistorico(tenantId: string, mensagens: MensagemCloud[]): Promise<number> {
+  const porNumero = new Map<string, MensagemCloud[]>();
+  for (const m of mensagens) porNumero.set(m.numero, [...(porNumero.get(m.numero) ?? []), m]);
+  const fila = [...porNumero.values()];
+  let gravadas = 0;
+
+  const trabalhador = async () => {
+    for (let daConversa = fila.shift(); daConversa; daConversa = fila.shift()) {
+      const { ref: contato } = await garantirConversa(tenantId, daConversa[0]);
+      for (let i = 0; i < daConversa.length; i += MENSAGENS_POR_LOTE) {
+        const lote = adminDb.batch();
+        for (const m of daConversa.slice(i, i + MENSAGENS_POR_LOTE)) {
+          lote.set(
+            contato.collection("messages").doc(idDoc(m.wamid)),
+            { ...camposMensagem(m), importedFromHistory: true },
+            { merge: true },
+          );
+        }
+        await lote.commit();
+      }
+      gravadas += daConversa.length;
+
+      // O preview da lista só anda para a frente: o histórico chega fora de ordem, e uma
+      // mensagem de três meses atrás não pode passar na frente da de hoje.
+      const maisNova = daConversa.reduce((a, b) => (b.sentAt > a.sentAt ? b : a));
+      await adminDb.runTransaction(async (tx) => {
+        const atual = (await tx.get(contato)).get("lastMessageAt");
+        if (atual instanceof Timestamp && atual.toMillis() >= maisNova.sentAt.getTime()) return;
+        tx.set(
+          contato,
+          { lastMessage: maisNova.text, lastMessageAt: Timestamp.fromDate(maisNova.sentAt) },
+          { merge: true },
+        );
+      });
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(CONVERSAS_EM_PARALELO, fila.length) }, trabalhador));
+  return gravadas;
+}
+
+/**
+ * O nome que a barbearia deu ao contato no celular. Fica aninhado em `private/whatsapp`,
+ * fora do alcance das regras do navegador, porque é a agenda inteira do aparelho — inclusive
+ * quem nunca foi cliente.
+ */
+function refAgenda(tenantId: string, numero: string) {
+  return adminDb.doc(`tenants/${tenantId}/private/whatsapp/agenda/${numero}`);
+}
+
+/**
+ * Aplica a agenda do celular (Coexistência): guarda os nomes e renomeia as conversas que
+ * ainda aparecem só com o número ou com o nome de perfil. Quem está no cadastro mantém o
+ * nome do cadastro.
+ *
+ * A agenda chega ANTES do histórico — por isso os nomes ficam guardados: é de lá que
+ * `garantirConversa` tira o nome das conversas que o histórico ainda vai criar.
+ */
+export async function aplicarContatos(tenantId: string, contatos: ContatoCloud[]): Promise<void> {
+  const uid = uidDaBarbearia(tenantId);
+  for (let i = 0; i < contatos.length; i += MENSAGENS_POR_LOTE) {
+    const pedaco = contatos.slice(i, i + MENSAGENS_POR_LOTE);
+    const conversas = await adminDb.getAll(
+      ...pedaco.map((ct) => adminDb.doc(`users/${uid}/contacts/${contactIdDoTelefone(ct.numero)}`)),
+    );
+    const lote = adminDb.batch();
+    pedaco.forEach((ct, j) => {
+      if (ct.acao === "remove" || !ct.nome) {
+        lote.delete(refAgenda(tenantId, ct.numero));
+        return;
+      }
+      lote.set(refAgenda(tenantId, ct.numero), { nome: ct.nome, em: FieldValue.serverTimestamp() });
+      const conversa = conversas[j];
+      const fonte = conversa.get("nameSource");
+      if (conversa.exists && (fonte === "profile" || fonte === "phone" || fonte === "celular")) {
+        lote.set(conversa.ref, { name: ct.nome, initials: iniciaisDe(ct.nome) || "?", nameSource: "celular" }, { merge: true });
+      }
+    });
+    await lote.commit();
+  }
 }
 
 /**

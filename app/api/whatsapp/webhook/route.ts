@@ -14,9 +14,18 @@
 
 import { NextResponse } from "next/server";
 import { assinaturaConfere, lerWebhook, resumoWebhook } from "@/lib/whatsapp/cloud";
-import { gravarMensagem, gravarStatus, tenantDoNumero } from "@/lib/whatsapp/cloud-espelho";
+import { adminDb } from "@/lib/firebase/admin";
+import {
+  aplicarContatos,
+  gravarHistorico,
+  gravarMensagem,
+  gravarStatus,
+  tenantDoNumero,
+} from "@/lib/whatsapp/cloud-espelho";
 
 export const dynamic = "force-dynamic";
+/** Um pedaço do histórico da Coexistência pode trazer milhares de mensagens. */
+export const maxDuration = 300;
 
 export async function GET(req: Request) {
   const p = new URL(req.url).searchParams;
@@ -71,8 +80,26 @@ export async function POST(req: Request) {
         continue;
       }
       // Em ordem: numa rajada, a ordem de chegada é a ordem da conversa.
-      for (const m of lote.mensagens) if (await gravarMensagem(tenantId, m)) gravadas++;
+      for (const m of lote.mensagens) if (!m.importada && (await gravarMensagem(tenantId, m))) gravadas++;
+      const doHistorico = lote.mensagens.filter((m) => m.importada);
+      if (doHistorico.length) gravadas += await gravarHistorico(tenantId, doHistorico);
+      if (lote.contatos.length) await aplicarContatos(tenantId, lote.contatos);
       for (const s of lote.status) await gravarStatus(tenantId, s);
+
+      // O andamento da importação do histórico, para a tela de Configurações dizer em que pé
+      // está — ou que a barbearia não autorizou compartilhar.
+      if (lote.historicoRecusado || lote.historicoProgresso !== undefined) {
+        await adminDb.doc(`tenants/${tenantId}/private/whatsapp`).set(
+          {
+            sincronizacao: {
+              ...(lote.historicoRecusado ? { historicoRecusado: true } : {}),
+              ...(lote.historicoProgresso !== undefined ? { historicoProgresso: lote.historicoProgresso } : {}),
+              historicoEm: new Date().toISOString(),
+            },
+          },
+          { merge: true },
+        );
+      }
     }
   } catch (err) {
     // Falha de banco: 500 faz a Meta reentregar, e a gravação é idempotente pelo wamid.

@@ -18,6 +18,7 @@ import { PAPEL_LABEL, iniciaisDe } from "@/lib/pessoa";
 import type { Barbeiro, ItemFicha, RegraPote } from "@/lib/types";
 import type { EquipeAcessos } from "@/lib/equipe";
 import { AcessoBarbeiroModal } from "@/components/admin/AcessoBarbeiroModal";
+import { ConectarWhatsAppOficial } from "@/components/admin/ConectarWhatsAppOficial";
 import { acaoRemoverAcessoBarbeiro } from "@/app/(admin)/configuracoes/equipe-actions";
 import { acaoBackupCompleto } from "@/app/(admin)/configuracoes/dados-actions";
 import { abasBackup } from "@/lib/backup";
@@ -199,6 +200,8 @@ export function TelaConfiguracoes() {
   const [zap, setZap] = useState<EstadoPareamento | null>(null);
   const [zapBusy, setZapBusy] = useState(false);
   const [zapErro, setZapErro] = useState<string | null>(null);
+  /** Sobe quando o número é conectado pela API oficial, para reler o estado. */
+  const [zapVersao, setZapVersao] = useState(0);
 
   // Enquanto há QR na tela (ou conectando), pergunta de 2 em 2 segundos. É polling e não
   // listener de propósito: whatsappStatus/{uid} fica na raiz do Firestore, fora de
@@ -219,8 +222,12 @@ export function TelaConfiguracoes() {
         } else {
           setZapErro(null);
           setZap(r);
-          // Só continua perguntando enquanto o pareamento está em andamento.
+          // Só continua perguntando enquanto o pareamento está em andamento — ou enquanto o
+          // histórico do celular está sendo importado (API oficial), mais devagar.
           if (r.status === "qr" || r.status === "conectando") timer = setTimeout(consultar, 2000);
+          else if (r.oficial?.coexistencia && !r.oficial.historicoRecusado && (r.oficial.historicoProgresso ?? 0) < 100) {
+            timer = setTimeout(consultar, 10000);
+          }
         }
       } catch {
         if (vivo) setZapErro("Não foi possível consultar o WhatsApp.");
@@ -232,7 +239,7 @@ export function TelaConfiguracoes() {
       vivo = false;
       if (timer) clearTimeout(timer);
     };
-  }, [user, tenantId, zapBusy]);
+  }, [user, tenantId, zapBusy, zapVersao]);
 
   async function conectarZap() {
     if (!user || !tenantId || zapBusy) return;
@@ -496,7 +503,32 @@ export function TelaConfiguracoes() {
                   </div>
                 )}
 
-                {zap?.status === "conectado" ? (
+                {zap?.oficial ? (
+                  // API oficial: a conexão é da Meta, não há QR nem "desconectar" daqui. Na
+                  // Coexistência, desconectar é no próprio app (Configurações → Conta →
+                  // Plataforma comercial), e é o que a Meta exige.
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: c.inkTitle }}>
+                      Conectado pela API oficial{zap.numero ? ` · +${zap.numero}` : ""}
+                    </div>
+                    <div style={{ fontSize: 12.5, color: c.ink3, lineHeight: 1.45, margin: "4px 0 12px", maxWidth: 520 }}>
+                      {zap.oficial.coexistencia
+                        ? "O número continua funcionando no WhatsApp Business do celular, e o que é enviado por lá aparece aqui também."
+                        : "Este número funciona só pelo sistema."}
+                      {zap.oficial.historicoRecusado
+                        ? " O histórico de conversas do celular não foi compartilhado — só as conversas novas aparecem."
+                        : zap.oficial.historicoProgresso !== undefined && zap.oficial.historicoProgresso < 100
+                          ? ` Trazendo as conversas do celular: ${zap.oficial.historicoProgresso}%.`
+                          : ""}
+                    </div>
+                    <ConectarWhatsAppOficial
+                      user={user}
+                      tenantId={tenantId}
+                      rotulo="Trocar número"
+                      onConectado={() => setZapVersao((v) => v + 1)}
+                    />
+                  </div>
+                ) : zap?.status === "conectado" ? (
                   <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: c.inkTitle }}>
                       Conectado{zap.numero ? ` · +${zap.numero}` : ""}
@@ -542,6 +574,19 @@ export function TelaConfiguracoes() {
 
                 {zapErro && (
                   <div style={{ fontSize: 12.5, color: c.ink3, marginTop: 10 }}>{zapErro}</div>
+                )}
+
+                {!zap?.oficial && (
+                  <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px dashed ${c.borderSoft}` }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: c.inkTitle, marginBottom: 4 }}>
+                      API oficial do WhatsApp (recomendado)
+                    </div>
+                    <div style={{ fontSize: 12.5, color: c.ink3, lineHeight: 1.45, marginBottom: 12, maxWidth: 520 }}>
+                      Conecta o número pela Meta, sem risco de bloqueio. Se ele já usa o WhatsApp
+                      Business no celular, continua funcionando lá. Tenha o celular da barbearia em mãos.
+                    </div>
+                    <ConectarWhatsAppOficial user={user} tenantId={tenantId} onConectado={() => setZapVersao((v) => v + 1)} />
+                  </div>
                 )}
               </div>
             </div>

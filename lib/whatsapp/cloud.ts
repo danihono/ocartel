@@ -89,6 +89,12 @@ export interface MensagemCloud {
   mimeType?: string;
   fileName?: string;
   caption?: string;
+  /**
+   * Veio do histórico que a Meta entrega ao conectar um número que já era usado no app
+   * (Coexistência). É conversa velha: não conta como não lida, não acorda a IA e não passa
+   * na frente da mensagem mais recente na lista.
+   */
+  importada?: true;
 }
 
 export type StatusEnvio = "sent" | "delivered" | "read" | "failed";
@@ -102,11 +108,24 @@ export interface StatusCloud {
   erro?: { codigo: number; mensagem: string };
 }
 
+/** Um contato da agenda do celular da barbearia (Coexistência). */
+export interface ContatoCloud {
+  numero: string;
+  /** Nome como está salvo no celular. Vazio quando o contato foi apagado. */
+  nome: string;
+  acao: "add" | "remove";
+}
+
 /** Tudo que um POST do webhook trouxe para UM número da barbearia. */
 export interface LoteCloud {
   phoneNumberId: string;
   mensagens: MensagemCloud[];
   status: StatusCloud[];
+  contatos: ContatoCloud[];
+  /** A barbearia não autorizou compartilhar o histórico no app (erro 2593109). */
+  historicoRecusado?: boolean;
+  /** Progresso da importação do histórico, de 0 a 100. */
+  historicoProgresso?: number;
 }
 
 const ROTULO_MIDIA: Record<TipoMidia, string> = {
@@ -172,6 +191,10 @@ function conteudo(m: Obj): Pick<MensagemCloud, "text" | "mediaType" | "waMediaId
   // visualização única...). Melhor um aviso na conversa do que a mensagem sumir calada.
   if (tipo === "unsupported") return { text: "Mensagem não suportada — veja no celular" };
 
+  // No histórico, a mídia vem sem o arquivo: a Meta manda o conteúdo num webhook à parte
+  // (só para os últimos 14 dias), que cai no MESMO documento e o completa.
+  if (tipo === "media_placeholder") return { text: "📎 Mídia — veja no celular" };
+
   return null;
 }
 
@@ -184,7 +207,7 @@ export function lerWebhook(corpo: unknown): LoteCloud[] {
   const lotes = new Map<string, LoteCloud>();
   const loteDe = (id: string) => {
     let l = lotes.get(id);
-    if (!l) lotes.set(id, (l = { phoneNumberId: id, mensagens: [], status: [] }));
+    if (!l) lotes.set(id, (l = { phoneNumberId: id, mensagens: [], status: [], contatos: [] }));
     return l;
   };
 
@@ -236,6 +259,79 @@ export function lerWebhook(corpo: unknown): LoteCloud[] {
         }
       }
 
+      // Coexistência: o histórico de até 180 dias, entregue em pedaços depois da conexão.
+      // A conversa é a `thread`; quem mandou cada mensagem se descobre comparando o `from`
+      // com o número da própria barbearia.
+      if (campo === "history") {
+        const numeroBarbearia = texto(obj(value.metadata).display_phone_number);
+        for (const pedaco of lista(value.history)) {
+          const p = obj(pedaco);
+          if (lista(p.errors).some((e) => Number(obj(e).code) === 2593109)) {
+            loteDe(phoneNumberId).historicoRecusado = true;
+          }
+          const progresso = Number(obj(p.metadata).progress);
+          if (Number.isFinite(progresso)) loteDe(phoneNumberId).historicoProgresso = progresso;
+
+          for (const fio of lista(p.threads)) {
+            // Sem o telefone do cliente (quem usa nome de usuário pode vir só com o id da
+            // Meta), não há como casar com o cadastro nem responder: fica de fora.
+            const waId = texto(obj(fio).id) || texto(obj(obj(fio).context).wa_id);
+            if (!waId) continue;
+            for (const bruto of lista(obj(fio).messages)) {
+              const m = obj(bruto);
+              const c = conteudo(m);
+              if (!texto(m.id) || !c) continue;
+              loteDe(phoneNumberId).mensagens.push({
+                wamid: texto(m.id),
+                numero: numeroDoWaId(waId),
+                waId,
+                fromMe: Boolean(texto(m.to)) || (Boolean(numeroBarbearia) && texto(m.from) === numeroBarbearia),
+                sentAt: dataDoTimestamp(m.timestamp),
+                importada: true,
+                ...c,
+              });
+            }
+          }
+        }
+
+        // O arquivo de uma mídia do histórico chega depois, como `messages` dentro do campo
+        // `history`, com o mesmo wamid do marcador — e completa o mesmo documento.
+        for (const bruto of lista(value.messages)) {
+          const m = obj(bruto);
+          const de = texto(m.from);
+          const doCliente = de !== numeroBarbearia;
+          const waId = doCliente ? de : texto(m.to);
+          const c = conteudo(m);
+          if (!waId || !texto(m.id) || !c) continue;
+          loteDe(phoneNumberId).mensagens.push({
+            wamid: texto(m.id),
+            numero: numeroDoWaId(waId),
+            waId,
+            fromMe: !doCliente,
+            sentAt: dataDoTimestamp(m.timestamp),
+            importada: true,
+            ...c,
+          });
+        }
+      }
+
+      // Coexistência: a agenda do celular da barbearia. Serve para dar nome a quem ainda
+      // aparece só com o número.
+      if (campo === "smb_app_state_sync") {
+        for (const bruto of lista(value.state_sync)) {
+          const item = obj(bruto);
+          if (texto(item.type) !== "contact") continue;
+          const ct = obj(item.contact);
+          const numero = numeroDoWaId(texto(ct.phone_number));
+          if (!numero) continue;
+          loteDe(phoneNumberId).contatos.push({
+            numero,
+            nome: (texto(ct.full_name) || texto(ct.first_name)).trim(),
+            acao: texto(item.action) === "remove" ? "remove" : "add",
+          });
+        }
+      }
+
       // Coexistência: o que a barbearia escreveu pelo app do celular volta como "eco".
       // É assim que a conversa no sistema fica completa, como era com o daemon.
       if (campo === "smb_message_echoes") {
@@ -274,6 +370,7 @@ export function resumoWebhook(corpo: unknown) {
     lista(obj(entry).changes).map((change) => {
       const value = obj(obj(change).value);
       const mensagens = lista(value.messages).length ? lista(value.messages) : lista(value.message_echoes);
+      const historico = lista(value.history).map(obj);
       return {
         campo: texto(obj(change).field),
         phoneNumberId: texto(obj(value.metadata).phone_number_id),
@@ -282,6 +379,17 @@ export function resumoWebhook(corpo: unknown) {
         tipos: mensagens.map((m) => texto(obj(m).type)),
         chavesMensagem: [...new Set(mensagens.flatMap((m) => Object.keys(obj(m))))],
         status: lista(value.statuses).map((st) => texto(obj(st).status)),
+        ...(historico.length
+          ? {
+              historico: historico.map((h) => ({
+                progresso: obj(h.metadata).progress ?? null,
+                conversas: lista(h.threads).length,
+                mensagens: lista(h.threads).reduce((n: number, t) => n + lista(obj(t).messages).length, 0),
+                erros: lista(h.errors).map((e) => obj(e).code),
+              })),
+            }
+          : {}),
+        ...(lista(value.state_sync).length ? { contatos: lista(value.state_sync).length } : {}),
       };
     }),
   );
@@ -367,4 +475,58 @@ export async function enviarTexto(
   if (!wamid) return { ok: false, codigo: 0, erro: "A Meta aceitou o pedido mas não devolveu o id da mensagem." };
   const waId = texto(obj(lista(dados.contacts)[0]).wa_id);
   return { ok: true, wamid, ...(waId ? { waId } : {}) };
+}
+
+// ---------------------------------------------------------------------------
+// Conexão (Embedded Signup)
+// ---------------------------------------------------------------------------
+
+export type RespostaGraph = { ok: true; dados: Obj } | { ok: false; codigo: number; erro: string };
+
+/** Uma chamada à Graph API, com o erro já traduzido. `fetch` injetável para os testes. */
+export async function chamarGraph(
+  token: string,
+  metodo: "GET" | "POST",
+  caminho: string,
+  corpo?: Record<string, unknown>,
+  f: typeof fetch = fetch,
+): Promise<RespostaGraph> {
+  const resp = await f(`https://graph.facebook.com/${versaoGraph()}/${caminho}`, {
+    method: metodo,
+    headers: { authorization: `Bearer ${token}`, ...(corpo ? { "content-type": "application/json" } : {}) },
+    ...(corpo ? { body: JSON.stringify(corpo) } : {}),
+  });
+  const dados = obj(await resp.json().catch(() => ({})));
+  if (!resp.ok || dados.error) {
+    const e = obj(dados.error);
+    const codigo = Number(e.code ?? resp.status);
+    return { ok: false, codigo, erro: erroAmigavel(codigo, texto(obj(e.error_data).details) || texto(e.message)) };
+  }
+  return { ok: true, dados };
+}
+
+/**
+ * Troca o código da janela da Meta pelo token da barbearia ("business token").
+ *
+ * O código vale 30 segundos: esta é a primeira coisa a fazer quando ele chega, antes de
+ * qualquer outra chamada.
+ */
+export async function trocarCodigo(
+  appId: string,
+  appSecret: string,
+  code: string,
+  f: typeof fetch = fetch,
+): Promise<{ ok: true; token: string } | { ok: false; erro: string }> {
+  const q = new URLSearchParams({ client_id: appId, client_secret: appSecret, code });
+  const resp = await f(`https://graph.facebook.com/${versaoGraph()}/oauth/access_token?${q}`);
+  const dados = obj(await resp.json().catch(() => ({})));
+  const token = texto(dados.access_token);
+  if (resp.ok && token) return { ok: true, token };
+  const e = obj(dados.error);
+  return {
+    ok: false,
+    erro: texto(e.message)
+      ? `A Meta recusou a conexão: ${texto(e.message)}`
+      : "A Meta não devolveu o acesso. O código pode ter vencido — tente conectar de novo.",
+  };
 }

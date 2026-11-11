@@ -1,6 +1,16 @@
 import { createHmac } from "node:crypto";
 import { describe, it, expect, vi } from "vitest";
-import { assinaturaConfere, enviarTexto, erroAmigavel, idDoc, lerWebhook, numeroDoWaId, resumoWebhook } from "@/lib/whatsapp/cloud";
+import {
+  assinaturaConfere,
+  chamarGraph,
+  enviarTexto,
+  erroAmigavel,
+  idDoc,
+  lerWebhook,
+  numeroDoWaId,
+  resumoWebhook,
+  trocarCodigo,
+} from "@/lib/whatsapp/cloud";
 
 const SEGREDO = "segredo-do-app";
 const assinar = (corpo: string, segredo = SEGREDO) =>
@@ -220,5 +230,95 @@ describe("resumoWebhook", () => {
 describe("erroAmigavel", () => {
   it("explica a trava de país da Meta (130497)", () => {
     expect(erroAmigavel(130497, "Business account is restricted from messaging users in this country.")).toMatch(/país/);
+  });
+});
+
+describe("lerWebhook — Coexistência", () => {
+  const BARBEARIA = "551933334444";
+  const historico = (pedaco: Record<string, unknown>) =>
+    webhook("history", { metadata: { phone_number_id: "1445942491935699", display_phone_number: BARBEARIA }, history: [pedaco] });
+
+  it("histórico: quem mandou sai do `from`, tudo marcado como importado", () => {
+    const [lote] = lerWebhook(
+      historico({
+        metadata: { phase: 0, chunk_order: 1, progress: 55 },
+        threads: [
+          {
+            id: "551984487271",
+            messages: [
+              { from: BARBEARIA, id: "h1", timestamp: "10", type: "text", text: { body: "seu horário é às 15h" }, history_context: { status: "read" } },
+              { from: "551984487271", id: "h2", timestamp: "20", type: "text", text: { body: "fechado" } },
+              { from: BARBEARIA, id: "h3", timestamp: "30", type: "media_placeholder" },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(lote.historicoProgresso).toBe(55);
+    expect(lote.mensagens.map((m) => [m.wamid, m.fromMe, m.numero, m.text, m.importada])).toEqual([
+      ["h1", true, "5519984487271", "seu horário é às 15h", true],
+      ["h2", false, "5519984487271", "fechado", true],
+      ["h3", true, "5519984487271", "📎 Mídia — veja no celular", true],
+    ]);
+  });
+
+  it("histórico sem o telefone do cliente (só id de usuário) fica de fora", () => {
+    const lotes = lerWebhook(
+      historico({ threads: [{ context: { user_id: "BR.123" }, messages: [{ from_user_id: "BR.123", id: "h1", timestamp: "1", type: "text", text: { body: "oi" } }] }] }),
+    );
+    expect(lotes.flatMap((l) => l.mensagens)).toEqual([]);
+  });
+
+  it("o arquivo de uma mídia do histórico completa a mesma mensagem", () => {
+    const [lote] = lerWebhook(
+      webhook("history", {
+        metadata: { phone_number_id: "1445942491935699", display_phone_number: BARBEARIA },
+        messages: [{ from: "551984487271", id: "h3", timestamp: "30", type: "image", image: { id: "m9", mime_type: "image/jpeg" } }],
+      }),
+    );
+    expect(lote.mensagens[0]).toMatchObject({ wamid: "h3", fromMe: false, mediaType: "image", waMediaId: "m9", importada: true });
+  });
+
+  it("histórico recusado pela barbearia", () => {
+    const [lote] = lerWebhook(historico({ errors: [{ code: 2593109, title: "History sync is turned off" }] }));
+    expect(lote.historicoRecusado).toBe(true);
+    expect(lote.mensagens).toEqual([]);
+  });
+
+  it("agenda do celular vira contatos, com o nono dígito", () => {
+    const [lote] = lerWebhook(
+      webhook("smb_app_state_sync", {
+        state_sync: [
+          { type: "contact", contact: { full_name: "Daniel Honorato", phone_number: "551984487271" }, action: "add" },
+          { type: "contact", contact: { phone_number: "5519988887777" }, action: "remove" },
+        ],
+      }),
+    );
+    expect(lote.contatos).toEqual([
+      { numero: "5519984487271", nome: "Daniel Honorato", acao: "add" },
+      { numero: "5519988887777", nome: "", acao: "remove" },
+    ]);
+  });
+});
+
+describe("chamarGraph / trocarCodigo", () => {
+  it("troca o código pelo token", async () => {
+    const f = vi.fn(async () => new Response(JSON.stringify({ access_token: "EAAx", token_type: "bearer" })));
+    expect(await trocarCodigo("app", "seg", "cod", f as unknown as typeof fetch)).toEqual({ ok: true, token: "EAAx" });
+    const [url] = f.mock.calls[0] as unknown as [string];
+    expect(url).toContain("/oauth/access_token?client_id=app&client_secret=seg&code=cod");
+  });
+
+  it("código vencido vira mensagem em português", async () => {
+    const f = vi.fn(async () => new Response(JSON.stringify({ error: { message: "This authorization code has expired." } }), { status: 400 }));
+    const r = await trocarCodigo("app", "seg", "cod", f as unknown as typeof fetch);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.erro).toMatch(/recusou/);
+  });
+
+  it("erro da Graph sai traduzido", async () => {
+    const f = vi.fn(async () => new Response(JSON.stringify({ error: { code: 190, message: "token" } }), { status: 401 }));
+    const r = await chamarGraph("tk", "POST", "123/subscribed_apps", undefined, f as unknown as typeof fetch);
+    expect(r).toEqual({ ok: false, codigo: 190, erro: expect.stringMatching(/expirou/) });
   });
 });

@@ -44,6 +44,15 @@ export interface EstadoPareamento {
   erro: string | null;
   /** false quando o daemon não dá sinal de vida — a tela precisa dizer isso. */
   daemonOnline: boolean;
+  /** Só na API oficial: o resto deste objeto é do QR e não se aplica. */
+  oficial?: {
+    /** O número continua também no app WhatsApp Business do celular. */
+    coexistencia: boolean;
+    /** Importação do histórico do celular, de 0 a 100; ausente se ainda não começou. */
+    historicoProgresso?: number;
+    /** A barbearia não autorizou compartilhar o histórico no app. */
+    historicoRecusado?: boolean;
+  };
 }
 
 /** Batidas a cada 30 s; 120 s cobre uma perdida mais atraso de rede. */
@@ -94,7 +103,20 @@ export async function lerEstadoPareamento(tenantId: string): Promise<EstadoParea
   // Na API oficial a conexão é da Meta, não de um socket nosso: vinculado é conectado.
   const cloud = await apiOficial(tenantId);
   if (cloud) {
-    return { status: "conectado", qr: null, numero: cloud.numero ?? null, erro: null, daemonOnline: true };
+    const v = (await adminDb.doc(`tenants/${tenantId}/private/whatsapp`).get()).data() ?? {};
+    const sinc = (v.sincronizacao ?? {}) as { historicoProgresso?: number; historicoRecusado?: boolean };
+    return {
+      status: "conectado",
+      qr: null,
+      numero: cloud.numero ?? null,
+      erro: null,
+      daemonOnline: true,
+      oficial: {
+        coexistencia: v.coexistencia === true,
+        ...(typeof sinc.historicoProgresso === "number" ? { historicoProgresso: sinc.historicoProgresso } : {}),
+        ...(sinc.historicoRecusado ? { historicoRecusado: true } : {}),
+      },
+    };
   }
 
   const uid = uidDaBarbearia(tenantId);

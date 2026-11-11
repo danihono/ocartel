@@ -101,10 +101,53 @@ mensagem. `--desfazer` no lugar do `phoneNumberId` volta a barbearia para o daem
 Número de teste só fala com os até 5 números cadastrados no painel da Meta (erro 131030
 para qualquer outro).
 
+## Conectar o número da barbearia (Embedded Signup + Coexistência)
+
+Em **Configurações → Número do WhatsApp → API oficial do WhatsApp**, o botão abre a janela
+da Meta (Embedded Signup **v5** — v2 e v3 foram desligadas em 15/10/2026). No v5 a
+Coexistência vem ligada: se o número já é usado no **app WhatsApp Business**, a janela
+oferece mantê-lo lá, e ele passa a funcionar no app **e** no sistema.
+
+O que acontece depois (`lib/whatsapp/conectar.ts`, servidor com servidor):
+
+1. troca o código da janela (vale **30 s**) pelo token da barbearia;
+2. confere que o número não é de outra barbearia;
+3. inscreve o app na conta (`POST /{waba}/subscribed_apps`) — sem isso o webhook não
+   recebe nada dela (foi o que travou o número de teste);
+4. registra o número na API **só se não for Coexistência** (com PIN de 6 dígitos, guardado);
+5. grava `private/whatsapp`, o token em `private/whatsapp/credenciais/cloud` e o índice
+   `whatsappNumeros/{phoneNumberId}`, soltando o número antigo;
+6. na Coexistência, pede a **agenda** e o **histórico** do celular (`/smb_app_data`). A Meta
+   só aceita isso **uma vez** e **até 24 h** depois da conexão — por isso é na hora.
+
+O histórico (até 180 dias) chega em pedaços pelo webhook (`history`) e é gravado em lote
+com `importedFromHistory: true` — não conta como não lida e não acorda a IA. A agenda
+(`smb_app_state_sync`) dá nome às conversas que só tinham número; o cadastro vence. O que
+a barbearia escreve pelo celular volta como eco (`smb_message_echoes`).
+
+**Limites da Coexistência** (Meta): grupos não sincronizam; mensagens temporárias,
+visualização única, localização ao vivo e listas de transmissão são desligadas no app;
+20 mensagens por segundo. Quem usa nome de usuário no WhatsApp pode chegar sem telefone —
+essas mensagens ainda ficam de fora (o webhook registra o formato).
+
+### O que configurar na Meta (uma vez)
+
+1. **Login do Facebook para Empresas → Configurações → Client OAuth settings:** ligar
+   *Client OAuth login*, *Web OAuth login*, *Enforce HTTPS*, *Embedded Browser OAuth
+   Login*, *Strict Mode* e *Login with the JavaScript SDK*; em **Allowed domains** e
+   **Valid OAuth redirect URIs**, `https://ocartel-497f8.web.app/`.
+2. **Login do Facebook para Empresas → Configurations → Create from template →**
+   *WhatsApp Embedded Signup Configuration With 60 Expiration Token*. O **Configuration
+   ID** vai em `NEXT_PUBLIC_META_ES_CONFIG_ID` (`.env.production`, não é segredo).
+3. **WhatsApp → Configuração → Campos do webhook:** assinar também `account_update`,
+   `history`, `smb_app_state_sync` e `smb_message_echoes`.
+4. **Provedor de Tecnologia** (exigido pela Meta para a Coexistência): verificação da
+   empresa + App Review. Para testar, admins e desenvolvedores do app já conseguem usar a
+   janela.
+5. No celular da barbearia: **WhatsApp Business** 2.24.17 ou mais novo (o WhatsApp comum
+   não serve), e uma forma de pagamento no **WhatsApp Manager**.
+
 ## Próximas etapas
 
 - **Templates** para confirmação e cobrança (fora das 24 h).
 - **Download de mídia** recebida (`GET /{waMediaId}` com o token → Storage).
-- **Embedded Signup + Coexistência**: o barbeiro conecta o próprio número pela tela de
-  Configurações, sem script. Exige o app como **Provedor de Tecnologia** e a empresa
-  verificada.
