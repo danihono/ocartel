@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, it, expect, vi } from "vitest";
-import { assinaturaConfere, enviarTexto, idDoc, lerWebhook, numeroDoWaId } from "@/lib/whatsapp/cloud";
+import { assinaturaConfere, enviarTexto, idDoc, lerWebhook, numeroDoWaId, resumoWebhook } from "@/lib/whatsapp/cloud";
 
 const SEGREDO = "segredo-do-app";
 const assinar = (corpo: string, segredo = SEGREDO) =>
@@ -188,5 +188,31 @@ describe("enviarTexto", () => {
       expect(r.codigo).toBe(131047);
       expect(r.erro).toMatch(/24 horas/);
     }
+  });
+});
+
+describe("resumoWebhook", () => {
+  it("descreve o formato sem texto nem telefone", () => {
+    const resumo = resumoWebhook(
+      webhook("messages", {
+        contacts: [{ wa_id: "551984487271", profile: { name: "Daniel" } }],
+        messages: [{ id: "wamid.1", from: "551984487271", timestamp: "1", type: "text", text: { body: "segredo" } }],
+        statuses: [{ id: "w9", status: "read", recipient_id: "551984487271" }],
+      }),
+    );
+    expect(resumo).toEqual([
+      {
+        campo: "messages",
+        phoneNumberId: "1445942491935699",
+        chavesValue: ["messaging_product", "metadata", "contacts", "messages", "statuses"],
+        mensagens: 1,
+        tipos: ["text"],
+        chavesMensagem: ["id", "from", "timestamp", "type", "text"],
+        status: ["read"],
+      },
+    ]);
+    const cru = JSON.stringify(resumo);
+    expect(cru).not.toContain("segredo");
+    expect(cru).not.toContain("551984487271");
   });
 });

@@ -13,7 +13,7 @@
 // assinatura: sem conferir, quem descobrisse a URL faria a IA responder a quem quisesse.
 
 import { NextResponse } from "next/server";
-import { assinaturaConfere, lerWebhook } from "@/lib/whatsapp/cloud";
+import { assinaturaConfere, lerWebhook, resumoWebhook } from "@/lib/whatsapp/cloud";
 import { gravarMensagem, gravarStatus, tenantDoNumero } from "@/lib/whatsapp/cloud-espelho";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +55,10 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "json inválido" }, { status: 400 });
   }
+
+  // Só o formato (ver resumoWebhook): é o que permite saber, olhando o log, por que uma
+  // entrega aceita não virou conversa.
+  console.info("[whatsapp/webhook] recebido", JSON.stringify(resumoWebhook(corpo)));
 
   let gravadas = 0;
   try {

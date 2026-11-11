@@ -260,6 +260,33 @@ export function lerWebhook(corpo: unknown): LoteCloud[] {
   return [...lotes.values()];
 }
 
+/**
+ * O FORMATO de um POST, sem o conteúdo: campo, número da barbearia, quantas mensagens e
+ * status, os tipos e os NOMES dos campos de cada mensagem — nunca texto nem telefone.
+ *
+ * Vai para o log em toda entrega. A Meta muda o formato do webhook sem avisar (em 2026,
+ * por exemplo, mensagem de quem usa nome de usuário pode vir sem o telefone), e uma
+ * entrega aceita com 200 que não vira conversa é indistinguível de "não chegou nada" sem
+ * saber o que veio.
+ */
+export function resumoWebhook(corpo: unknown) {
+  return lista(obj(corpo).entry).flatMap((entry) =>
+    lista(obj(entry).changes).map((change) => {
+      const value = obj(obj(change).value);
+      const mensagens = lista(value.messages).length ? lista(value.messages) : lista(value.message_echoes);
+      return {
+        campo: texto(obj(change).field),
+        phoneNumberId: texto(obj(value.metadata).phone_number_id),
+        chavesValue: Object.keys(value),
+        mensagens: mensagens.length,
+        tipos: mensagens.map((m) => texto(obj(m).type)),
+        chavesMensagem: [...new Set(mensagens.flatMap((m) => Object.keys(obj(m))))],
+        status: lista(value.statuses).map((st) => texto(obj(st).status)),
+      };
+    }),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Envio
 // ---------------------------------------------------------------------------
