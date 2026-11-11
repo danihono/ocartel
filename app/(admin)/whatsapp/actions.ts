@@ -9,11 +9,12 @@
 
 import { adminDb } from "@/lib/firebase/admin";
 import { comoResultado, exigirQuemGerencia, type Resultado } from "@/lib/autorizacao";
-import { canalDoTenant, garantirContato, pedirFotoDePerfil, type EnvioResultado } from "@/lib/canal";
+import { canalDoTenant, garantirContato, pedirFotoDePerfil, usaApiOficial, type EnvioResultado } from "@/lib/canal";
 import { uidDaBarbearia } from "@/lib/canal/uid";
 import { vincular } from "@/lib/canal/vinculo";
 import { chaveTelefone, contactIdDoTelefone } from "@/lib/telefone";
 import { pausarPorHumano } from "@/lib/ia/atender";
+import { baixarMidias } from "@/lib/whatsapp/midia";
 
 /** Quanto a tela espera pelo daemon antes de deixar o espelho terminar a história. */
 const ESPERA_ENVIO_MS = 12_000;
@@ -138,6 +139,30 @@ export async function acaoMarcarLida(idToken: string, tenantId: string, contactI
       .doc(`users/${uidDaBarbearia(tenantId)}/contacts/${contactId}`)
       .set({ unreadCount: 0 }, { merge: true });
     return { ok: true };
+  } catch (err) {
+    return comoResultado(err);
+  }
+}
+
+/** Teto por pedido: a conversa aberta pede de novo se sobrar. */
+const MIDIAS_POR_PEDIDO = 10;
+
+/**
+ * Baixa as fotos e áudios ainda pendentes de uma conversa aberta (API oficial). O webhook
+ * já tenta na chegada; isto cobre o que ele não alcançou — histórico grande, falha passageira.
+ * Para barbearia no daemon não faz nada: lá quem baixa é ele.
+ */
+export async function acaoBaixarMidias(
+  idToken: string,
+  tenantId: string,
+  contactId: string,
+  messageIds: string[],
+): Promise<Resultado & { baixadas?: number }> {
+  try {
+    await exigirQuemGerencia(idToken, tenantId);
+    if (!(await usaApiOficial(tenantId))) return { ok: true, baixadas: 0 };
+    const alvos = messageIds.slice(0, MIDIAS_POR_PEDIDO).map((messageId) => ({ contactId, messageId }));
+    return { ok: true, baixadas: await baixarMidias(tenantId, alvos, 25_000) };
   } catch (err) {
     return comoResultado(err);
   }

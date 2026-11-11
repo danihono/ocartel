@@ -229,7 +229,7 @@ class CanalDaemon implements Canal {
  * pelo navegador (mesmo raciocínio do token do cartão). Sem token próprio, usa o da
  * variável de ambiente: é o caso do número de teste e do token de usuário do sistema.
  */
-async function tokenCloud(tenantId: string): Promise<string> {
+export async function tokenCloud(tenantId: string): Promise<string> {
   const snap = await adminDb.doc(`tenants/${tenantId}/private/whatsapp/credenciais/cloud`).get();
   // `trim`: uma quebra de linha colada junto com o token vira cabeçalho HTTP inválido.
   return (String(snap.get("token") ?? "") || process.env.WHATSAPP_TOKEN || "").trim();

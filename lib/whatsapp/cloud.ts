@@ -530,3 +530,64 @@ export async function trocarCodigo(
       : "A Meta não devolveu o acesso. O código pode ter vencido — tente conectar de novo.",
   };
 }
+
+// ---------------------------------------------------------------------------
+// Mídia
+// ---------------------------------------------------------------------------
+
+/**
+ * Teto do que o sistema baixa. Foto, áudio e vídeo do WhatsApp ficam bem abaixo (16 MB no
+ * máximo); só documento passa disso, e esse fica no celular — a rota não pode segurar um
+ * arquivo de 100 MB na memória.
+ */
+export const MIDIA_MAX_BYTES = 25 * 1024 * 1024;
+
+const EXTENSOES: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "video/mp4": "mp4",
+  "video/3gpp": "3gp",
+  "audio/ogg": "ogg",
+  "audio/mpeg": "mp3",
+  "audio/mp4": "m4a",
+  "audio/aac": "aac",
+  "audio/amr": "amr",
+  "application/pdf": "pdf",
+};
+
+/** Extensão do arquivo pelo tipo — `audio/ogg; codecs=opus` vira `ogg`. */
+export function extensaoDoMime(mime: string): string {
+  const base = mime.split(";")[0].trim().toLowerCase();
+  return EXTENSOES[base] ?? (base.split("/")[1]?.replace(/[^a-z0-9]/g, "") || "bin");
+}
+
+export type ArquivoMeta =
+  | { ok: true; bytes: Buffer; mime: string }
+  | { ok: false; erro: string; definitivo: boolean };
+
+/**
+ * Baixa uma mídia da Meta: primeiro pergunta o endereço (que vale 5 minutos), depois baixa
+ * com o token. A Meta guarda o arquivo por 30 dias — depois disso, só no celular.
+ *
+ * `definitivo` diz se adianta tentar de novo: mídia vencida ou grande demais não muda.
+ */
+export async function baixarArquivoMeta(token: string, mediaId: string, f: typeof fetch = fetch): Promise<ArquivoMeta> {
+  const info = await chamarGraph(token, "GET", mediaId, undefined, f);
+  if (!info.ok) {
+    // 100 / 131052 / 404: a mídia não existe mais (vencida, ou apagada pelo remetente).
+    const sumiu = info.codigo === 100 || info.codigo === 131052 || info.codigo === 404;
+    return { ok: false, erro: sumiu ? "mídia expirada — veja no celular" : info.erro, definitivo: sumiu };
+  }
+  const url = texto(info.dados.url);
+  const mime = texto(info.dados.mime_type) || "application/octet-stream";
+  const tamanho = Number(info.dados.file_size ?? 0);
+  if (!url) return { ok: false, erro: "a Meta não devolveu o endereço da mídia", definitivo: false };
+  if (tamanho > MIDIA_MAX_BYTES) return { ok: false, erro: "arquivo grande demais — veja no celular", definitivo: true };
+
+  const resp = await f(url, { headers: { authorization: `Bearer ${token}` } });
+  if (!resp.ok) return { ok: false, erro: `download recusado (${resp.status})`, definitivo: false };
+  const bytes = Buffer.from(await resp.arrayBuffer());
+  if (bytes.length > MIDIA_MAX_BYTES) return { ok: false, erro: "arquivo grande demais — veja no celular", definitivo: true };
+  return { ok: true, bytes, mime };
+}

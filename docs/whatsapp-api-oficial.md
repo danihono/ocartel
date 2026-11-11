@@ -17,7 +17,7 @@ com IA funcionam sem saber que o transporte mudou.
 | Conexão | QR em Configurações | feita na Meta; a tela mostra "conectado" |
 | Foto de perfil | sim | **não existe na API** (fica com as iniciais) |
 | Texto livre | sempre | só **até 24 h** depois da última mensagem do cliente |
-| Mídia recebida | baixada | **gravada como "📷 Foto" pendente** (`waMediaId` guardado; download é a próxima etapa) |
+| Mídia recebida | baixada | baixada da Meta pelo webhook e guardada no Storage (`lib/whatsapp/midia.ts`); o que não couber no tempo da entrega é baixado ao abrir a conversa |
 
 **Regra das 24 horas.** Fora da janela a Meta recusa texto livre (erro 131047) e a tela
 mostra o motivo em português. Mensagens de iniciativa da barbearia — **confirmação da
@@ -101,6 +101,20 @@ mensagem. `--desfazer` no lugar do `phoneNumberId` volta a barbearia para o daem
 Número de teste só fala com os até 5 números cadastrados no painel da Meta (erro 131030
 para qualquer outro).
 
+## Mídia (fotos, áudios, vídeos, documentos)
+
+A Meta manda só o id da mídia e guarda o arquivo por **30 dias**. O webhook baixa logo
+depois de gravar a mensagem (até 20 s por entrega), guarda em
+`users/barbearia-{t}/contacts/{contactId}/wa/` no Storage e grava `mediaUrl` com link de
+token — como o daemon fazia, por isso as regras do Storage continuam negando tudo. O que
+ficar para trás (pedaço grande do histórico, falha passageira) é baixado quando a conversa
+é aberta (`acaoBaixarMidias`, de 10 em 10).
+
+Mídia vencida, ou acima de 25 MB, vira "mídia não carregada" e fica no celular. No histórico
+da Coexistência, a Meta só entrega o arquivo das mídias dos **últimos 14 dias**; as mais
+antigas aparecem como "📎 Mídia — veja no celular". **Foto de perfil não existe na API
+oficial**: as conversas ficam com as iniciais.
+
 ## Conectar o número da barbearia (Embedded Signup + Coexistência)
 
 Em **Configurações → Número do WhatsApp → API oficial do WhatsApp**, o botão abre a janela
@@ -150,4 +164,4 @@ essas mensagens ainda ficam de fora (o webhook registra o formato).
 ## Próximas etapas
 
 - **Templates** para confirmação e cobrança (fora das 24 h).
-- **Download de mídia** recebida (`GET /{waMediaId}` com o token → Storage).
+- **Enviar** foto, áudio e documento pelo sistema (hoje o envio é só texto).

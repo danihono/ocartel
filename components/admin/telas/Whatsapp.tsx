@@ -25,7 +25,13 @@ import { uidDaBarbearia } from "@/lib/canal/uid";
 import { subscribeConversas, subscribeMensagens, type Conversa, type MensagemWa } from "@/lib/whatsapp/espelho";
 import { montarLista, waDoCliente, type ItemConversa } from "@/lib/whatsapp/lista";
 import { iaEmContato, sugestoesPorConversa } from "@/lib/whatsapp/sinais";
-import { acaoAdicionarConversa, acaoBuscarFoto, acaoEnviarMensagem, acaoMarcarLida } from "@/app/(admin)/whatsapp/actions";
+import {
+  acaoAdicionarConversa,
+  acaoBaixarMidias,
+  acaoBuscarFoto,
+  acaoEnviarMensagem,
+  acaoMarcarLida,
+} from "@/app/(admin)/whatsapp/actions";
 import { acaoConsultarPareamento } from "@/app/(admin)/configuracoes/actions";
 import { acaoPausarIa } from "@/app/(admin)/whatsapp/actions-sugestao";
 import { useNavegacao } from "@/components/admin/navegacao";
@@ -153,6 +159,23 @@ export function TelaWhatsapp() {
   const abertaBruta: ItemConversa | null = conversaId
     ? (todas.find((i) => i.conversa.id === conversaId) ?? null)
     : null;
+
+  // Fotos e áudios que ficaram sem arquivo (API oficial): pede uma vez por mensagem,
+  // enquanto a conversa está aberta. O arquivo aparece sozinho pelo snapshot.
+  const midiasPedidas = useRef(new Set<string>());
+  useEffect(() => {
+    if (!user || !tenantId || !conversaId) return;
+    const pendentes = mensagens
+      .filter((m) => m.mediaType && !m.mediaUrl && !m.mediaError && !midiasPedidas.current.has(m.id))
+      .map((m) => m.id)
+      // De 10 em 10, o teto do servidor: cada lote baixado muda o snapshot e puxa o próximo.
+      .slice(0, 10);
+    if (!pendentes.length) return;
+    pendentes.forEach((id) => midiasPedidas.current.add(id));
+    (async () => {
+      await acaoBaixarMidias(await user.getIdToken(), tenantId, conversaId, pendentes);
+    })().catch(() => {});
+  }, [user, tenantId, conversaId, mensagens]);
 
   // Zera o "não lidas" ao abrir. Quem incrementa é o daemon, então quem zera precisa ser
   // o servidor: as regras liberam só leitura do espelho para o navegador.

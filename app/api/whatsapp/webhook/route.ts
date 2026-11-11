@@ -13,7 +13,9 @@
 // assinatura: sem conferir, quem descobrisse a URL faria a IA responder a quem quisesse.
 
 import { NextResponse } from "next/server";
-import { assinaturaConfere, lerWebhook, resumoWebhook } from "@/lib/whatsapp/cloud";
+import { assinaturaConfere, idDoc, lerWebhook, resumoWebhook } from "@/lib/whatsapp/cloud";
+import { baixarMidias } from "@/lib/whatsapp/midia";
+import { contactIdDoTelefone } from "@/lib/telefone";
 import { adminDb } from "@/lib/firebase/admin";
 import {
   aplicarContatos,
@@ -26,6 +28,13 @@ import {
 export const dynamic = "force-dynamic";
 /** Um pedaço do histórico da Coexistência pode trazer milhares de mensagens. */
 export const maxDuration = 300;
+
+/**
+ * Quanto tempo de cada entrega pode ir para baixar fotos e áudios. Mensagem ao vivo traz uma
+ * ou duas mídias e cabe folgado; o que um pedaço grande do histórico não couber fica para
+ * quando a conversa for aberta (ver lib/whatsapp/midia.ts).
+ */
+const TEMPO_MIDIAS_MS = 20_000;
 
 export async function GET(req: Request) {
   const p = new URL(req.url).searchParams;
@@ -85,6 +94,13 @@ export async function POST(req: Request) {
       if (doHistorico.length) gravadas += await gravarHistorico(tenantId, doHistorico);
       if (lote.contatos.length) await aplicarContatos(tenantId, lote.contatos);
       for (const s of lote.status) await gravarStatus(tenantId, s);
+
+      // Depois de gravar: a mensagem já aparece na tela ("📷 Foto", pendente) e o arquivo
+      // chega em seguida. Falhar aqui não derruba a entrega — fica para a abertura da conversa.
+      const comMidia = lote.mensagens
+        .filter((m) => m.waMediaId)
+        .map((m) => ({ contactId: contactIdDoTelefone(m.numero), messageId: idDoc(m.wamid) }));
+      if (comMidia.length) await baixarMidias(tenantId, comMidia, TEMPO_MIDIAS_MS);
 
       // O andamento da importação do histórico, para a tela de Configurações dizer em que pé
       // está — ou que a barbearia não autorizou compartilhar.
