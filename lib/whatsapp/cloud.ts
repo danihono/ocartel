@@ -378,7 +378,11 @@ export function resumoWebhook(corpo: unknown) {
         mensagens: mensagens.length,
         tipos: mensagens.map((m) => texto(obj(m).type)),
         chavesMensagem: [...new Set(mensagens.flatMap((m) => Object.keys(obj(m))))],
-        status: lista(value.statuses).map((st) => texto(obj(st).status)),
+        // O código do erro entra junto: sem ele, "failed" no log não diz por quê.
+        status: lista(value.statuses).map((st) => {
+          const codigos = lista(obj(st).errors).map((e) => obj(e).code);
+          return codigos.length ? `${texto(obj(st).status)}:${codigos.join(",")}` : texto(obj(st).status);
+        }),
         ...(historico.length
           ? {
               historico: historico.map((h) => ({

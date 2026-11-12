@@ -221,6 +221,11 @@ describe("resumoWebhook", () => {
         status: ["read"],
       },
     ]);
+    expect(
+      resumoWebhook(
+        webhook("messages", { statuses: [{ id: "w1", status: "failed", recipient_id: "551984487271", errors: [{ code: 130497 }] }] }),
+      )[0].status,
+    ).toEqual(["failed:130497"]);
     const cru = JSON.stringify(resumo);
     expect(cru).not.toContain("segredo");
     expect(cru).not.toContain("551984487271");
