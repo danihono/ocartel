@@ -591,3 +591,30 @@ export async function baixarArquivoMeta(token: string, mediaId: string, f: typeo
   if (bytes.length > MIDIA_MAX_BYTES) return { ok: false, erro: "arquivo grande demais — veja no celular", definitivo: true };
   return { ok: true, bytes, mime };
 }
+
+/**
+ * A conta do WhatsApp (WABA) a que o token da barbearia dá acesso, perguntada à própria
+ * Meta (`debug_token`, com o token do app).
+ *
+ * É o plano B da conexão: a janela da Meta deveria mandar os ids num `message`, mas nem
+ * sempre ele chega à página (bloqueador, janela fechada antes, ordem dos eventos). O código
+ * chega — e com o token dele a Meta diz qual conta foi compartilhada.
+ */
+export async function descobrirWaba(
+  token: string,
+  /** Quem pergunta: o token do app (`appId|appSecret`) e, se houver, o do usuário do sistema. */
+  perguntadores: string[],
+  f: typeof fetch = fetch,
+): Promise<string | null> {
+  for (const quem of perguntadores.filter(Boolean)) {
+    const r = await chamarGraph(quem, "GET", `debug_token?input_token=${encodeURIComponent(token)}`, undefined, f);
+    if (!r.ok) continue;
+    const escopos = lista(obj(r.dados.data).granular_scopes).map(obj);
+    for (const nome of ["whatsapp_business_management", "whatsapp_business_messaging"]) {
+      // A primeira é a conta compartilhada mais recente — a desta conexão.
+      const alvo = texto(lista(escopos.find((e) => texto(e.scope) === nome)?.target_ids)[0]);
+      if (alvo) return alvo;
+    }
+  }
+  return null;
+}

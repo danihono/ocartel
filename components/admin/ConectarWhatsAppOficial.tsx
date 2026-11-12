@@ -24,8 +24,12 @@ const APP_ID = process.env.NEXT_PUBLIC_META_APP_ID ?? "";
 const CONFIG_ID = process.env.NEXT_PUBLIC_META_ES_CONFIG_ID ?? "";
 const VERSAO_GRAPH = "v27.0";
 
-/** Quanto o callback espera pelos ids da janela antes de seguir só com o código. */
-const ESPERA_IDS_MS = 6000;
+/**
+ * Quanto o callback espera pelos ids da janela antes de seguir só com o código. Sem eles o
+ * servidor descobre a conta pelo próprio token (ver `descobrirWaba`), então esperar mais não
+ * é necessário — mas o código vale 30 s, e a troca precisa caber.
+ */
+const ESPERA_IDS_MS = 8000;
 
 interface RespostaLogin {
   authResponse?: { code?: string } | null;
@@ -88,6 +92,9 @@ export function ConectarWhatsAppOficial({
       if (!e.origin.endsWith("facebook.com")) return;
       const s = lerSessaoEmbedded(e.data);
       if (!s) return;
+      // Fica no console de propósito: quando a conexão falha, é o que mostra o que a Meta
+      // mandou (só ids e o nome da etapa, nada secreto).
+      console.info("[whatsapp] janela da Meta:", s);
       sessao.current = s;
       if (s.tipo === "erro") {
         setFase("erro");

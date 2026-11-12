@@ -18,7 +18,7 @@ import { randomInt } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
 import { uidDaBarbearia } from "@/lib/canal/uid";
-import { chamarGraph, trocarCodigo } from "./cloud";
+import { chamarGraph, descobrirWaba, trocarCodigo } from "./cloud";
 import { refNumero } from "./cloud-espelho";
 
 export interface PedidoConexao {
@@ -39,17 +39,23 @@ export async function conectarNumeroOficial(tenantId: string, p: PedidoConexao):
   const appSecret = (process.env.WHATSAPP_APP_SECRET ?? "").trim();
   if (!appId || !appSecret) return { ok: false, erro: "O servidor não tem o ID ou a chave secreta do app da Meta." };
   if (!p.code) return { ok: false, erro: "A Meta não devolveu o código de acesso. Tente de novo." };
-  if (!p.wabaId) return { ok: false, erro: "A Meta não informou a conta do WhatsApp. Tente de novo." };
 
   // 1. Antes de tudo: o código vence em 30 segundos.
   const troca = await trocarCodigo(appId, appSecret, p.code);
   if (!troca.ok) return troca;
   const token = troca.token;
 
+  // Os ids vêm do aviso da janela, que às vezes não chega à página. Sem eles, a própria
+  // Meta diz a que conta este token dá acesso.
+  const wabaId =
+    p.wabaId ||
+    (await descobrirWaba(token, [`${appId}|${appSecret}`, (process.env.WHATSAPP_TOKEN ?? "").trim()]));
+  if (!wabaId) return { ok: false, erro: "A Meta não informou a conta do WhatsApp. Tente de novo." };
+
   // A janela costuma mandar o número; se não mandou, é o primeiro da conta.
   let phoneNumberId = p.phoneNumberId ?? "";
   if (!phoneNumberId) {
-    const numeros = await chamarGraph(token, "GET", `${p.wabaId}/phone_numbers?fields=id`);
+    const numeros = await chamarGraph(token, "GET", `${wabaId}/phone_numbers?fields=id`);
     const primeiro = numeros.ok ? (numeros.dados.data as { id?: string }[] | undefined)?.[0]?.id : undefined;
     if (!primeiro) return { ok: false, erro: "Não encontrei o número nesta conta do WhatsApp." };
     phoneNumberId = primeiro;
@@ -63,7 +69,7 @@ export async function conectarNumeroOficial(tenantId: string, p: PedidoConexao):
 
   // 2. Sem esta inscrição a conta fica muda para o webhook — foi exatamente o que travou o
   // número de teste.
-  const inscricao = await chamarGraph(token, "POST", `${p.wabaId}/subscribed_apps`);
+  const inscricao = await chamarGraph(token, "POST", `${wabaId}/subscribed_apps`);
   if (!inscricao.ok) return { ok: false, erro: `Não consegui ligar o webhook à conta: ${inscricao.erro}` };
 
   const info = await chamarGraph(
@@ -99,7 +105,7 @@ export async function conectarNumeroOficial(tenantId: string, p: PedidoConexao):
       uid: uidDaBarbearia(tenantId),
       provedor: "cloud",
       phoneNumberId,
-      wabaId: p.wabaId,
+      wabaId,
       coexistencia,
       ...(numero ? { numero } : {}),
       ...(dados.verified_name ? { nomeVerificado: String(dados.verified_name) } : {}),

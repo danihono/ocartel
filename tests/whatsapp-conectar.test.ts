@@ -116,6 +116,22 @@ describe("conectarNumeroOficial", () => {
     expect(banco.docs.has(`tenants/${T}/private/whatsapp`)).toBe(false);
   });
 
+  it("sem os ids da janela, descobre a conta pelo token e o número pela conta", async () => {
+    const chamadas = graph({
+      "oauth/access_token": { access_token: "EAAbiz" },
+      debug_token: { data: { granular_scopes: [{ scope: "whatsapp_business_management", target_ids: ["888"] }] } },
+      "888/phone_numbers": { data: [{ id: "999" }] },
+      "999?fields": { display_phone_number: "551933334444", is_on_biz_app: true, platform_type: "CLOUD_API" },
+      smb_app_data: { request_id: "req" },
+    });
+
+    const r = await conectarNumeroOficial(T, { code: "cod" });
+
+    expect(r).toMatchObject({ ok: true, coexistencia: true });
+    expect(chamadas.some((c) => c.url.includes("888/subscribed_apps"))).toBe(true);
+    expect(banco.docs.get(`tenants/${T}/private/whatsapp`)).toMatchObject({ phoneNumberId: "999", wabaId: "888" });
+  });
+
   it("sem a chave secreta no servidor, nem tenta", async () => {
     delete process.env.WHATSAPP_APP_SECRET;
     const chamadas = graph({});
