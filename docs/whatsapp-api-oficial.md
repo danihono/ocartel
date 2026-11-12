@@ -155,9 +155,9 @@ essas mensagens ainda ficam de fora (o webhook registra o formato).
    ID** vai em `NEXT_PUBLIC_META_ES_CONFIG_ID` (`.env.production`, não é segredo).
 3. **WhatsApp → Configuração → Campos do webhook:** assinar também `account_update`,
    `history`, `smb_app_state_sync` e `smb_message_echoes`.
-4. **Provedor de Tecnologia** (exigido pela Meta para a Coexistência): verificação da
-   empresa + App Review. Para testar, admins e desenvolvedores do app já conseguem usar a
-   janela.
+4. **Provedor de Tecnologia** — exigido pela Meta para a Coexistência, **inclusive para
+   testar**: sem ele a janela termina sem os ids e com um código recusado (subcódigo
+   36008). Passo a passo em `docs/meta-provedor-de-tecnologia.md`.
 5. No celular da barbearia: **WhatsApp Business** 2.24.17 ou mais novo (o WhatsApp comum
    não serve), e uma forma de pagamento no **WhatsApp Manager**.
 
